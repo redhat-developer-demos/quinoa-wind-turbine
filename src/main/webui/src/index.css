@@ -1,0 +1,14 @@
+@import url("https://fonts.googleapis.com/css?family=Indie+Flower:400,700&display=swap");
+
+body {
+  margin: 0;
+  font-family: "Indie Flower", "Comic Sans MS", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #0D1C2C;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
