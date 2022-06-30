@@ -65,7 +65,7 @@ public class PowerResource {
 
     private Multi<Power> emitAPeriodicPing() {
         return Multi.createFrom().ticks().every(Duration.ofSeconds(10))
-                .onItem().transform(x -> new Power(0));
+                .onItem().transform(x -> new Power(0, ""));
     }
 
     @POST
