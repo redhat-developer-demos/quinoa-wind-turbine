@@ -483,6 +483,11 @@ atob@^2.1.2:
   resolved "https://registry.yarnpkg.com/atob/-/atob-2.1.2.tgz#6d9517eb9e030d2436666651e86bd9f6f13533c9"
   integrity sha512-Wm6ukoaOGJi/73p/cl2GvLjTI5JM1k/O14isD73YML8StrH/7/lRFgmg8nICZgD3bZZvjwCGxtMOD3wWNAu8cg==
 
+auto-prefixer@^0.4.2:
+  version "0.4.2"
+  resolved "https://registry.yarnpkg.com/auto-prefixer/-/auto-prefixer-0.4.2.tgz#f961c7d81904573ae0182e7158fcd96782dcde57"
+  integrity sha512-CqXEbEfTNRG2hugs1/O2gqgULWtZd/FLo6lmEpJ1/ZufmFF3VQ5JTvLAP+5mMCPetnlkL6u5T195+TVjYGyjkQ==
+
 "babel-plugin-styled-components@>= 1.12.0":
   version "2.0.7"
   resolved "https://registry.yarnpkg.com/babel-plugin-styled-components/-/babel-plugin-styled-components-2.0.7.tgz#c81ef34b713f9da2b7d3f5550df0d1e19e798086"
