@@ -1,7 +1,7 @@
 import React from 'react';
 import styled from 'styled-components'
 import RaceTrack from "./components/RaceTrack";
-import {BrowserRouter, NavLink, Route, Routes} from "react-router-dom";
+import {BrowserRouter, Route, Routes} from "react-router-dom";
 import WindTurbine from './components/WindTurbine';
 
 const Title = styled.h1`
@@ -27,27 +27,9 @@ const Menu = styled.ul`
   }
 `
 
-const MainPage = () => (
+const Power = () => (
     <div>
-        <Title>Quinoa Racer</Title>
-        <Menu>
-            <li><NavLink to="/team1">Team 1</NavLink></li>
-            <li><NavLink to="/team2">Team 2</NavLink></li>
-        </Menu>
-    </div>
-);
-
-const Team1 = () => (
-    <div>
-        <Title>Team 1</Title>
-        <WindTurbine team={1} color="#ba2f34"  />
-    </div>
-);
-
-const Team2 = () => (
-    <div>
-        <Title>Team 2</Title>
-        <WindTurbine team={2} color="#b87832" />
+        <WindTurbine />
     </div>
 );
 
@@ -62,10 +44,8 @@ const App = () =>  {
     return(
         <BrowserRouter>
             <Routes>
-                <Route path="/" element={<MainPage />} />
                 <Route path="/race" element={<RacePage />} />
-                <Route path="/team1" element={<Team1 />} />
-                <Route path="/team2" element={<Team2 />} />
+                <Route path="/" element={<Power />} />
             </Routes>
         </BrowserRouter>
     );

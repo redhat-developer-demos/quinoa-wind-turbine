@@ -7,6 +7,8 @@ const WindTurbineContainer = styled.div`
   justify-items: center;
   align-items: center;
   height: 600px;
+  margin-top: -200px;
+  overflow: hidden;
   
   .turbine {
     display: grid;

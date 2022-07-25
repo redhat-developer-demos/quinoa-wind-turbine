@@ -4,8 +4,6 @@ import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.inject.Produces;
 
 import org.apache.kafka.common.serialization.Serdes;
-import org.apache.kafka.common.serialization.Serdes.IntegerSerde;
-import org.apache.kafka.common.serialization.Serdes.StringSerde;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.Consumed;
@@ -18,7 +16,7 @@ import org.apache.kafka.streams.state.Stores;
 @ApplicationScoped
 public class TopologyProducer {
     
-    private static final String USERACTIONS_TOPIC = "useractions";
+    private static final String USER_ACTIONS_TOPIC = "user-actions";
     public static final String COUNT_USER_ACTIONS_STORE = "countUserActionsStore"; 
 
     @Produces
@@ -28,7 +26,7 @@ public class TopologyProducer {
         final StreamsBuilder builder = new StreamsBuilder();
      
         final KStream<String, Integer> userActionsEvents = builder.stream(
-            USERACTIONS_TOPIC, Consumed.with(Serdes.String(), Serdes.Integer()));
+                USER_ACTIONS_TOPIC, Consumed.with(Serdes.String(), Serdes.Integer()));
 
             userActionsEvents
                 .groupByKey(Grouped.with(Serdes.String(), Serdes.Integer()))
