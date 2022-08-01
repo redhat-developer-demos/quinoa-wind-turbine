@@ -35,7 +35,6 @@ const Power = () => (
 
 const RacePage = () => (
     <div>
-        <Title>Race</Title>
         <RaceTrack />
     </div>
 );

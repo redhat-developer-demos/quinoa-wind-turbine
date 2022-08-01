@@ -1,145 +1,109 @@
 import React, {Component, useEffect, useState} from 'react'
 import styled from 'styled-components'
 import classNames from "classnames";
+import {volumeMeter} from "../../api";
 
 const WindTurbineContainer = styled.div`
-  display: grid;
-  justify-items: center;
-  align-items: center;
-  height: 600px;
-  margin-top: -200px;
-  overflow: hidden;
-  
-  .turbine {
-    display: grid;
-    justify-items: center;
-    align-items: center;
-    grid-template-columns: repeat(1, 1fr); /* one row, one column */
-    grid-template-rows: repeat(1, 1fr); /* one row, one column */
+  user-select:none;
+  svg {
     cursor: pointer;
-    height: 100%;
-    width: 100%;
-  }
-  
-  .pole,.pilot {
-    grid-row:1;
-    grid-column: 1;
+    height: 600px;
   }
 
-  .pole {
-    position: relative;
-    display: block;
-    align-self: end;
-    background-color: gray;
-    height: 40%;
-    width: 10px;
-    border-radius: 5px 5px 0 0;
-    z-index: 0;
+  .turbine {
+    transform: rotate(90deg);
+    transform-origin: 254px 169px;
+    animation: spin linear infinite;
+    animation-duration: ${props => props.speed === 0 ? 0 : `${props.speed}ms`};
+    animation-fill-mode: forwards;
   }
 
-  .pilot {
-    position: relative;
-    z-index: 1;
-  }
-
-
-  .pilot:after {
-    /* This is the central circle */
-    content: '';
-    display: block;
-
-    position: absolute;
-    top: 93px;
-    left: -6px;
-    z-index: 1;
-
-    height: 27px;
-    width: 27px;
-    border: 4px solid white;
-    border-radius: 50%;
-
-    /*Usually present in a reset sheet*/
-    box-sizing: border-box;
-  }
-
-  .pilot:after, .pilot .prop {
-    background-color: ${props => props.color };
-  }
-
-
-  .pilot .prop-container {
-    display: grid;
-    grid-template-columns: repeat(1, 1fr); /* one row, one column */
-    align-items: center;
-    justify-items: center;
-    transform-origin: 7px 107px; /* the origin of the spin should be bottom side, middle of the overall rectangle*/
-    animation: propeller 1s infinite linear;
-    animation-play-state: paused;
-  }
-
-  .turbine.turning .pilot .prop-container {
-    animation-play-state: running;
-  }
-
-  .pilot .prop {
-    height: 100px;
-    width: 14px;
-    border-radius: 50%;
-    grid-column: 1;
-    grid-row:1; /*Stack the propellers on top of each other*/
-    transform-origin: 50% 50%; /*Transform the propeller about its centre */
-  }
-
-  /* The the rotateZ rotates the propeller direction, the following transforms rotate around a point of a circle */
-  .prop:first-child {
-    transform: rotate(360deg) translate(0px) rotate(-360deg);
-  }
-
-  .prop:nth-child(2) {
-    transform: rotateZ(120deg) rotate(120deg) translate(-100px) rotate(-120deg);
-  }
-
-  .prop:last-child {
-    transform: rotateZ(240deg) rotate(240deg) translate(100px) rotate(-240deg);
-  }
-
-
-  @keyframes propeller {
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
     to {
-      transform: rotateZ(360deg);
+      transform: rotate(360deg);
     }
   }
 `
 
 const WindTurbineButton = (props) => {
-    const [turning, setTurning] = useState(false);
-    const [timer, setTimer] = useState();
 
-    function animate(e) {
-        if (props.onClick) {
-            props.onClick(e);
-        }
-        if (timer) {
-            clearTimeout(timer);
-        }
-        setTurning(true);
-        setTimer(setTimeout(() => {
-            setTurning(false);
-        }, 300));
+    useEffect(() => {
+        volumeMeter.startVolumeMeter().catch(e => console.error(e));
+        const interval = setInterval(() => {
+            let volume = volumeMeter.getVolume();
+            if(!volume) {
+                return;
+            }
+            if (volume > 20) {
+                props.generatePower(volume);
+            }
+        }, 500);
+        return () => clearInterval(interval);
+    }, []);
+
+    const onClick = (e) => {
+        e.preventDefault();
+        props.generatePower(30, true);
     }
-
     return (
-        <WindTurbineContainer color={props.color}>
-            <div className={classNames('turbine', { turning } )} onClick={animate}>
-                <div className="pilot">
-                    <div className="prop-container">
-                        <div className="prop"/>
-                        <div className="prop"/>
-                        <div className="prop"/>
-                    </div>
-                </div>
-                <div className="pole"/>
-            </div>
+        <WindTurbineContainer speed={props.speed} >
+            <svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" onClick={onClick}
+                 x="0px" y="0px"
+                 viewBox="80 0 400.702 505.702">
+                <path fill="#F4EFEF" d="M248.345,186.502C248.345,186.502,248.745,186.102,248.345,186.502c-0.4,0.8-0.4,1.6-0.4,2.4v222.8
+	h12v-227.2c-4,1.2-6,2-8.8,2C250.745,186.502,249.145,186.502,248.345,186.502z"/>
+                <rect x="231.945" y="415.702" fill={props.color} width="44" height="84"/>
+
+
+                <path
+                    d="M245.945,415.702c-2.4,0-4-1.6-4-4v-228c0-2.4,1.6-4,4-4s4,1.6,4,4v228C249.945,413.702,248.345,415.702,245.945,415.702z"
+                />
+                <path
+                    d="M261.945,415.702c-2.4,0-4-1.6-4-4v-228c0-2.4,1.6-4,4-4s4,1.6,4,4v228C265.945,413.702,264.345,415.702,261.945,415.702z"
+                />
+                <path d="M277.945,505.702h-48c-2.4,0-4-1.6-4-4v-88c0-2.4,1.6-4,4-4h48c2.4,0,4,1.6,4,4v88
+	C281.945,503.702,280.345,505.702,277.945,505.702z M233.945,497.702h40v-80h-40V497.702z"/>
+                <path d="M291.945,505.702h-76c-2.4,0-4-1.6-4-4s1.6-4,4-4h76c2.4,0,4,1.6,4,4S294.345,505.702,291.945,505.702z"/>
+
+                <g className="turbine">
+                    <path d="M254.345,188.502c-0.8,0-1.2,0-2,0c-10.8-1.2-18.8-10.8-17.6-21.6c1.2-10.8,10.8-18.8,21.6-17.6c2,0.4,4,2,3.6,4.4
+	c-0.4,2-2,4-4.4,3.6c-6.4-0.8-12,4-12.8,10.4s4,12,10.4,12.8c6.4,0.8,12-4,12.8-10.4c0-0.8,0-1.2,0-2c0-2.4,1.6-4,3.6-4.4
+	c2,0,4,1.6,4.4,3.6c0,1.2,0,2.4,0,3.2C272.745,180.902,263.945,188.502,254.345,188.502z"/>
+
+                    <path fill={props.color} d="M238.745,182.102l-112.4,75.6c20.8-3.6,72.4-14,88-31.2c13.2-14.8,23.2-30.4,29.2-41.6
+		C241.945,184.502,240.345,183.302,238.745,182.102z"/>
+                    <path fill={props.color} d="M315.545,183.302c-18.4-6.4-36.4-9.6-48.4-11.2c-0.4,2-0.8,4-2,5.6l112.4,75.2
+		C366.745,234.902,337.545,190.902,315.545,183.302z"/>
+                    <path fill={props.color} d="M252.345,151.302l0.4-138.8c-8.8,19.2-28.8,68-23.2,90.4c4,16.4,10.4,32.4,18.4,48.4
+		C249.145,151.302,250.345,151.302,252.345,151.302C251.945,151.302,251.945,151.302,252.345,151.302z"/>
+                    <path fill="#FF9999" d="M242.345,177.302c-0.8-0.8-2-1.2-2.8-0.4h-0.4c0.4,0.4,0.8,1.2,1.2,1.6l0,0l1.2,1.2c0,0,0,0,0.4,0
+		C242.745,179.302,242.745,178.102,242.345,177.302z"/>
+                    <path fill="white" d="M240.745,178.502c0.4,0.4,0.8,0.8,1.2,1.2L240.745,178.502L240.745,178.502z"/>
+                    <path fill="white" d="M246.745,156.502c0.4,0,0.8,0,0.8-0.4c0.4,0,0.4-0.4,0.8-0.8c-0.8,0-2,0.4-2.8,0.8
+		C245.945,156.102,246.345,156.502,246.745,156.502z"/>
+
+
+                    <path fill="white" d="M226.345,501.702v2h2C227.545,503.702,226.345,502.902,226.345,501.702z"/>
+                    <path d="M117.945,265.302c-1.6,0-3.2-1.2-3.6-2.4c-0.8-1.6,0-3.6,1.6-4.8l122.8-82.8c2-1.2,4.4-0.8,5.6,1.2c0.8,1.6,0.8,3.2,0,4.8
+	c1.2-1.2,3.2-1.2,4.4-0.4c2,1.2,2.8,3.6,1.6,5.6c-6.4,11.6-16.8,28.4-31.2,44.4c-20.8,23.2-97.2,34.4-100.4,34.8
+	C118.345,265.302,117.945,265.302,117.945,265.302z M243.545,181.702l-0.4,0.4l-107.2,72.4c24-4.8,64.4-14.4,77.2-28.8
+	c14-15.6,24-32,30-43.2C243.145,182.102,243.145,181.702,243.545,181.702z"/>
+                    <path d="M388.345,263.302c-0.8,0-1.6-0.4-2.4-0.8l-120.8-80.8c-2-1.2-2.4-3.6-1.2-5.6s3.6-2.4,5.6-1.2l105.2,70.4
+	c-13.2-20.4-37.6-54-56-60.4s-36.4-9.6-48.4-11.2c-2-0.4-3.6-2.4-3.6-4.4c0.4-2,2.4-3.6,4.4-3.6c12.4,1.6,30.8,4.8,50,11.6
+	c29.6,10.4,68.4,77.2,70,80c0.8,1.6,0.8,3.6-0.8,4.8C390.345,262.902,389.545,263.302,388.345,263.302z"/>
+                    <path d="M246.745,158.502c-1.6,0-2.8-0.8-3.6-2c-8.8-16.8-15.6-34.4-20-51.6c-7.6-30.4,26-99.6,27.6-102.8c0.8-1.6,2.8-2.4,4.4-2
+	c2,0.4,3.2,2,3.2,4l-0.4,149.2c0,2.4-1.6,4-4,4l0,0c-1.6,0-2.8-0.8-3.6-2c-0.4,1.2-0.8,2.4-2,2.8
+	C247.945,158.102,247.545,158.502,246.745,158.502z M250.345,22.502c-9.6,22.4-24,61.2-19.2,80.4c4.4,16.8,10.8,33.2,19.2,49.6
+	V22.502z"/>
+                    <path fill="white" d="M246.345,179.702c2,1.2,4,2.4,6.8,2.4c3.6,0.4,6.8-0.8,9.6-2.8c0.4-0.4,0.8-0.8,1.2-0.8
+	c2.4-2,4-5.2,4.4-8.8c0-0.8,0-1.6,0-2c-1.6-12-11.6-12.8-12.4-12.8c-0.4,0-0.8,0-1.6,0c-0.4,0-1.2,0-1.6,0c0,0.4-0.4,0.4-0.8,0.8
+	c-0.4,0-0.8,0.4-0.8,0.4c-0.4,0-0.8,0-1.2-0.4c-4.8,1.6-8.4,6-9.2,11.6c-0.4,3.6,0.8,6.8,2.8,9.6
+	C243.145,177.302,246.745,179.302,246.345,179.702z"/>
+                </g>
+            </svg>
         </WindTurbineContainer>
     )
 }

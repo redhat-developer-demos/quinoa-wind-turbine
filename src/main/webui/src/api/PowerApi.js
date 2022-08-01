@@ -1,7 +1,7 @@
-export async function generate(user) {
+export async function generate(user, quantity) {
     let fetchOptions = {
         method: "POST",
-        body: JSON.stringify({quantity: 1, source: user.name, destination: user.team }),
+        body: JSON.stringify({quantity, source: user.name, destination: user.team }),
         headers: { 'Content-Type': 'application/json' },
     };
     fetch(`/api/power`,

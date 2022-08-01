@@ -41,9 +41,6 @@ public class PowerResource {
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     public void generate(Power power) {
-        if (power.quantity() > 1) {
-            throw new IllegalArgumentException("We don't support that much energy for now");
-        }
         if (power.destination() > 2) {
             throw new IllegalArgumentException("We only have 2 teams for now");
         }
