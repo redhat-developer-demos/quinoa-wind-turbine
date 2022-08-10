@@ -6,55 +6,56 @@ This project uses Quarkus, the Supersonic Subatomic Java Framework.
 
 You can run your application in dev mode that enables live coding using:
 ```shell script
-./mvnw compile quarkus:dev
+quarkus dev
 ```
 
-> **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at http://localhost:8080/q/dev/.
+## Deploy on OpenShift
 
-## Packaging and running the application
+### Managed Kafka
 
-The application can be packaged using:
-```shell script
-./mvnw package
-```
-It produces the `quarkus-run.jar` file in the `target/quarkus-app/` directory.
-Be aware that it’s not an _über-jar_ as the dependencies are copied into the `target/quarkus-app/lib/` directory.
+1. Create Kafka instance
+2. Add Access:
+    1. All Accounts
+    2. Add perms
+    3. Consumer group is * allow All
+    4. Topic is * allow All
+    5. Save
+3. Add topic `power` and `user-actions` with default config
+4. In Openshift add "Red Hat OpenShift Streams for Apache Kafka"
+5. Select instance
+6. Deploy Windturbine app
+7. Add link in Topology view
+8. Start rollout on Windturbine Deployment config
 
-The application is now runnable using `java -jar target/quarkus-app/quarkus-run.jar`.
+### Openshift Sandbox
 
-If you want to build an _über-jar_, execute the following command:
-```shell script
-./mvnw package -Dquarkus.package.type=uber-jar
-```
+Create a new Openshift sandbox, then you need to log in from your terminal.
 
-The application, packaged as an _über-jar_, is now runnable using `java -jar target/*-runner.jar`.
-
-## Creating a native executable
-
-You can create a native executable using: 
-```shell script
-./mvnw package -Pnative
-```
-
-Or, if you don't have GraalVM installed, you can run the native executable build in a container using: 
-```shell script
-./mvnw package -Pnative -Dquarkus.native.container-build=true
-```
-
-You can then execute your native executable with: `./target/quinoa-wind-turbine-1.0.0-SNAPSHOT-runner`
-
-If you want to learn more about building native executables, please consult https://quarkus.io/guides/maven-tooling.
-
-### Deploy on OpenShift
-
-Prepare Kafka with roles and topics.
-
-Set envs `QUARKUS_KUBERNETES_CLIENT_TOKEN` and `QUARKUS_KUBERNETES_CLIENT_MASTER_URL`.
+### Generate certificate
 
 ```bash
-## First deployment
-quarkus build  -Dquarkus.kubernetes.deploy=true
+openssl req -newkey rsa:2048 -new -nodes -x509 -days 3650 -keyout key.pem -out cert.pem
+```
 
-## Update image
-quarkus build -Dquarkus.container-image.build=true
+### Secret
+
+```bash
+oc create secret generic https-secret --from-file=cert.pem=./cert.pem --from-file=key.pem=./key.pem
+```
+
+### Deploy
+
+```bash
+quarkus build  -Dquarkus.kubernetes.deploy=true -Dquarkus.profile=openshift
+```
+
+### Update:
+
+```bash
+quarkus build -Dquarkus.container-image.build=true -Dquarkus.profile=openshift
+```
+
+## Delete deployed  app
+```bash
+oc delete all -l app.kubernetes.io/name=quinoa-wind-turbine
 ```

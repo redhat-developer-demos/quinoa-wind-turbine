@@ -25,7 +25,7 @@ export async function sendEvent(type){
         .catch(e => console.error(e));
 }
 
-export const TEAM_COLORS = ['#5995E4', 'yellow'];
+export const TEAM_COLORS = ['#6C84A3', 'orange'];
 
 
 export function events(setStatus) {
@@ -45,11 +45,9 @@ export function events(setStatus) {
         }
     }
     const stream = new EventSource(`/api/game/events/`);
-
     stream.onmessage = m => onEvent(JSON.parse(m.data));
     stream.onerror = (e) => {
-        console.error(e);
-        stream.close();
+        console.error("Error while receiving events: " + JSON.stringify(e));
     }
     return () => {
         stream.close();

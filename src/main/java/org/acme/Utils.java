@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -19,12 +20,12 @@ final class Utils {
 
     static  {
         List<String> prod = cartesianProduct(NAMES, NAMES).stream()
+                .filter(s -> !Objects.equals(s.get(0), s.get(1)))
                 .map(s -> String.join("-", s.get(0), s.get(1)))
                 .collect(Collectors.toList());
         shuffle(prod);
         COMBINED_NAMES = unmodifiableList(prod);
     }
-
 
     public static String getNameById(int id) {
         if (id >= COMBINED_NAMES.size()) {

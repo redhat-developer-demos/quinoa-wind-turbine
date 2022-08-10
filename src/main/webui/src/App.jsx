@@ -35,6 +35,7 @@ const Power = () => (
 
 const RacePage = () => (
     <div>
+        <Title>The Race</Title>
         <RaceTrack />
     </div>
 );

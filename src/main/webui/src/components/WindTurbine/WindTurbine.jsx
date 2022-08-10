@@ -58,7 +58,7 @@ const WindTurbine = (props) => {
                     if (p) {
                         clearTimeout(p);
                     }
-                    return setTimeout(() => setPower(0), 2000);
+                    return setTimeout(() => setPower(0), 1000);
                 });
             }
         }

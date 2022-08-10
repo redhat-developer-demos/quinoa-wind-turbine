@@ -5,8 +5,8 @@ body {
   font-family: "Indie Flower", "Comic Sans MS", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #0D1C2C;
-  color: white;
+  background-color: #BDAD75;
+  color: black;
 }
 
 code {
