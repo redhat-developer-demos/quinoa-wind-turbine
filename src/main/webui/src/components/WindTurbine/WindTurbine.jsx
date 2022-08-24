@@ -39,10 +39,8 @@ const Input = styled.input`
 const WindTurbine = (props) => {
     const [user, setUser] = useState();
     const [status, setStatus] = useState("offline");
-    const [counter, setCounter] = useState(0);
+    const [generated, setCounter] = useState(0);
     const [power, setPower] = useState(0);
-    const [speed, setSpeed] = useState(0);
-    const [timer, setTimer] = useState();
     useEffect(() => {
         gameApi.assign().then(setUser);
     }, [])
@@ -54,28 +52,12 @@ const WindTurbine = (props) => {
             if (quantity > 0) {
                 powerApi.generate(user, quantity).then(r => {
                 });
-                setTimer(p => {
-                    if (p) {
-                        clearTimeout(p);
-                    }
-                    return setTimeout(() => setPower(0), 1000);
-                });
             }
         }
     }
 
 
-    useEffect(() => {
-        if(power > 0) {
-            let s = 5100 - (power * 5000) / 100;
-            console.log(s);
-            setSpeed(s);
-        } else {
-            setSpeed(0);
-        }
-    }, [power, setSpeed])
-
-    useEffect(() => gameApi.events(setStatus), [setStatus]);
+    useEffect(() => gameApi.status(setStatus), [setStatus]);
 
     return (
         <Container>
@@ -87,8 +69,8 @@ const WindTurbine = (props) => {
                     {status === "started" &&
                     (
                         <>
-                            <WindTurbineButton generatePower={generatePower} color={gameApi.TEAM_COLORS[user.team - 1]} speed={speed}/>
-                            <p>Generated <b>{counter} MW</b></p>
+                            <WindTurbineButton generatePower={generatePower} color={gameApi.TEAM_COLORS[user.team - 1]} generated={generated}/>
+                            <p>Generated <b>{generated} MW</b></p>
                         </>
                     )
                     }

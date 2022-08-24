@@ -53,3 +53,37 @@ export function events(setStatus) {
         stream.close();
     };
 }
+
+export function status(setStatus) {
+    let timeout = undefined;
+    const onEvent = (e) => {
+        if (e) {
+            console.log(`=> Received game event: ${e.type}`);
+            switch (e.type) {
+                case "start":
+                    setStatus("started");
+                    break;
+                case "stop":
+                    setStatus("online");
+                    break;
+                case "empty":
+                    setStatus(s => s !== "started" ? "online" : "started");
+                    break;
+            }
+        }
+        timeout = setTimeout(fetchStatus, 1000);
+    }
+    const fetchStatus = () => {
+        fetch('/api/game/status')
+            .catch(e => console.error("Error while receiving events: " + JSON.stringify(e)))
+            .then(r => r.json())
+            .then(onEvent);
+    };
+    fetchStatus();
+    return () => {
+        if (timeout) {
+            clearTimeout(timeout);
+            timeout = null;
+        }
+    }
+}
