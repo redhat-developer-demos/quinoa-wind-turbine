@@ -51,6 +51,7 @@ const Loading = styled.div`
 
 const User = styled.div`
     flex-grow: 1;
+  font-size: 1.5rem;
   
   svg {
     margin-right: 10px;
@@ -131,8 +132,11 @@ const WindTurbine = (props) => {
         }
     }
 
-
-    useEffect(() => gameApi.status(setStatus), [setStatus]);
+    const reset = () => {
+        setPower(0);
+        setCounter(0);
+    };
+    useEffect(() => gameApi.status(setStatus, reset), [setStatus]);
     const statusColor = status !== 'offline' ? 'green' : 'grey';
     const color = user && gameApi.TEAM_COLORS[user.team - 1];
     return (
@@ -145,7 +149,7 @@ const WindTurbine = (props) => {
                         <Status color={statusColor}>
                             {status === 'started' && <Bolt size={32}/>}
                             {status === 'offline' && <CloudOffline size={32}/>}
-                            {status === 'online' && <CloudDone size={32}/>}
+                            {status === 'paused' && <CloudDone size={32}/>}
                         </Status>
                     </TopBar>
                     {status === "started" ? (

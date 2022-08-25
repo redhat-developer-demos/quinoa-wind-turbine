@@ -1,8 +1,8 @@
-export async function assign(){
+export async function assign() {
     const id = sessionStorage.getItem('user-id') || '';
     let fetchOptions = {
         method: "POST",
-        headers: { 'Accept': 'application/json'},
+        headers: {'Accept': 'application/json'},
     };
     return await fetch(`/api/game/assign/${id}`,
         {...fetchOptions})
@@ -14,11 +14,11 @@ export async function assign(){
         });
 }
 
-export async function sendEvent(type){
+export async function sendEvent(type) {
     let fetchOptions = {
         method: "POST",
-        body: JSON.stringify({ type }),
-        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({type}),
+        headers: {'Content-Type': 'application/json'},
     };
     return await fetch(`/api/game/event`,
         {...fetchOptions})
@@ -28,19 +28,23 @@ export async function sendEvent(type){
 export const TEAM_COLORS = ['#6C84A3', 'orange'];
 
 
-export function events(setStatus) {
+export function events(setStatus, reset) {
 
     const onEvent = (e) => {
         console.log(`=> Received game event: ${e.type}`);
         switch (e.type) {
-            case "start":
-                setStatus("started");
+            case 'start':
+                setStatus('started');
                 break;
-            case "stop":
-                setStatus("online");
+            case 'reset':
+                if (reset) {
+                    reset();
+                }
+            case 'pause':
+                setStatus('paused');
                 break;
-            case "ping":
-                setStatus(s => s !== "started" ? "online" : "started");
+            case 'ping':
+                setStatus(s => s !== 'started' ? 'paused' : 'started');
                 break;
         }
     }
@@ -54,20 +58,24 @@ export function events(setStatus) {
     };
 }
 
-export function status(setStatus) {
+export function status(setStatus, reset) {
     let timeout = undefined;
     const onEvent = (e) => {
         if (e) {
             console.log(`=> Received game event: ${e.type}`);
             switch (e.type) {
-                case "start":
+                case 'start':
                     setStatus("started");
                     break;
-                case "stop":
-                    setStatus("online");
+                case 'reset':
+                    if (reset) {
+                        reset();
+                    }
+                case 'pause':
+                    setStatus("paused");
                     break;
                 case "empty":
-                    setStatus(s => s !== "started" ? "online" : "started");
+                    setStatus(s => s !== "started" ? "paused" : "started");
                     break;
             }
         }

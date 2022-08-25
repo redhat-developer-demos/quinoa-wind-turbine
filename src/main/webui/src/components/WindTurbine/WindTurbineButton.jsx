@@ -26,6 +26,7 @@ const WindTurbineContainer = styled.div`
 
 const WindTurbineButton = (props) => {
 
+    // Volume meter
     useEffect(() => {
         volumeMeter.startVolumeMeter().catch(e => console.error(e));
         const interval = setInterval(() => {
@@ -42,6 +43,7 @@ const WindTurbineButton = (props) => {
 
     const onClick = (e) => {
         e.preventDefault();
+        // Clicking
         props.generatePower(30, true);
     }
     return (

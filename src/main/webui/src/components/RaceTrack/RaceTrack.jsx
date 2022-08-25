@@ -1,8 +1,9 @@
 import React, {useEffect, useState} from 'react';
 import styled from 'styled-components'
 import { powerApi, gameApi } from '../../api';
-import { PlayBtn, StopBtn } from '@styled-icons/bootstrap';
-import Car from "./Car";
+import { Play, Pause, Refresh } from '@styled-icons/heroicons-outline';
+import Car from './Car';
+import _ from 'lodash';
 
 const Title = styled.h1`
   text-align: center;
@@ -49,22 +50,28 @@ const RaceContainer = styled.div`
 
 const Teams = styled.div`
   display: flex;
+  flex-grow: 1;
   flex-direction: column;
   margin-left: 20px;
   margin-right: 20px;
 `
 
-const Team = (props) => (
-    <div className={props.className}>
-        <h1 style={{color: gameApi.TEAM_COLORS[props.id - 1]}}>Team {props.id}</h1>
-        <ul>
-            {props.team.size > 0 ? Array.from(props.team).map((u, id) => (
-            <li key={id}>{u}</li>
-            )) : (<li>Waiting for players...</li>)
-            }
-        </ul>
-    </div>
-);
+const Team = (props) => {
+    let team = _.values(props.team);
+    team = team.sort((a, b) => b.generated - a.generated);
+    team = team.slice(0, 10);
+    return (
+        <div className={props.className}>
+            <h1 style={{color: gameApi.TEAM_COLORS[props.id - 1]}}>Team {props.id} - {props.generated} MW</h1>
+            <ol>
+                {team.length > 0 ? team.map((u, id) => (
+                    <li key={id}>{u.id} - {u.generated} MW</li>
+                )) : (<li>Waiting for players...</li>)
+                }
+            </ol>
+        </div>
+    );
+}
 
 const StyledTeam = styled(Team)`
   font-size: 1.0rem;
@@ -73,16 +80,20 @@ const StyledTeam = styled(Team)`
   h1 {
     border-bottom: 1px solid white;
   }
+  
+  li {
+    line-height: 25px;
+  }
 `;
 
-const Control = ({className, status}) => (
+const Control = ({className, status, reset}) => (
     <div className={className}>
-        <Title>The Race</Title>
         {status === 'started' ? (
-            <button onClick={() => gameApi.sendEvent('stop')}><StopBtn /></button>
+            <button onClick={() => gameApi.sendEvent('pause')}><Pause /></button>
         ) : (
-            <button onClick={() => gameApi.sendEvent('start')}><PlayBtn /></button>
+            <button onClick={() => gameApi.sendEvent('start')}><Play /></button>
         )}
+        <button onClick={() => gameApi.sendEvent('reset')}><Refresh /></button>
     </div>
 );
 
@@ -118,26 +129,40 @@ function computeDistance(power, nbUsers) {
     return (power * 100) / (CLICK_POWER * NB_CLICK_NEEDED_PER_USER * nbUsers);
 }
 
+function resetTeam(t) {
+    _.forEach(t, u => u.generated = 0);
+    return t;
+}
+
+function computePower(t) {
+    return _.values(t).reduce((a, u) => a + u.generated, 0);
+}
+
 const RawRaceTrack = (props) => {
     const [status, setStatus] = useState("offline");
-    const [power1, setPower1] = useState(0);
-    const [power2, setPower2] = useState(0);
-    const [team1, setTeam1] = useState(new Map());
-    const [team2, setTeam2] = useState(new Map());
+    const [team1, setTeam1] = useState({});
+    const [team2, setTeam2] = useState({});
 
+    const reset = () => {
+        setTeam1(resetTeam);
+        setTeam2(resetTeam);
+    };
+    useEffect(() => powerApi.consume([setTeam1, setTeam2]),
+        [setTeam1, setTeam2]);
+    useEffect(() => gameApi.events(setStatus, reset), [setStatus]);
 
-    useEffect(() => powerApi.consume([setPower1, setPower2], [setTeam1, setTeam2]),
-        [setPower1, setPower2, setTeam1, setTeam2]);
-    useEffect(() => gameApi.events(setStatus), [setStatus]);
+    const power1 = computePower(team1);
+    const power2 = computePower(team2);
     const nbUsers = 1;
     return (
         <div className={props.className}>
             <div className="left-bar">
-                <StyledControl status={status} />
+                <Title>The Race</Title>
                 <Teams>
-                    <StyledTeam id={1} team={team1}/>
-                    <StyledTeam id={2} team={team2}/>
+                    <StyledTeam id={1} team={team1} generated={power1} />
+                    <StyledTeam id={2} team={team2} generated={power2} />
                 </Teams>
+                <StyledControl status={status} reset={reset} />
             </div>
             <Race distance1={computeDistance(power1, nbUsers)} distance2={computeDistance(power2, nbUsers)}/>
         </div>
@@ -152,6 +177,8 @@ const RaceTrack = styled(RawRaceTrack)`
     bottom: 0;
     width: 350px;
     background-color: #262626;
+    display: flex;
+    flex-direction: column;
   }
 `
 
