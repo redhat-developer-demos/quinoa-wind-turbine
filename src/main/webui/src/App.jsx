@@ -4,13 +4,7 @@ import RaceTrack from "./components/RaceTrack";
 import {BrowserRouter, Route, Routes} from "react-router-dom";
 import WindTurbine from './components/WindTurbine';
 
-const Title = styled.h1`
-  text-align: center;
-  font-weight: 700;
-  margin: 30px 0 0 0;
-  font-size: 4rem;
-  color: white;
-`
+
 
 const Menu = styled.ul`
   list-style-type: none;
@@ -35,7 +29,6 @@ const Power = () => (
 
 const RacePage = () => (
     <div>
-        <Title>The Race</Title>
         <RaceTrack />
     </div>
 );

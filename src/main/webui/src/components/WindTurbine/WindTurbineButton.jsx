@@ -7,7 +7,8 @@ const WindTurbineContainer = styled.div`
   user-select:none;
   svg {
     cursor: pointer;
-    height: 600px;
+    height: 500px;
+    user-select:none;
   }
 
   .turbine {

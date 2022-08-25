@@ -4,8 +4,27 @@ import { powerApi, gameApi } from '../../api';
 import { PlayBtn, StopBtn } from '@styled-icons/bootstrap';
 import Car from "./Car";
 
+const Title = styled.h1`
+  text-align: center;
+  font-weight: 700;
+  font-size: 3rem;
+  color: white;
+`
+
 const RaceContainer = styled.div`
   text-align: center;
+  display: flex;
+  align-items: center;
+  position: fixed;
+  left: 350px;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  
+  svg {
+    height: auto;
+    width: 100%;
+  }
   
   .car {
     transition: offset-distance 300ms ease;
@@ -58,6 +77,7 @@ const StyledTeam = styled(Team)`
 
 const Control = ({className, status}) => (
     <div className={className}>
+        <Title>The Race</Title>
         {status === 'started' ? (
             <button onClick={() => gameApi.sendEvent('stop')}><StopBtn /></button>
         ) : (
@@ -102,8 +122,8 @@ const RawRaceTrack = (props) => {
     const [status, setStatus] = useState("offline");
     const [power1, setPower1] = useState(0);
     const [power2, setPower2] = useState(0);
-    const [team1, setTeam1] = useState(new Set());
-    const [team2, setTeam2] = useState(new Set());
+    const [team1, setTeam1] = useState(new Map());
+    const [team2, setTeam2] = useState(new Map());
 
 
     useEffect(() => powerApi.consume([setPower1, setPower2], [setTeam1, setTeam2]),
@@ -113,7 +133,7 @@ const RawRaceTrack = (props) => {
     return (
         <div className={props.className}>
             <div className="left-bar">
-                <StyledControl status={status}/>
+                <StyledControl status={status} />
                 <Teams>
                     <StyledTeam id={1} team={team1}/>
                     <StyledTeam id={2} team={team2}/>
@@ -125,11 +145,12 @@ const RawRaceTrack = (props) => {
 }
 
 const RaceTrack = styled(RawRaceTrack)`
-  margin: 20px auto;
-  display: flex;
-  width: 1127px;
   .left-bar {
-    flex-basis: 350px;
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 350px;
     background-color: #262626;
   }
 `
