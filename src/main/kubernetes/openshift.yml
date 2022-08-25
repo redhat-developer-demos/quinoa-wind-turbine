@@ -1,0 +1,34 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: quinoa-wind-turbine
+spec:
+  to:
+    kind: Service
+    name: quinoa-wind-turbine
+    weight: 100
+  port:
+    targetPort: 8443
+  tls:
+    termination: passthrough
+    insecureEdgeTerminationPolicy: Redirect
+    wildcardPolicy: None
+---
+kind: DeploymentConfig
+apiVersion: apps.openshift.io/v1
+metadata:
+  name: quinoa-wind-turbine
+spec:
+  template:
+    spec:
+      volumes:
+        - name: https-secret
+          secret:
+            secretName: https-secret
+            defaultMode: 420
+      containers:
+        - name: quinoa-wind-turbine
+          volumeMounts:
+            - name: https-secret
+              readOnly: true
+              mountPath: /mnt/https-secret
