@@ -56,10 +56,12 @@ const Teams = styled.div`
   margin-right: 20px;
 `
 
+const SHOW_TOP = 10;
+
 const Team = (props) => {
     let team = _.values(props.team);
     team = team.sort((a, b) => b.generated - a.generated);
-    team = team.slice(0, 10);
+    team = team.slice(0, SHOW_TOP);
     return (
         <div className={props.className}>
             <h1 style={{color: gameApi.TEAM_COLORS[props.id - 1]}}>Team {props.id} - {props.generated} MW</h1>

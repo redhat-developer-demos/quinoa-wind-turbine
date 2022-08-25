@@ -158,7 +158,7 @@ const WindTurbine = (props) => {
                             <Generated>{generated}</Generated>
                         </>
                     ):(
-                        <Loading><div><img src="./car-1.png" /></div><div>Waiting for game...</div></Loading>
+                        <Loading><div><img src={`./car-${user.team}.png`} /></div><div>Waiting for game...</div></Loading>
                     )}
 
 
