@@ -2,8 +2,11 @@ import React, {useEffect, useState} from 'react';
 import styled from 'styled-components'
 import { powerApi, gameApi } from '../../api';
 import { Play, Pause, Refresh } from '@styled-icons/heroicons-outline';
+import { Trophy } from '@styled-icons/ionicons-outline';
 import Car from './Car';
 import _ from 'lodash';
+import { StopWatch } from './StopWatch';
+import { SHOW_TOP, CLICK_POWER, NB_CLICK_NEEDED_PER_USER } from '../../Config';
 
 const Title = styled.h1`
   text-align: center;
@@ -54,9 +57,16 @@ const Teams = styled.div`
   flex-direction: column;
   margin-left: 20px;
   margin-right: 20px;
+  
+  .stopwatch {
+    font-size: 1.5rem;
+    
+    &:before {
+      content: 'Time: ';
+      font-weight: bold;
+    }
+  }
 `
-
-const SHOW_TOP = 10;
 
 const Team = (props) => {
     let team = _.values(props.team);
@@ -64,13 +74,17 @@ const Team = (props) => {
     team = team.slice(0, SHOW_TOP);
     return (
         <div className={props.className}>
-            <h1 style={{color: gameApi.TEAM_COLORS[props.id - 1]}}>Team {props.id} - {props.generated} MW</h1>
+            <h1 style={{color: gameApi.TEAM_COLORS[props.id - 1]}}>
+                {props.winner === props.id && <Trophy size={32}/>}
+                Team {props.id}{props.winner < 0 && <>- {props.generated} MW</>}
+            </h1>
             <ol>
                 {team.length > 0 ? team.map((u, id) => (
                     <li key={id}>{u.id} - {u.generated} MW</li>
                 )) : (<li>Waiting for players...</li>)
                 }
             </ol>
+            {props.time && <StopWatch time={props.time} running={false} />}
         </div>
     );
 }
@@ -81,6 +95,11 @@ const StyledTeam = styled(Team)`
   
   h1 {
     border-bottom: 1px solid white;
+    
+    svg {
+      margin-right: 10px;
+      margin-top: -10px;
+    }
   }
   
   li {
@@ -121,8 +140,7 @@ const Race = (props) => (
     </RaceContainer>
 );
 
-const CLICK_POWER = 30;
-const NB_CLICK_NEEDED_PER_USER = 50;
+
 
 function computeDistance(power, nbUsers) {
     if (nbUsers === 0) {
@@ -140,14 +158,30 @@ function computePower(t) {
     return _.values(t).reduce((a, u) => a + u.generated, 0);
 }
 
+function computeWinner(result) {
+    if (result.team1 && result.team2) {
+        return result.team1 < result.team2 ? 1 : 2;
+    }
+    if (result.team1) {
+        return 1;
+    }
+    if (result.team2) {
+        return 2;
+    }
+    return -1;
+}
+
 const RawRaceTrack = (props) => {
+    const [result, setResult] = useState({});
     const [status, setStatus] = useState("offline");
     const [team1, setTeam1] = useState({});
     const [team2, setTeam2] = useState({});
-
+    const [time, setTime] = useState(0);
     const reset = () => {
         setTeam1(resetTeam);
         setTeam2(resetTeam);
+        setTime(0);
+        setResult({});
     };
     useEffect(() => powerApi.consume([setTeam1, setTeam2]),
         [setTeam1, setTeam2]);
@@ -156,17 +190,28 @@ const RawRaceTrack = (props) => {
     const power1 = computePower(team1);
     const power2 = computePower(team2);
     const nbUsers = 1;
+    const distance1 = computeDistance(power1, nbUsers);
+    const distance2 = computeDistance(power2, nbUsers);
+    useEffect(() => {
+        if (!result.team1 && distance1 >= 100) {
+            setResult(p => ({...p, team1: time }))
+        } else if (!result.team2 && distance2 >= 100) {
+            setResult(p => ({...p, team2: time }))
+        }
+    }, [time, distance1, distance2, setResult, result])
+    const winner = computeWinner(result);
     return (
         <div className={props.className}>
             <div className="left-bar">
                 <Title>The Race</Title>
                 <Teams>
-                    <StyledTeam id={1} team={team1} generated={power1} />
-                    <StyledTeam id={2} team={team2} generated={power2} />
+                    <StyledTeam id={1} team={team1} generated={power1} time={result.team1} winner={winner} />
+                    <StyledTeam id={2} team={team2} generated={power2} time={result.team2} winner={winner} />
                 </Teams>
+                <StopWatch time={time} setTime={setTime} running={status === 'started'} />
                 <StyledControl status={status} reset={reset} />
             </div>
-            <Race distance1={computeDistance(power1, nbUsers)} distance2={computeDistance(power2, nbUsers)}/>
+            <Race distance1={distance1} distance2={distance2}/>
         </div>
     )
 }

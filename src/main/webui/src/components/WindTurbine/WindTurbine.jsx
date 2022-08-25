@@ -111,7 +111,6 @@ const Generated = styled.div`
   }
 `
 
-
 const WindTurbine = (props) => {
     const [user, setUser] = useState();
     const [status, setStatus] = useState("offline");

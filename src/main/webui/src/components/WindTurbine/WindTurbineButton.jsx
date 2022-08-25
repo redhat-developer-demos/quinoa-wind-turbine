@@ -1,7 +1,8 @@
-import React, {Component, useEffect, useState} from 'react'
+import React, { useEffect } from 'react'
 import styled from 'styled-components'
-import classNames from "classnames";
-import {volumeMeter} from "../../api";
+import { volumeMeter } from "../../api";
+import { CLICK_POWER, ENABLE_BLOWING, ENABLE_CLICK } from '../../Config';
+
 
 const WindTurbineContainer = styled.div`
   user-select:none;
@@ -27,24 +28,29 @@ const WindTurbineContainer = styled.div`
 const WindTurbineButton = (props) => {
 
     // Volume meter
-    useEffect(() => {
-        volumeMeter.startVolumeMeter().catch(e => console.error(e));
-        const interval = setInterval(() => {
-            let volume = volumeMeter.getVolume();
-            if(!volume) {
-                return;
-            }
-            if (volume > 20) {
-                props.generatePower(volume);
-            }
-        }, 200);
-        return () => clearInterval(interval);
-    }, []);
+    if (ENABLE_BLOWING) {
+        useEffect(() => {
+            volumeMeter.startVolumeMeter().catch(e => console.error(e));
+            const interval = setInterval(() => {
+                let volume = volumeMeter.getVolume();
+                if(!volume) {
+                    return;
+                }
+                if (volume > 20) {
+                    props.generatePower(volume);
+                }
+            }, 200);
+            return () => clearInterval(interval);
+        }, []);
+    }
+
 
     const onClick = (e) => {
         e.preventDefault();
         // Clicking
-        props.generatePower(30, true);
+        if (ENABLE_CLICK) {
+            props.generatePower(CLICK_POWER, true);
+        }
     }
     return (
         <WindTurbineContainer generated={props.generated} color={props.color} >
