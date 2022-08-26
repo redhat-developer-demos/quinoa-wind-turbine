@@ -1,17 +1,20 @@
-const IS_TOUCH_DEVICE = (('ontouchstart' in window) ||
+export const IS_TOUCH_DEVICE = (('ontouchstart' in window) ||
     (navigator.maxTouchPoints > 0) ||
     (navigator.msMaxTouchPoints > 0));
 
 // Dashboard
-export const CLICK_POWER = 30;
+export const CLICK_POWER = 30; // in MW
 export const NB_CLICK_NEEDED_PER_USER = 200;
 export const SHOW_TOP = 10;
 
 // Mobile app
-export const ENABLE_CLICK = !IS_TOUCH_DEVICE;
-export const ENABLE_SWIPE = IS_TOUCH_DEVICE
+export const ENABLE_CLICKING = true;
+export const ENABLE_SHAKING = true; // "false" in v1, set to "true" in v2
 export const ENABLE_BLOWING = false;
+export const ENABLE_SWIPING = false;
 
-console.log("Swipe Sensor: ", ENABLE_SWIPE);
-console.log("Click Sensor: ", ENABLE_CLICK);
+// LOGGING
+console.log("Swiping Sensor: ", ENABLE_SWIPING);
+console.log("Clicking Sensor: ", ENABLE_CLICKING);
 console.log("Blowing Sensor: ", ENABLE_BLOWING);
+console.log("Shaking Sensor: ", ENABLE_SHAKING);

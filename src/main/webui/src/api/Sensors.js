@@ -1,3 +1,6 @@
+import Shake from './Shake';
+import { ENABLE_BLOWING, ENABLE_SHAKING } from '../Config';
+
 let analyserNode;
 let pcmData;
 
@@ -12,6 +15,10 @@ export async function startVolumeMeter() {
     analyserNode = audioContext.createAnalyser();
     mediaStreamAudioSourceNode.connect(analyserNode);
     pcmData = new Float32Array(analyserNode.fftSize);
+}
+
+if (ENABLE_BLOWING) {
+    startVolumeMeter().catch(e => console.error(e));;
 }
 
 export function getVolume() {
@@ -56,4 +63,15 @@ export function startSwipeSensor(handler) {
             }
         }
     })
+}
+
+let shake;
+
+export function enableShakeSensor() {
+    shake = new Shake();
+}
+
+export function startShakeSensor(handler) {
+    shake.start(handler);
+    return () => shake.stop();
 }

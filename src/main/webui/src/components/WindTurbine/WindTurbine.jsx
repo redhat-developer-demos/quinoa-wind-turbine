@@ -1,10 +1,12 @@
 import React, {useEffect, useState} from 'react'
 import styled from 'styled-components'
 import WindTurbineButton from './WindTurbineButton';
-import { gameApi, powerApi } from '../../api';
-import { Bolt } from '@styled-icons/boxicons-solid';
-import { CloudDone, CloudOffline } from '@styled-icons/ionicons-outline';
-import { Game }  from '@styled-icons/boxicons-regular'
+import {gameApi, powerApi} from '../../api';
+import {Bolt} from '@styled-icons/boxicons-solid';
+import {CloudDone, CloudOffline} from '@styled-icons/ionicons-outline';
+import {Game} from '@styled-icons/boxicons-regular'
+import {ENABLE_SHAKING} from '../../Config';
+import { sensors } from "../../api";
 
 const Container = styled.div`
   text-align: center;
@@ -21,8 +23,16 @@ const Container = styled.div`
 `
 
 const Status = styled.div`
-    margin-left: 10px;
-    color: ${props => props.color};
+  margin-left: 10px;
+  color: ${props => props.color};
+`
+
+const Button = styled.div`
+  background-color: orange;
+  padding: 10px;
+  color: white;
+  text-transform: uppercase;
+  margin-bottom: 20px;
 `
 
 const Loading = styled.div`
@@ -34,31 +44,31 @@ const Loading = styled.div`
     height: 40px;
     animation: spin 3s linear infinite;
   }
-  
+
   & > div:first-child {
     flex-basis: 100px;
   }
-  
+
   @keyframes spin {
     from {
-      transform:rotate(0deg);
+      transform: rotate(0deg);
     }
     to {
-      transform:rotate(360deg);
+      transform: rotate(360deg);
     }
   }
 `
 
 const User = styled.div`
-    flex-grow: 1;
+  flex-grow: 1;
   font-size: 1.5rem;
-  
+
   svg {
     margin-right: 10px;
   }
 `
 
-const Team =  styled.div`
+const Team = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -66,7 +76,7 @@ const Team =  styled.div`
   font-size: 1.5rem;
   font-weight: bold;
   line-height: 1.5rem;
-  
+
   &:before {
     content: 'Team';
     font-size: 0.7rem;
@@ -88,7 +98,7 @@ const TopBar = styled.div`
   align-items: center;
   padding-right: 10px;
   padding-left: 10px;
-  
+
   div {
     text-align: left;
   }
@@ -103,6 +113,7 @@ const Generated = styled.div`
   font-weight: bold;
   line-height: 3rem;
   margin-top: 40px;
+
   &:after {
     content: 'MW';
     font-size: 1.5rem;
@@ -116,6 +127,7 @@ const WindTurbine = (props) => {
     const [status, setStatus] = useState("offline");
     const [generated, setCounter] = useState(0);
     const [power, setPower] = useState(0);
+    const [shakingEnabled, setShakingEnabled] = useState(false);
     useEffect(() => {
         gameApi.assign().then(setUser);
     }, [])
@@ -138,6 +150,10 @@ const WindTurbine = (props) => {
     useEffect(() => gameApi.status(setStatus, reset), [setStatus]);
     const statusColor = status !== 'offline' ? 'green' : 'grey';
     const color = user && gameApi.TEAM_COLORS[user.team - 1];
+    function enableShaking() {
+        sensors.enableShakeSensor();
+        setShakingEnabled(true);
+    }
     return (
         <Container>
             {user && (
@@ -151,16 +167,20 @@ const WindTurbine = (props) => {
                             {status === 'paused' && <CloudDone size={32}/>}
                         </Status>
                     </TopBar>
+                    {ENABLE_SHAKING && !shakingEnabled && <Button onClick={enableShaking}>Enable Shaking</Button>}
                     {status === "started" ? (
                         <>
-                            <WindTurbineButton generatePower={generatePower} color={color} generated={generated}/>
+                            <WindTurbineButton generatePower={generatePower} color={color} generated={generated} shakingEnabled={shakingEnabled}/>
                             <Generated>{generated}</Generated>
                         </>
-                    ):(
-                        <Loading><div><img src={`./car-${user.team}.png`} /></div><div>Waiting for game...</div></Loading>
+                    ) : (
+                        <>
+                            <Loading>
+                                <div><img src={`./car-${user.team}.png`}/></div>
+                                <div>Waiting for game...</div>
+                            </Loading>
+                        </>
                     )}
-
-
                 </>
             )}
         </Container>

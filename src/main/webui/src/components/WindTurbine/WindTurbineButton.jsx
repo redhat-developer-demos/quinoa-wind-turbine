@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react'
 import styled from 'styled-components'
-import { CLICK_POWER, ENABLE_BLOWING, ENABLE_CLICK, ENABLE_SWIPE } from '../../Config';
+import { CLICK_POWER, ENABLE_BLOWING, ENABLE_CLICKING, ENABLE_SHAKING, ENABLE_SWIPING } from '../../Config';
 import { sensors } from "../../api";
 
 
@@ -8,7 +8,7 @@ const WindTurbineContainer = styled.div`
   user-select:none;
   svg {
     cursor: pointer;
-    height: 500px;
+    height: 400px;
     user-select:none;
   }
 
@@ -30,7 +30,6 @@ const WindTurbineButton = (props) => {
     // Volume meter
     if (ENABLE_BLOWING) {
         useEffect(() => {
-            sensors.startVolumeMeter().catch(e => console.error(e));
             const interval = setInterval(() => {
                 let volume = sensors.getVolume();
                 if(!volume) {
@@ -45,7 +44,7 @@ const WindTurbineButton = (props) => {
     }
 
     // Swipe
-    if (ENABLE_SWIPE) {
+    if (ENABLE_SWIPING) {
         useEffect(() => {
             sensors.startSwipeSensor((d, diff) => {
                 const power = Math.min(100, Math.round(Math.abs(diff) / 5));
@@ -54,10 +53,20 @@ const WindTurbineButton = (props) => {
         }, []);
     }
 
+    // Shake
+    if (props.shakingEnabled) {
+        useEffect(() => {
+            sensors.startShakeSensor((magnitude) => {
+                const power = Math.min(magnitude, 100);
+                props.generatePower(power);
+            });
+        }, []);
+    }
+
     const onClick = (e) => {
         e.preventDefault();
         // Clicking
-        if (ENABLE_CLICK) {
+        if (ENABLE_CLICKING) {
             props.generatePower(CLICK_POWER, true);
         }
     }
