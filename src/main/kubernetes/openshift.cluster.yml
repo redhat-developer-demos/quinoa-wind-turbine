@@ -1,0 +1,14 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: quinoa-wind-turbine
+  annotations:
+    kubernetes.io/tls-acme: "true"
+spec:
+  to:
+    kind: Service
+    name: quinoa-wind-turbine
+    weight: 100
+  port:
+    targetPort: 8080
+
