@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react'
 import styled from 'styled-components'
-import { volumeMeter } from "../../api";
-import { CLICK_POWER, ENABLE_BLOWING, ENABLE_CLICK } from '../../Config';
+import { CLICK_POWER, ENABLE_BLOWING, ENABLE_CLICK, ENABLE_SWIPE } from '../../Config';
+import { sensors } from "../../api";
 
 
 const WindTurbineContainer = styled.div`
@@ -30,9 +30,9 @@ const WindTurbineButton = (props) => {
     // Volume meter
     if (ENABLE_BLOWING) {
         useEffect(() => {
-            volumeMeter.startVolumeMeter().catch(e => console.error(e));
+            sensors.startVolumeMeter().catch(e => console.error(e));
             const interval = setInterval(() => {
-                let volume = volumeMeter.getVolume();
+                let volume = sensors.getVolume();
                 if(!volume) {
                     return;
                 }
@@ -44,6 +44,15 @@ const WindTurbineButton = (props) => {
         }, []);
     }
 
+    // Swipe
+    if (ENABLE_SWIPE) {
+        useEffect(() => {
+            sensors.startSwipeSensor((d, diff) => {
+                const power = Math.min(100, Math.round(Math.abs(diff) / 5));
+                props.generatePower(power);
+            });
+        }, []);
+    }
 
     const onClick = (e) => {
         e.preventDefault();
@@ -52,13 +61,15 @@ const WindTurbineButton = (props) => {
             props.generatePower(CLICK_POWER, true);
         }
     }
+
+
     return (
         <WindTurbineContainer generated={props.generated} color={props.color} >
             <svg
                 {...props}
                 x="0px"
                 y="0px"
-                viewBox="0 0 656 980"
+                viewBox="-50 0 760 980"
                 enableBackground="new 0 0 1000 1000"
                 xmlSpace="preserve"
                 id="svg411"

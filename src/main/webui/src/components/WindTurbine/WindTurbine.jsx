@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from 'react'
 import styled from 'styled-components'
 import WindTurbineButton from './WindTurbineButton';
-import { gameApi, powerApi, volumeMeter } from '../../api';
+import { gameApi, powerApi } from '../../api';
 import { Bolt } from '@styled-icons/boxicons-solid';
 import { CloudDone, CloudOffline } from '@styled-icons/ionicons-outline';
 import { Game }  from '@styled-icons/boxicons-regular'

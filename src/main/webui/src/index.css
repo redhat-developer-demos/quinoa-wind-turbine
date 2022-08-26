@@ -5,6 +5,10 @@
   --main-font: "Josefin Sans";
 }
 
+html, body {
+  overscroll-behavior: none;
+}
+
 body {
   margin: 0;
   font-family: var(--main-font), Roboto, sans-serif;
