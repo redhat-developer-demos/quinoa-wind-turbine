@@ -92,21 +92,20 @@ const Header = styled.div`
 `
 
 const Team = (props) => {
-    let team = _.values(props.team);
-    team = team.sort((a, b) => b.generated - a.generated);
-    team = team.slice(0, SHOW_TOP);
+    const team = _.values(props.team);
+    const top = team.sort((a, b) => b.generated - a.generated).slice(0, SHOW_TOP);
     return (
         <div className={props.className}>
             <Header style={{color: gameApi.TEAM_COLORS[props.id - 1]}}>
                 <span>
                     {props.winner === props.id && <Trophy size={32}/>}
-                    Team {props.id}
+                    Team {props.id} ({team.length})
                 </span>
                 {props.winner < 0 && <span>{props.generated} MW</span>}
                 {props.time && <span><StopWatch time={props.time} running={false}/></span>}
             </Header>
             <ol>
-                {team.length > 0 ? team.map((u, id) => (
+                {top.length > 0 ? top.map((u, id) => (
                     <li key={id}>{u.id} - {u.generated} MW</li>
                 )) : (<li>Waiting for players...</li>)
                 }

@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import { powerApi, gameApi } from '../../api';
+import {powerApi, gameApi} from '../../api';
 import {computeDistance, resetTeam, computePower, computeNbUsers} from './DashboardUtils';
 import LeftBar from './LeftBar';
 import RaceTrack from './RaceTrack';
@@ -16,8 +16,8 @@ const Dashboard = (props) => {
         setTime(0);
         setResult({});
     };
-    useEffect(() => powerApi.consume([setTeam1, setTeam2]),
-        [setTeam1, setTeam2]);
+    useEffect(() => powerApi.consume(status, [setTeam1, setTeam2]),
+        [status, setTeam1, setTeam2]);
     useEffect(() => gameApi.events(setStatus, reset), [setStatus]);
 
     const nbUsers = computeNbUsers(team1, team2);
@@ -25,9 +25,12 @@ const Dashboard = (props) => {
     const distances = [computeDistance(power[0], nbUsers), computeDistance(power[1], nbUsers)];
     useEffect(() => {
         if (!result.team1 && distances[0] >= 100) {
-            setResult(p => ({...p, team1: time }))
+            setResult(p => ({...p, team1: time}))
         } else if (!result.team2 && distances[1] >= 100) {
-            setResult(p => ({...p, team2: time }))
+            setResult(p => ({...p, team2: time}))
+        }
+        if (result.team1 && result.team2) {
+            gameApi.sendEvent('pause');
         }
     }, [time, distances, setResult, result])
 

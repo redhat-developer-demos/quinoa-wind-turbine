@@ -1,5 +1,8 @@
 export async function assign() {
-    const id = sessionStorage.getItem('user-id') || '';
+    let id = sessionStorage.getItem('user-id');
+    if(!id || id === 'undefined') {
+        id = '';
+    }
     let fetchOptions = {
         method: "POST",
         headers: {'Accept': 'application/json'},
@@ -9,7 +12,9 @@ export async function assign() {
         .catch(e => console.error(e))
         .then(r => r.json())
         .then(u => {
-            sessionStorage.setItem('user-id', u.id);
+            if(u.id) {
+                sessionStorage.setItem('user-id', u.id);
+            }
             return u;
         });
 }

@@ -50,7 +50,7 @@ public class PowerResource {
         userActionsEmitter.send(Record.of(power.source(), power.quantity()));
     }
 
-    static record Power(int quantity, String source, int destination) {
+    public static record Power(int quantity, String source, int destination) {
         public static final Power PING = new Power(0, "ping", -1);
 
     }

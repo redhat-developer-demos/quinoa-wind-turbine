@@ -29,7 +29,7 @@ final class Utils {
 
     public static String getNameById(int id) {
         if (id >= COMBINED_NAMES.size()) {
-            throw new IllegalArgumentException("This name id is too big: " + id);
+            throw new IllegalArgumentException("This name id is too big: " + id + "/" + COMBINED_NAMES.size());
         }
         return COMBINED_NAMES.get(id);
     }
@@ -37,7 +37,7 @@ final class Utils {
     static <T> Multi<T> withPing(Multi<T> stream, T pingValue) {
         return Multi.createBy().merging()
                 .streams(
-                        stream.onOverflow().drop(),
+                        stream.onOverflow().buffer(500000),
                         Multi.createFrom().ticks().every(Duration.ofSeconds(30))
                                 .onOverflow().drop()
                                 .onItem().transform(x -> pingValue)

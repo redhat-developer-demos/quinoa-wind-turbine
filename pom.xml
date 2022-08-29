@@ -10,12 +10,12 @@
     <maven.compiler.release>17</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <quarkus-quinoa.version>1.1.2</quarkus-quinoa.version>
     <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
     <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
     <quarkus.platform.version>2.10.2.Final</quarkus.platform.version>
     <skipITs>true</skipITs>
     <surefire-plugin.version>3.0.0-M7</surefire-plugin.version>
-    <quarkus-quinoa.version>1.1.2</quarkus-quinoa.version>
   </properties>
   <dependencyManagement>
     <dependencies>
@@ -38,7 +38,6 @@
       <artifactId>quarkus-quinoa</artifactId>
       <version>${quarkus-quinoa.version}</version>
     </dependency>
-
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-arc</artifactId>
@@ -66,6 +65,10 @@
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-kubernetes-service-binding</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-smallrye-health</artifactId>
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>

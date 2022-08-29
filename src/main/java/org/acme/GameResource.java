@@ -94,7 +94,7 @@ public class GameResource {
         gameEventsEmitter.send(gameEvent);
     }
 
-    static record User(int id, String name, int team){}
+    public static record User(int id, String name, int team){}
 
     static record GameEvent(String type){
         static final GameEvent PING = new GameEvent("ping");

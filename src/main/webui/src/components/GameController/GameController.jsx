@@ -164,8 +164,8 @@ const GameController = (props) => {
             {user && (
                 <>
                     <TopBar color={color}>
-                        <User><Game size={32}/><span id="user-id">{user.name}</span></User>
-                        <Team>{user.team}</Team>
+                        <User><Game size={32}/><span id="user-name">{user.name}</span></User>
+                        <Team id="user-team">{user.team}</Team>
                         <Status color={statusColor}>
                             {status === 'started' && <Bolt size={32}/>}
                             {status === 'offline' && <CloudOffline size={32}/>}
