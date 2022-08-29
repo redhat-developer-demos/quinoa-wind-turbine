@@ -4,8 +4,8 @@ export const IS_TOUCH_DEVICE = (('ontouchstart' in window) ||
 
 // Dashboard
 export const CLICK_POWER = 30; // in MW
-export const NB_CLICK_NEEDED_PER_USER = 200;
-export const SHOW_TOP = 10;
+export const NB_CLICK_NEEDED_PER_USER = 150;
+export const SHOW_TOP = 5;
 
 // Mobile app
 export const ENABLE_CLICKING = true;

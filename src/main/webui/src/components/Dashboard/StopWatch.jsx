@@ -6,9 +6,13 @@ const StopWatchContainer = styled.div`
   font-size: 2.5rem;
   color: white;
   font-family: var(--code-font);
+  
+  span:last-child {
+    font-size: 2rem;
+  }
 `
 
-export const StopWatch = (props) => {
+const StopWatch = (props) => {
     useEffect(() => {
         let interval;
         if (props.running) {
@@ -30,3 +34,5 @@ export const StopWatch = (props) => {
         </StopWatchContainer>
     );
 };
+
+export default StopWatch;

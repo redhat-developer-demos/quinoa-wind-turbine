@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react'
 import styled from 'styled-components'
-import WindTurbineButton from './WindTurbineButton';
+import Generator from './Generator';
 import {gameApi, powerApi} from '../../api';
 import {Bolt} from '@styled-icons/boxicons-solid';
 import {CloudDone, CloudOffline} from '@styled-icons/ionicons-outline';
@@ -27,12 +27,17 @@ const Status = styled.div`
   color: ${props => props.color};
 `
 
-const Button = styled.div`
-  background-color: orange;
+const EnableShakingButton = styled.div`
+  background-color: #4695EB;
   padding: 10px;
   color: white;
   text-transform: uppercase;
-  margin-bottom: 20px;
+  cursor: pointer;
+  position: fixed;
+  bottom: 0px;
+  left: 0;
+  right: 0;
+  font-weight: bold;
 `
 
 const Loading = styled.div`
@@ -104,7 +109,7 @@ const TopBar = styled.div`
   }
 `
 
-const Generated = styled.div`
+const GeneratedIndicator = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -122,7 +127,7 @@ const Generated = styled.div`
   }
 `
 
-const WindTurbine = (props) => {
+const GameController = (props) => {
     const [user, setUser] = useState();
     const [status, setStatus] = useState("offline");
     const [generated, setCounter] = useState(0);
@@ -159,7 +164,7 @@ const WindTurbine = (props) => {
             {user && (
                 <>
                     <TopBar color={color}>
-                        <User><Game size={32}/>{user.name}</User>
+                        <User><Game size={32}/><span id="user-id">{user.name}</span></User>
                         <Team>{user.team}</Team>
                         <Status color={statusColor}>
                             {status === 'started' && <Bolt size={32}/>}
@@ -167,11 +172,11 @@ const WindTurbine = (props) => {
                             {status === 'paused' && <CloudDone size={32}/>}
                         </Status>
                     </TopBar>
-                    {ENABLE_SHAKING && !shakingEnabled && <Button onClick={enableShaking}>Enable Shaking</Button>}
+                    {ENABLE_SHAKING && !shakingEnabled && <EnableShakingButton onClick={enableShaking}>Enable Shaking</EnableShakingButton>}
                     {status === "started" ? (
                         <>
-                            <WindTurbineButton generatePower={generatePower} color={color} generated={generated} shakingEnabled={shakingEnabled}/>
-                            <Generated>{generated}</Generated>
+                            <Generator generatePower={generatePower} color={color} generated={generated} shakingEnabled={shakingEnabled}/>
+                            <GeneratedIndicator>{generated}</GeneratedIndicator>
                         </>
                     ) : (
                         <>
@@ -187,4 +192,4 @@ const WindTurbine = (props) => {
     )
 }
 
-export default WindTurbine;
+export default GameController;

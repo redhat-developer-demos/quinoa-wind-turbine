@@ -4,7 +4,7 @@ import { CLICK_POWER, ENABLE_BLOWING, ENABLE_CLICKING, ENABLE_SHAKING, ENABLE_SW
 import { sensors } from "../../api";
 
 
-const WindTurbineContainer = styled.div`
+const GeneratorDiv = styled.div`
   user-select:none;
   svg {
     cursor: pointer;
@@ -22,10 +22,9 @@ const WindTurbineContainer = styled.div`
   .turbine-item {
     fill: ${props => props.color};
   }
-  
 `
 
-const WindTurbineButton = (props) => {
+const Generator = (props) => {
 
     // Volume meter
     if (ENABLE_BLOWING) {
@@ -73,7 +72,7 @@ const WindTurbineButton = (props) => {
 
 
     return (
-        <WindTurbineContainer generated={props.generated} color={props.color} >
+        <GeneratorDiv generated={props.generated} color={props.color} >
             <svg
                 {...props}
                 x="0px"
@@ -81,7 +80,7 @@ const WindTurbineButton = (props) => {
                 viewBox="-50 0 760 980"
                 enableBackground="new 0 0 1000 1000"
                 xmlSpace="preserve"
-                id="svg411"
+                id="generator"
                 xmlns="http://www.w3.org/2000/svg"
                 onClick={onClick}
             >
@@ -116,8 +115,8 @@ const WindTurbineButton = (props) => {
                     </g>
                 </g>
             </svg>
-        </WindTurbineContainer>
+        </GeneratorDiv>
     )
 }
 
-export default WindTurbineButton;
+export default Generator;

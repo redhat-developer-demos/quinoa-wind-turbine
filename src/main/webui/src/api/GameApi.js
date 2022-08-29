@@ -27,7 +27,6 @@ export async function sendEvent(type) {
 
 export const TEAM_COLORS = ['#6C84A3', 'orange'];
 
-
 export function events(setStatus, reset) {
 
     const onEvent = (e) => {

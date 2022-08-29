@@ -47,7 +47,7 @@ public class GameResource {
 
     void onStart(@Observes StartupEvent ev) {
         final SecureRandom random = new SecureRandom();
-        instanceId = random.nextInt(COMBINED_NAMES.size() - 200);
+        instanceId = random.nextInt(COMBINED_NAMES.size() - 600);
         LOG.infof("InstanceId is %s", instanceId);
         // Thanks to this, we can join a party after the start
         replayEvents = Multi.createBy().replaying().upTo(1).ofMulti(gameEvents);
