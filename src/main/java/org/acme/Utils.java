@@ -37,7 +37,7 @@ final class Utils {
     static <T> Multi<T> withPing(Multi<T> stream, T pingValue) {
         return Multi.createBy().merging()
                 .streams(
-                        stream.onOverflow().buffer(500000),
+                        stream.onOverflow().buffer(5000),
                         Multi.createFrom().ticks().every(Duration.ofSeconds(30))
                                 .onOverflow().drop()
                                 .onItem().transform(x -> pingValue)

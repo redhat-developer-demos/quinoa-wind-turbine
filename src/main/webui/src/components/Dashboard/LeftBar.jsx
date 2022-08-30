@@ -125,7 +125,7 @@ const Team = (props) => {
             </Header>
             <ol>
                 {top.length > 0 ? top.map((u, id) => (
-                    <li key={id}>{u.id} - {powerApi.humanPower(u.generated)}</li>
+                    <li key={id}>{u.name} - {powerApi.humanPower(u.generated)}</li>
                 )) : (<li>Waiting for players...</li>)
                 }
             </ol>
@@ -151,7 +151,7 @@ const LeftBar = (props) => {
     ];
     teamDef.sort((a, b) => {
         if (winner >= 0) {
-            return a.time - b.time;
+            return a.id === winner ? -1 : 1;
         }
         if(a.generated === b.generated) {
             return a.id - b.id;

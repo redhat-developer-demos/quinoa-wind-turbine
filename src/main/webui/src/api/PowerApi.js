@@ -1,3 +1,5 @@
+import _ from 'lodash';
+
 export async function generate(user, quantity) {
     let fetchOptions = {
         method: "POST",
@@ -12,16 +14,31 @@ export async function generate(user, quantity) {
 export function consume(status, setTeam) {
     const powerStream = new EventSource(`/api/power/stream/`);
 
-    function getRealtimeData(n) {
-        console.log(`Received: ${JSON.stringify(n)}`);
-        if (n.source !== 'ping' && n.destination > 0 && n.destination <= setTeam.length) {
-            setTeam[n.destination - 1]((p) => {
-                const quantity = status === 'started' ? n.quantity : 0;
-                return {
-                    ...p,
-                    [n.source]: { id: n.source, generated: p[n.source] ? p[n.source].generated + quantity : 0 }
-                };
-            });
+    function getRealtimeData(b) {
+        console.log(`Received ${b.length} events`);
+        const teams = [{}, {}];
+        for(const e of b.filter(e => e.source !== 'ping' && e.destination > 0 && e.destination <= setTeam.length)) {
+            const quantity = status === 'started' ? e.quantity : 0;
+            if(!teams[e.destination - 1][e.source]) {
+                teams[e.destination - 1][e.source] = 0;
+            }
+            teams[e.destination - 1][e.source] += quantity;
+        }
+
+        for(const i in teams) {
+            const team = teams[i];
+            if(_.size(team) > 0) {
+                setTeam[i](p => {
+                    const n = {...p};
+                    for(const e in team) {
+                        if(!n[e]) {
+                            n[e] = { name: e, generated: 0 };
+                        }
+                        n[e].generated += team[e];
+                    }
+                    return n;
+                });
+            }
         }
     }
 

@@ -16,6 +16,9 @@ import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 
+import java.time.Duration;
+import java.util.List;
+
 import static org.acme.Utils.withPing;
 
 @ApplicationScoped
@@ -32,9 +35,8 @@ public class PowerResource {
     @GET
     @Produces(MediaType.SERVER_SENT_EVENTS)
     @RestStreamElementType(MediaType.APPLICATION_JSON)
-    @ResponseHeader(name = "Connection", value = "keep-alive")
-    public Multi<Power> stream() {
-                return withPing(power, Power.PING);
+    public Multi<List<Power>> stream() {
+                return withPing(power.group().intoLists().every(Duration.ofMillis(20)), List.of(Power.PING));
     }
 
     @Path("")
