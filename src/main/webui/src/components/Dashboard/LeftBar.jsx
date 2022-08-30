@@ -151,7 +151,7 @@ const LeftBar = (props) => {
     ];
     teamDef.sort((a, b) => {
         if (winner >= 0) {
-            return b.time - a.time;
+            return a.time - b.time;
         }
         if(a.generated === b.generated) {
             return a.id - b.id;
