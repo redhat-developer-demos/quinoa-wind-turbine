@@ -1,12 +1,12 @@
 import React from 'react';
 import _ from 'lodash';
 import styled from 'styled-components'
-import { Play, Pause, Refresh } from '@styled-icons/heroicons-outline';
-import { Trophy } from '@styled-icons/ionicons-outline';
-import { gameApi, powerApi } from '../../api';
+import {Play, Pause, Refresh} from '@styled-icons/heroicons-outline';
+import {Trophy} from '@styled-icons/ionicons-outline';
+import {gameApi, powerApi} from '../../api';
 import StopWatch from './StopWatch';
-import { SHOW_TOP } from '../../Config';
-import { computeWinner } from './DashboardUtils';
+import {SHOW_TOP} from '../../Config';
+import {computeWinner} from './DashboardUtils';
 import {Plug} from '@styled-icons/boxicons-regular'
 
 
@@ -77,21 +77,23 @@ const Header = styled.div`
   border-bottom: 1px solid white;
   font-size: 2rem;
   justify-content: space-between;
-  
+
   & > span:first-child {
     flex-grow: 1;
+
     svg {
       margin-right: 10px;
       margin-top: -10px;
     }
   }
+
   & > span:not(:first-child) {
     color: white;
     font-size: 1rem;
     line-height: 2rem;
     font-weight: bold;
   }
-  
+
   .total-power {
     margin-right: 10px;
   }
@@ -102,10 +104,9 @@ const Header = styled.div`
       margin-right: 5px;
     }
   }
-  
-  
-`
 
+
+`
 
 
 const Team = (props) => {
@@ -141,14 +142,27 @@ const StyledTeam = styled(Team)`
   }
 `;
 
+
 const LeftBar = (props) => {
     const winner = computeWinner(props.result);
+    const teamDef = [
+        { id: 1, team: props.team1, generated: props.power[0], time: props.result.team1},
+        { id: 2, team: props.team2, generated: props.power[1], time: props.result.team2}
+    ];
+    teamDef.sort((a, b) => {
+        if (winner >= 0) {
+            return b.time - a.time;
+        }
+        if(a.generated === b.generated) {
+            return a.id - b.id;
+        }
+        return b.generated - a.generated;
+    });
     return (
         <LeftBarDiv>
             <Title>The Race</Title>
             <Teams>
-                <StyledTeam id={1} team={props.team1} generated={props.power[0]} time={props.result.team1} winner={winner}/>
-                <StyledTeam id={2} team={props.team2} generated={props.power[1]} time={props.result.team2} winner={winner}/>
+                {teamDef.map(d => (<StyledTeam key={d.id} {...d} winner={winner}/>))}
             </Teams>
             <StopWatch time={props.time} setTime={props.setTime} running={props.status === 'started'}/>
             <StyledControl status={props.status}/>

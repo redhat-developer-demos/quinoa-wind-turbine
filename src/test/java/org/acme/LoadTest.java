@@ -54,7 +54,7 @@ public class LoadTest {
                 client.request(HttpMethod.POST, 443, "quinoa-wind-turbine-adamevin-dev.apps.sandbox.x8i5.p1.openshiftapps.com",
                                 "/api/power")
                         .ssl(true)
-                        .sendJsonObject(new JsonObject().put("quantity", R.nextInt(20, 40)).put("source", user.name())
+                        .sendJsonObject(new JsonObject().put("quantity", R.nextInt(20, user.team() == 1 ? 35 : 40) ).put("source", user.name())
                                 .put("destination", user.team()))
                         .onComplete((r) -> {
                             if (r.failed()) {
