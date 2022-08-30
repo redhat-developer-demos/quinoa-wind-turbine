@@ -4,7 +4,7 @@ import Generator from './Generator';
 import {gameApi, powerApi} from '../../api';
 import {Bolt} from '@styled-icons/boxicons-solid';
 import {CloudDone, CloudOffline} from '@styled-icons/ionicons-outline';
-import {Game} from '@styled-icons/boxicons-regular'
+import {Plug} from '@styled-icons/boxicons-regular'
 import {ENABLE_SHAKING} from '../../Config';
 import { sensors } from "../../api";
 
@@ -120,7 +120,7 @@ const GeneratedIndicator = styled.div`
   margin-top: 40px;
 
   &:after {
-    content: 'MW';
+    content: '${props => props.unit}';
     font-size: 1.5rem;
     line-height: 1.5rem;
     font-weight: bold;
@@ -164,7 +164,7 @@ const GameController = (props) => {
             {user && (
                 <>
                     <TopBar color={color}>
-                        <User><Game size={32}/><span id="user-name">{user.name}</span></User>
+                        <User><Plug size={32}/><span id="user-name">{user.name}</span></User>
                         <Team id="user-team">{user.team}</Team>
                         <Status color={statusColor}>
                             {status === 'started' && <Bolt size={32}/>}
@@ -176,7 +176,7 @@ const GameController = (props) => {
                     {status === "started" ? (
                         <>
                             <Generator generatePower={generatePower} color={color} generated={generated} shakingEnabled={shakingEnabled}/>
-                            <GeneratedIndicator>{generated}</GeneratedIndicator>
+                            <GeneratedIndicator unit={powerApi.humanPowerUnit(generated)}>{powerApi.humanPowerValue(generated)}</GeneratedIndicator>
                         </>
                     ) : (
                         <>

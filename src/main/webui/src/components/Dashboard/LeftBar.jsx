@@ -3,10 +3,11 @@ import _ from 'lodash';
 import styled from 'styled-components'
 import { Play, Pause, Refresh } from '@styled-icons/heroicons-outline';
 import { Trophy } from '@styled-icons/ionicons-outline';
-import { gameApi } from '../../api';
+import { gameApi, powerApi } from '../../api';
 import StopWatch from './StopWatch';
 import { SHOW_TOP } from '../../Config';
 import { computeWinner } from './DashboardUtils';
+import {Plug} from '@styled-icons/boxicons-regular'
 
 
 const Title = styled.h1`
@@ -75,21 +76,37 @@ const Header = styled.div`
   display: flex;
   border-bottom: 1px solid white;
   font-size: 2rem;
+  justify-content: space-between;
   
   & > span:first-child {
     flex-grow: 1;
+    svg {
+      margin-right: 10px;
+      margin-top: -10px;
+    }
   }
-  & > span:last-child {
+  & > span:not(:first-child) {
     color: white;
     font-size: 1rem;
     line-height: 2rem;
+    font-weight: bold;
   }
   
-  svg {
+  .total-power {
     margin-right: 10px;
-    margin-top: -10px;
   }
+
+  .count-players {
+    svg {
+      margin-top: -5px;
+      margin-right: 5px;
+    }
+  }
+  
+  
 `
+
+
 
 const Team = (props) => {
     const team = _.values(props.team);
@@ -99,14 +116,15 @@ const Team = (props) => {
             <Header style={{color: gameApi.TEAM_COLORS[props.id - 1]}}>
                 <span>
                     {props.winner === props.id && <Trophy size={32}/>}
-                    Team {props.id} ({team.length})
+                    Team {props.id}
                 </span>
-                {props.winner < 0 && <span>{props.generated} MW</span>}
+                {props.winner < 0 && <span className="total-power">{powerApi.humanPower(props.generated)}</span>}
                 {props.time && <span><StopWatch time={props.time} running={false}/></span>}
+                {!props.time && <span className="count-players"><Plug size={20}/>{team.length}</span>}
             </Header>
             <ol>
                 {top.length > 0 ? top.map((u, id) => (
-                    <li key={id}>{u.id} - {u.generated} MW</li>
+                    <li key={id}>{u.id} - {powerApi.humanPower(u.generated)}</li>
                 )) : (<li>Waiting for players...</li>)
                 }
             </ol>
