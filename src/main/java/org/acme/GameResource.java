@@ -3,6 +3,7 @@ package org.acme;
 import io.quarkus.runtime.StartupEvent;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.groups.MultiBroadcast;
 import org.acme.PowerResource.Power;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
@@ -39,8 +40,8 @@ public class GameResource {
     private int instanceId;
 
     // SSE to admin to start the game, ...
-    @Channel("game-events") Emitter<GameEvent> gameEventsEmitter;
-    @Channel("game-events") Multi<GameEvent> gameEvents;
+    @Channel("game-events-out") Emitter<GameEvent> gameEventsEmitter;
+    @Channel("game-events-in") Multi<GameEvent> gameEvents;
     Multi<GameEvent> replayEvents;
 
     @Channel("power-out") Emitter<Power> powerEmitter;
@@ -50,8 +51,11 @@ public class GameResource {
         instanceId = random.nextInt(COMBINED_NAMES.size() - 600);
         LOG.infof("InstanceId is %s", instanceId);
         // Thanks to this, we can join a party after the start
-        replayEvents = Multi.createBy().replaying().upTo(1).ofMulti(gameEvents);
-        replayEvents.subscribe().with(lastGameEvent::set);
+        replayEvents = Multi.createBy().replaying().upTo(5).ofMulti(gameEvents);
+        gameEvents.subscribe().with(s -> {
+            lastGameEvent.set(s);
+            System.out.println("Set last game event: " + s.type);
+        });
     }
 
     @POST

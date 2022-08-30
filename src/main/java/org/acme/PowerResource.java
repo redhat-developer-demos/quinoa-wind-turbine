@@ -26,7 +26,7 @@ public class PowerResource {
     @Channel("power-out") Emitter<Power> powerEmitter;
 
     // For statistics/leader boards to Kafka
-    @Channel("user-actions") Emitter<Record<String, Integer>> userActionsEmitter;
+    @Channel("user-actions-out") Emitter<Record<String, Integer>> userActionsEmitter;
 
     @Path("stream")
     @GET

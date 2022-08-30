@@ -30,7 +30,7 @@ Create a new Openshift sandbox, then you need to log in from your terminal.
    3. Consumer group is * allow All
    4. Topic is * allow All
    5. Save
-3. Add topic `power` and `user-actions` with default config
+3. Add topic `power`, `game-events` and `user-actions` with default config
 4. In Openshift add "Red Hat OpenShift Streams for Apache Kafka"
 5. Select instance
 6. Deploy Windturbine app
