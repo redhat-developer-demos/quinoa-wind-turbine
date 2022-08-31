@@ -81,13 +81,10 @@ oc apply -fhttps://raw.githubusercontent.com/tnozicka/openshift-acme/master/depl
 oc create rolebinding openshift-acme --role=openshift-acme --serviceaccount="$( oc project -q ):openshift-acme" --dry-run -o yaml | oc apply -f -
 ```
 
-### Install Strimzi Kafka operator
+### Install Kafka
 
-TBD
-
-### Create a Kafka instance from the console
-
-Name it `my-cluster`
+- From the operator hub, install Strimzi operator.
+- Create a Kafka instance named `my-cluster`
 
 ### Copy sandbox openshift resource file
 

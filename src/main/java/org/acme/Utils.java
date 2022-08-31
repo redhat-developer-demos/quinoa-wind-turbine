@@ -1,37 +1,52 @@
 package org.acme;
 
 import io.smallrye.mutiny.Multi;
+import org.jboss.logging.Logger;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
-import static java.util.Collections.shuffle;
 import static java.util.Collections.unmodifiableList;
 
 final class Utils {
-
-    private static final Set<String> NAMES = Set.of("Ada", "Grace", "James", "Bjarne", "Dennis", "Guido", "Alan", "Brendan", "Margaret", "Adele", "Ida", "Lira", "Finnegan", "Bruns", "Bowie", "Coyne", "Fontaine", "Rincon", "East", "Willett", "Ivy", "Jameson", "Batista", "Rinehart", "Callaway", "Whipple", "Harms", "Humphreys", "Paulsen", "Colby", "Haggerty", "Seibert", "Mccloskey", "Laney", "Stepp", "Gaytan", "Betz", "Leigh", "Mears");
-    public static final List<String> COMBINED_NAMES;
+    private static final Logger LOG = Logger.getLogger(Utils.class);
+    public static final List<String> NAMES;
 
     static  {
-        List<String> prod = cartesianProduct(NAMES, NAMES).stream()
-                .filter(s -> !Objects.equals(s.get(0), s.get(1)))
-                .map(s -> String.join("-", s.get(0), s.get(1)))
-                .collect(Collectors.toList());
-        shuffle(prod);
-        COMBINED_NAMES = unmodifiableList(prod);
+        try(final InputStream nameInputStream = Utils.class.getClassLoader().getResourceAsStream("names")) {
+            if (nameInputStream == null) {
+                throw new IOException("names list not found");
+            }
+            try(BufferedReader reader = new BufferedReader(new InputStreamReader(nameInputStream))) {
+                final List<String> names = new ArrayList<>();
+                while(reader.ready()) {
+                    names.add(reader.readLine());
+                }
+                NAMES = unmodifiableList(names);
+            }
+
+        } catch (IOException e) {
+            throw new IllegalStateException("Error while loading name list", e);
+        }
     }
 
     public static String getNameById(int id) {
-        if (id >= COMBINED_NAMES.size()) {
-            throw new IllegalArgumentException("This name id is too big: " + id + "/" + COMBINED_NAMES.size());
+        if (id >= NAMES.size()) {
+            throw new IllegalArgumentException("This name id is too big: " + id + "/" + NAMES.size());
         }
-        return COMBINED_NAMES.get(id);
+        return NAMES.get(id);
     }
 
     static <T> Multi<T> withPing(Multi<T> stream, T pingValue) {

@@ -2,8 +2,6 @@ package org.acme;
 
 import io.quarkus.runtime.StartupEvent;
 import io.smallrye.mutiny.Multi;
-import io.smallrye.mutiny.Uni;
-import io.smallrye.mutiny.groups.MultiBroadcast;
 import org.acme.PowerResource.Power;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
@@ -21,12 +19,10 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import java.security.SecureRandom;
-import java.time.Duration;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.acme.Utils.COMBINED_NAMES;
+import static org.acme.Utils.NAMES;
 import static org.acme.Utils.getNameById;
 import static org.acme.Utils.withPing;
 
@@ -35,21 +31,21 @@ import static org.acme.Utils.withPing;
 public class GameResource {
 
     private static final Logger LOG = Logger.getLogger(GameResource.class);
-    private final AtomicInteger counter = new AtomicInteger();
     private final AtomicReference<GameEvent> lastGameEvent = new AtomicReference<>();
-    private int instanceId;
+    private final SecureRandom random = new SecureRandom();
 
-    // SSE to admin to start the game, ...
     @Channel("game-events-out") Emitter<GameEvent> gameEventsEmitter;
     @Channel("game-events-in") Multi<GameEvent> gameEvents;
     Multi<GameEvent> replayEvents;
 
     @Channel("power-out") Emitter<Power> powerEmitter;
 
+    static {
+        LOG.info("List of names initialized with " + NAMES.size() + " items");
+    }
+
     void onStart(@Observes StartupEvent ev) {
         final SecureRandom random = new SecureRandom();
-        instanceId = random.nextInt(COMBINED_NAMES.size() - 600);
-        LOG.infof("InstanceId is %s", instanceId);
         // Thanks to this, we can join a party after the start
         replayEvents = Multi.createBy().replaying().upTo(5).ofMulti(gameEvents);
         gameEvents.subscribe().with(s -> {
@@ -71,7 +67,7 @@ public class GameResource {
     @Path("assign")
     @Produces(MediaType.APPLICATION_JSON)
     public User assignNameAndTeam() {
-       return assignNameAndTeam(instanceId + counter.getAndIncrement());
+        return assignNameAndTeam(random.nextInt(NAMES.size()));
     }
 
     @GET

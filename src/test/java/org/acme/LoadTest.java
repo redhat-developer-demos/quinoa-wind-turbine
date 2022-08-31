@@ -10,9 +10,11 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -24,15 +26,17 @@ public class LoadTest {
     public static final int USERS = 500;
     public static final int CLICKS = 200;
     public static final Random R = new Random();
-    public static final String SERVER_HOST = "quinoa-wind-turbine-adamevin-dev.apps.sandbox.x8i5.p1.openshiftapps.com";
+    public static final String SERVER_HOST = "quinoa-wind-turbine-windturbine.apps.openshift.sotogcp.com";
 
     @Test
     void load() throws InterruptedException {
         Vertx vertx = Vertx.vertx();
         WebClient client = WebClient.create(vertx, new WebClientOptions().setTrustAll(true).setVerifyHost(false).setMaxPoolSize(500));
         final List<GameResource.User> users = Collections.synchronizedList(new ArrayList<>());
+        final Set<String> names = new HashSet<>();
         final CountDownLatch latchLogin = new CountDownLatch(USERS);
         for (int i = 0; i < USERS; i++) {
+            final int index = i;
             client.request(HttpMethod.POST, 443, SERVER_HOST,
                             "/api/game/assign")
                     .ssl(true)
@@ -44,13 +48,15 @@ public class LoadTest {
                         }
                         final GameResource.User user = r.result().bodyAsJson(GameResource.User.class);
                         users.add(user);
-                        System.out.println("login " + user);
+                        names.add(user.name());
+                        System.out.println("login " + user + " " + index);
                         latchLogin.countDown();
                     });
         }
         latchLogin.await();
         Thread.sleep(5000);
-        System.out.println("Users created");
+        System.out.println(users.size() + "users created");
+        System.out.println(names.size() + " different names");
         AtomicBoolean started = new AtomicBoolean(false);
         while (!started.get()) {
             client.request(HttpMethod.GET, 443, SERVER_HOST,
@@ -91,4 +97,9 @@ public class LoadTest {
         latchClick.await();
     }
 
+    @Test
+    void name() {
+        System.out.println(Utils.NAMES.size());
+        System.out.println(new HashSet<>(Utils.NAMES).size());
+    }
 }
