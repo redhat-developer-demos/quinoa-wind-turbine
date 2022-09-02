@@ -5,7 +5,6 @@ import io.smallrye.reactive.messaging.kafka.Record;
 
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
-import org.jboss.resteasy.reactive.ResponseHeader;
 import org.jboss.resteasy.reactive.RestStreamElementType;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -25,18 +24,18 @@ import static org.acme.Utils.withPing;
 @Path("power")
 public class PowerResource {
 
-    @Channel("power-in") Multi<Power> power;
-    @Channel("power-out") Emitter<Power> powerEmitter;
+    @Channel("power-in") Multi<Power> powerIn;
+    @Channel("power-out") Emitter<Power> powerOut;
 
     // For statistics/leader boards to Kafka
-    @Channel("user-actions-out") Emitter<Record<String, Integer>> userActionsEmitter;
+    @Channel("user-actions-out") Emitter<Record<String, Integer>> userActionsOut;
 
     @Path("stream")
     @GET
     @Produces(MediaType.SERVER_SENT_EVENTS)
     @RestStreamElementType(MediaType.APPLICATION_JSON)
     public Multi<List<Power>> stream() {
-                return withPing(power.group().intoLists().every(Duration.ofMillis(20)), List.of(Power.PING));
+                return withPing(powerIn.group().intoLists().every(Duration.ofMillis(20)), List.of(Power.PING));
     }
 
     @Path("")
@@ -46,10 +45,10 @@ public class PowerResource {
         if (power.destination() > 2) {
             throw new IllegalArgumentException("We only have 2 teams for now");
         }
-        powerEmitter.send(power);
+        powerOut.send(power);
         
         // Sends action to leader board topic
-        userActionsEmitter.send(Record.of(power.source(), power.quantity()));
+        userActionsOut.send(Record.of(power.source(), power.quantity()));
     }
 
     public static record Power(int quantity, String source, int destination) {

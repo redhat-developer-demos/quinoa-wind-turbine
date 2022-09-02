@@ -37,6 +37,11 @@ Create a new Openshift sandbox, then you need to log in from your terminal.
 7. Add link in Topology view
 8. Start rollout on Windturbine Deployment config
 
+### Infinispan server
+
+1. Create an infinispan cluster in the sandbox console using the "Infinispan Helm chart"
+2. Name it `infinispan`
+
 ### Generate certificate
 
 ```bash
@@ -85,6 +90,11 @@ oc create rolebinding openshift-acme --role=openshift-acme --serviceaccount="$( 
 
 - From the operator hub, install Strimzi operator.
 - Create a Kafka instance named `my-cluster`
+
+### Infinispan server
+
+1. Create an infinispan cluster in the console using the "Infinispan Helm chart"
+2. Name it `infinispan`
 
 ### Copy sandbox openshift resource file
 

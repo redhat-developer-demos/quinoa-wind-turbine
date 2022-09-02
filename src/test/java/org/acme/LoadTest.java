@@ -26,7 +26,7 @@ public class LoadTest {
     public static final int USERS = 500;
     public static final int CLICKS = 200;
     public static final Random R = new Random();
-    public static final String SERVER_HOST = "quinoa-wind-turbine-windturbine.apps.openshift.sotogcp.com";
+    public static final String SERVER_HOST = "quinoa-wind-turbine-adamevin-dev.apps.sandbox-m2.ll9k.p1.openshiftapps.com";
 
     @Test
     void load() throws InterruptedException {
