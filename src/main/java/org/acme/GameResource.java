@@ -1,6 +1,6 @@
 package org.acme;
 
-import io.quarkus.runtime.StartupEvent;
+import io.quarkus.runtime.Startup;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import org.acme.PowerResource.Power;
@@ -16,8 +16,6 @@ import org.jboss.resteasy.reactive.ResponseHeader;
 import org.jboss.resteasy.reactive.RestStreamElementType;
 
 import javax.enterprise.context.ApplicationScoped;
-import javax.enterprise.event.Observes;
-import javax.inject.Inject;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -25,11 +23,7 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
-import java.security.SecureRandom;
-import java.time.Duration;
 import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.acme.Utils.NAMES;
@@ -38,29 +32,33 @@ import static org.acme.Utils.withPing;
 
 @ApplicationScoped
 @Path("game")
+@Startup
 public class GameResource {
 
     private static final Logger LOG = Logger.getLogger(GameResource.class);
-    private final AtomicReference<GameEvent> lastGameEvent = new AtomicReference<>();
-    @Inject CounterManager counterManager;
-    @Channel("game-events-out") Emitter<GameEvent> gameEventsOut;
-    @Channel("game-events-in") Multi<GameEvent> gameEventsIn;
-    private StrongCounter usersCounter;
-    private Multi<GameEvent> replayEventsIn;
 
-    @Channel("power-out") Emitter<Power> powerEmitter;
+    private final AtomicReference<GameEvent> lastGameEvent = new AtomicReference<>();
+    private final Emitter<GameEvent> gameEventsOut;
+    private final Multi<GameEvent> gameEventsIn;
+    private final StrongCounter usersCounter;
+    private final Multi<GameEvent> replayEventsIn;
+    private final Emitter<Power> powerOut;
 
     static {
         LOG.info("List of names initialized with " + NAMES.size() + " items");
     }
 
-
-    void onStart(@Observes StartupEvent ev) {
-        counterManager.defineCounter("users", CounterConfiguration.builder(CounterType.UNBOUNDED_STRONG).storage(Storage.PERSISTENT).build());
-        usersCounter = counterManager.getStrongCounter("users");
+    public GameResource(CounterManager counterManager, @Channel("game-events-in") Multi<GameEvent> gameEventsIn,
+            @Channel("game-events-out") Emitter<GameEvent> gameEventsOut, @Channel("power-out") Emitter<Power> powerOut) {
+        counterManager.defineCounter("users",
+                CounterConfiguration.builder(CounterType.UNBOUNDED_STRONG).storage(Storage.PERSISTENT).build());
+        this.usersCounter = counterManager.getStrongCounter("users");
         // Thanks to this, we can join a party after the start
-        replayEventsIn = Multi.createBy().replaying().upTo(5).ofMulti(gameEventsIn);
-        gameEventsIn.subscribe().with(s -> {
+        this.gameEventsIn = gameEventsIn;
+        this.gameEventsOut = gameEventsOut;
+        this.powerOut = powerOut;
+        this.replayEventsIn = Multi.createBy().replaying().upTo(5).ofMulti(gameEventsIn);
+        this.gameEventsIn.subscribe().with(s -> {
             lastGameEvent.set(s);
             System.out.println("Set last game event: " + s.type);
         });
@@ -71,7 +69,7 @@ public class GameResource {
     @Produces(MediaType.APPLICATION_JSON)
     public User assignNameAndTeam(@PathParam("id") Integer id) {
         final User user = new User(id, getNameById(id), (id % 2) + 1);
-        powerEmitter.send(new Power(0, user.name(), user.team()));
+        powerOut.send(new Power(0, user.name(), user.team()));
         return user;
     }
 
@@ -108,15 +106,18 @@ public class GameResource {
         gameEventsOut.send(gameEvent);
     }
 
-    public static record User(int id, String name, int team){}
+    public static record User(int id, String name, int team) {
+    }
 
-    static record CounterEvent(String source, Integer team){ }
+    static record CounterEvent(String source, Integer team) {
+    }
 
-    static record GameEvent(String type){
+    static record GameEvent(String type) {
         static final GameEvent PING = new GameEvent("ping");
     }
 
-    static record InstanceMsg(String type, Integer id) { }
+    static record InstanceMsg(String type, Integer id) {
+    }
 
     public static record UserScore(String user, Long score) implements Comparable<UserScore> {
         @Override
@@ -124,6 +125,5 @@ public class GameResource {
             return this.score.compareTo(o.score);
         }
     }
-
 
 }
