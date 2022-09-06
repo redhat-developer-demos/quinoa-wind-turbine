@@ -26,7 +26,7 @@ public class LoadTest {
     public static final int USERS = 500;
     public static final int CLICKS = 200;
     public static final Random R = new Random();
-    public static final String SERVER_HOST = "quinoa-wind-turbine-adamevin-dev.apps.sandbox-m2.ll9k.p1.openshiftapps.com";
+    public static final String SERVER_HOST = "quinoa-wind-turbine-windturbine-demo.apps.openshift.sotogcp.com";
 
     @Test
     void load() throws InterruptedException {
@@ -46,11 +46,16 @@ public class LoadTest {
                             r.cause().printStackTrace();
                             return;
                         }
-                        final GameResource.User user = r.result().bodyAsJson(GameResource.User.class);
-                        users.add(user);
-                        names.add(user.name());
-                        System.out.println("login " + user + " " + index);
-                        latchLogin.countDown();
+                        try {
+                            final GameResource.User user = r.result().bodyAsJson(GameResource.User.class);
+                            users.add(user);
+                            names.add(user.name());
+                            System.out.println("login " + user + " " + index);
+                            latchLogin.countDown();
+                        } catch (Exception e) {
+                            System.out.println(r.result().bodyAsString());
+                        }
+
                     });
         }
         latchLogin.await();
