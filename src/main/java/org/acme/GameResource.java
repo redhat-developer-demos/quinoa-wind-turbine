@@ -40,7 +40,6 @@ public class GameResource {
     private final Emitter<GameEvent> gameEventsOut;
     private final Multi<GameEvent> gameEventsIn;
     private final StrongCounter usersCounter;
-    private final Multi<GameEvent> replayEventsIn;
     private final Emitter<Power> powerOut;
 
     static {
@@ -56,7 +55,6 @@ public class GameResource {
         this.gameEventsIn = gameEventsIn;
         this.gameEventsOut = gameEventsOut;
         this.powerOut = powerOut;
-        this.replayEventsIn = Multi.createBy().replaying().upTo(1).ofMulti(gameEventsIn);
         this.gameEventsIn.subscribe().with(s -> {
             lastGameEvent.set(s);
             System.out.println("Set last game event: " + s.type);
@@ -94,7 +92,7 @@ public class GameResource {
     @RestStreamElementType(MediaType.APPLICATION_JSON)
     @ResponseHeader(name = "Connection", value = "keep-alive")
     public Multi<GameEvent> events() {
-        return replayEventsIn.onOverflow().buffer(5000);
+        return gameEventsIn.onOverflow().buffer(5000);
     }
 
     @POST
