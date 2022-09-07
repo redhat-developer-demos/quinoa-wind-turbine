@@ -9,14 +9,13 @@ export async function assign() {
     };
     return await fetch(`/api/game/assign/${id}`,
         {...fetchOptions})
-        .catch(e => console.error(e))
-        .then(r => r.json())
+        .then(convertResponse)
         .then(u => {
             if(u.id) {
                 sessionStorage.setItem('user-id', u.id);
             }
             return u;
-        });
+        }).catch(e => console.error(e));
 }
 
 export async function sendEvent(type) {
@@ -54,6 +53,15 @@ export function events(setStatus, reset) {
     function connect() {
         console.log('Connecting to game event stream');
         stream = new EventSource(`/api/game/events/`);
+        stream.onopen = () => {
+            console.log('Connected to game event stream');
+            setStatus(p => {
+                if (p === 'offline') {
+                    return 'initial';
+                }
+                return p;
+            });
+        };
         stream.onmessage = m => onEvent(JSON.parse(m.data));
         stream.onerror = (e) => {
             console.error('Disconnecting from game event stream on error', e);
@@ -62,7 +70,7 @@ export function events(setStatus, reset) {
             if (i++ < 50) {
                 setTimeout(connect, 2000);
             }
-        }
+        };
     }
     connect();
     return () => {
@@ -71,6 +79,13 @@ export function events(setStatus, reset) {
             stream.close();
         }
     };
+}
+
+function convertResponse(response) {
+    if (response.ok) {
+        return response.json();
+    }
+    throw new Error(`Request error: ${response.status}`);
 }
 
 export function status(setStatus, reset) {
@@ -94,13 +109,16 @@ export function status(setStatus, reset) {
                     break;
             }
         }
-        timeout = setTimeout(fetchStatus, 1000);
+        timeout = setTimeout(fetchStatus, 3000);
     }
     const fetchStatus = () => {
         fetch('/api/game/status')
-            .catch(e => console.error("Error while receiving events: " + JSON.stringify(e)))
-            .then(r => r.json())
-            .then(onEvent);
+            .then(convertResponse)
+            .then(onEvent)
+            .catch(e => {
+                console.error(e);
+                onEvent();
+            });
     };
     fetchStatus();
     return () => {
