@@ -42,7 +42,7 @@ export function events(setStatus, reset) {
                 break;
             case 'reset':
                 if (reset) {
-                    //reset();
+                    reset();
                 }
             case 'pause':
                 setStatus('paused');
