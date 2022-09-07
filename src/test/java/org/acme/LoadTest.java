@@ -26,7 +26,9 @@ public class LoadTest {
     public static final int USERS = 500;
     public static final int CLICKS = 200;
     public static final Random R = new Random();
-    public static final String SERVER_HOST = "quinoa-wind-turbine-windturbine-demo.apps.openshift.sotogcp.com";
+    public static final String SERVER_HOST = "quinoa-wind-turbine-windturbine-demo.apps.skatt.rl97.p1.openshiftapps.com";
+    public static final int SERVER_PORT = 80;
+    public static final boolean SSL = SERVER_PORT == 443;
 
     @Test
     void load() throws InterruptedException {
@@ -37,9 +39,9 @@ public class LoadTest {
         final CountDownLatch latchLogin = new CountDownLatch(USERS);
         for (int i = 0; i < USERS; i++) {
             final int index = i;
-            client.request(HttpMethod.POST, 443, SERVER_HOST,
+            client.request(HttpMethod.POST, SERVER_PORT, SERVER_HOST,
                             "/api/game/assign")
-                    .ssl(true)
+                    .ssl(SSL)
                     .send()
                     .onComplete(r -> {
                         if (r.failed()) {
@@ -64,9 +66,9 @@ public class LoadTest {
         System.out.println(names.size() + " different names");
         AtomicBoolean started = new AtomicBoolean(false);
         while (!started.get()) {
-            client.request(HttpMethod.GET, 443, SERVER_HOST,
+            client.request(HttpMethod.GET, SERVER_PORT, SERVER_HOST,
                             "/api/game/status")
-                    .ssl(true)
+                    .ssl(SSL)
                     .send()
                     .onComplete(r -> {
                         if (r.failed()) {
@@ -86,9 +88,9 @@ public class LoadTest {
 
         for (int i = 0; i < CLICKS; i++) {
             for (GameResource.User user : users) {
-                client.request(HttpMethod.POST, 443, SERVER_HOST,
+                client.request(HttpMethod.POST, SERVER_PORT, SERVER_HOST,
                                 "/api/power")
-                        .ssl(true)
+                        .ssl(SSL)
                         .sendJsonObject(new JsonObject().put("quantity", R.nextInt(20, user.team() == 1 ? 35 : 40) ).put("source", user.name())
                                 .put("destination", user.team()))
                         .onComplete((r) -> {
