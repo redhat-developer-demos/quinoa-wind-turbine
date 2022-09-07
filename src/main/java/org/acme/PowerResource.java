@@ -18,8 +18,6 @@ import javax.ws.rs.core.MediaType;
 import java.time.Duration;
 import java.util.List;
 
-import static org.acme.Utils.withPing;
-
 @ApplicationScoped
 @Path("power")
 public class PowerResource {
@@ -35,7 +33,7 @@ public class PowerResource {
     @Produces(MediaType.SERVER_SENT_EVENTS)
     @RestStreamElementType(MediaType.APPLICATION_JSON)
     public Multi<List<Power>> stream() {
-                return withPing(powerIn.group().intoLists().every(Duration.ofMillis(20)), List.of(Power.PING));
+                return powerIn.group().intoLists().every(Duration.ofMillis(20)).onOverflow().buffer(5000);
     }
 
     @Path("")

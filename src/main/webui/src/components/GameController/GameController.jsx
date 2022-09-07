@@ -6,7 +6,7 @@ import {Bolt} from '@styled-icons/boxicons-solid';
 import {CloudDone, CloudOffline} from '@styled-icons/ionicons-outline';
 import {Plug} from '@styled-icons/boxicons-regular'
 import {ENABLE_SHAKING} from '../../Config';
-import { sensors } from "../../api";
+import {sensors} from "../../api";
 
 const Container = styled.div`
   text-align: center;
@@ -132,19 +132,20 @@ const GameController = (props) => {
     const [status, setStatus] = useState("offline");
     const [generated, setCounter] = useState(0);
     const [power, setPower] = useState(0);
+    const [pingTimeout, setPingTimeout] = useState();
     const [shakingEnabled, setShakingEnabled] = useState(false);
     useEffect(() => {
         gameApi.assign().then(setUser);
-    }, [])
+    }, []);
 
     function generatePower(quantity, fromClick) {
-        if (user && status === 'started') {
+        if (user && (quantity === 0 || status === 'started')) {
+            console.log(`Generate: ${quantity}`);
             setPower(quantity);
+            clearTimeout(pingTimeout);
+            setPingTimeout(null);
             setCounter((c) => c + quantity);
-            if (quantity > 0) {
-                powerApi.generate(user, quantity).then(r => {
-                });
-            }
+            powerApi.generate(user, quantity).then(r => {});
         }
     }
 
@@ -152,13 +153,21 @@ const GameController = (props) => {
         setPower(0);
         setCounter(0);
     };
+    useEffect(() => {
+        if (user && !pingTimeout) {
+            setPingTimeout(p => !p ? setTimeout(() => generatePower(0), 3000) : null);
+        }
+        return () => clearTimeout(pingTimeout);
+    }, [user, pingTimeout, setPingTimeout, setPower, setCounter])
     useEffect(() => gameApi.status(setStatus, reset), [setStatus]);
     const statusColor = status !== 'offline' ? 'green' : 'grey';
     const color = user && gameApi.TEAM_COLORS[user.team - 1];
+
     function enableShaking() {
         sensors.enableShakeSensor();
         setShakingEnabled(true);
     }
+
     return (
         <Container>
             {user && (
@@ -172,11 +181,14 @@ const GameController = (props) => {
                             {status === 'paused' && <CloudDone size={32}/>}
                         </Status>
                     </TopBar>
-                    {ENABLE_SHAKING && !shakingEnabled && <EnableShakingButton onClick={enableShaking}>Enable Shaking</EnableShakingButton>}
+                    {ENABLE_SHAKING && !shakingEnabled &&
+                    <EnableShakingButton onClick={enableShaking}>Enable Shaking</EnableShakingButton>}
                     {status === "started" ? (
                         <>
-                            <Generator generatePower={generatePower} color={color} generated={generated} shakingEnabled={shakingEnabled}/>
-                            <GeneratedIndicator unit={powerApi.humanPowerUnit(generated)}>{powerApi.humanPowerValue(generated)}</GeneratedIndicator>
+                            <Generator generatePower={generatePower} color={color} generated={generated}
+                                       shakingEnabled={shakingEnabled}/>
+                            <GeneratedIndicator
+                                unit={powerApi.humanPowerUnit(generated)}>{powerApi.humanPowerValue(generated)}</GeneratedIndicator>
                         </>
                     ) : (
                         <>

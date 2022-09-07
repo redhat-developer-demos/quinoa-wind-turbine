@@ -12,6 +12,7 @@ export async function generate(user, quantity) {
 }
 
 export function consume(status, setTeam) {
+    console.log('Connecting to power stream');
     const powerStream = new EventSource(`/api/power/stream/`);
 
     function getRealtimeData(b) {
@@ -44,10 +45,11 @@ export function consume(status, setTeam) {
 
     powerStream.onmessage = m => getRealtimeData(JSON.parse(m.data));
     powerStream.onerror = (e) => {
-        console.error(e);
+        console.error('Disconnecting from game event stream', e);
         powerStream.close();
     }
     return () => {
+        console.log('Disconnecting from game event stream');
         powerStream.close();
     };
 }

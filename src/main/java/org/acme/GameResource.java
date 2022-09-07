@@ -28,7 +28,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.acme.Utils.NAMES;
 import static org.acme.Utils.getNameById;
-import static org.acme.Utils.withPing;
 
 @ApplicationScoped
 @Path("game")
@@ -57,7 +56,7 @@ public class GameResource {
         this.gameEventsIn = gameEventsIn;
         this.gameEventsOut = gameEventsOut;
         this.powerOut = powerOut;
-        this.replayEventsIn = Multi.createBy().replaying().upTo(5).ofMulti(gameEventsIn);
+        this.replayEventsIn = Multi.createBy().replaying().upTo(1).ofMulti(gameEventsIn);
         this.gameEventsIn.subscribe().with(s -> {
             lastGameEvent.set(s);
             System.out.println("Set last game event: " + s.type);
@@ -95,7 +94,7 @@ public class GameResource {
     @RestStreamElementType(MediaType.APPLICATION_JSON)
     @ResponseHeader(name = "Connection", value = "keep-alive")
     public Multi<GameEvent> events() {
-        return withPing(replayEventsIn, GameEvent.PING);
+        return replayEventsIn.onOverflow().buffer(5000);
     }
 
     @POST

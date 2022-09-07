@@ -49,37 +49,4 @@ final class Utils {
         return NAMES.get(id);
     }
 
-    static <T> Multi<T> withPing(Multi<T> stream, T pingValue) {
-        return Multi.createBy().merging()
-                .streams(
-                        stream.onOverflow().buffer(5000),
-                        Multi.createFrom().ticks().every(Duration.ofSeconds(30))
-                                .onOverflow().drop()
-                                .onItem().transform(x -> pingValue)
-                );
-    }
-
-    private static Set<List<String>> cartesianProduct(Set<String>... sets) {
-        if (sets.length < 2)
-            throw new IllegalArgumentException(
-                    "Can't have a product of fewer than two sets (got " +
-                            sets.length + ")");
-
-        return cartesianProduct(0, sets);
-    }
-
-    private static Set<List<String>> cartesianProduct(int index, Set<String>... sets) {
-        Set<List<String>> ret = new HashSet<>();
-        if (index == sets.length) {
-            ret.add(new ArrayList<>());
-        } else {
-            for (String str : sets[index]) {
-                for (List<String> set : cartesianProduct(index+1, sets)) {
-                    set.add(str);
-                    ret.add(set);
-                }
-            }
-        }
-        return ret;
-    }
 }

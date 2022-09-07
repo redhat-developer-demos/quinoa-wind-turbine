@@ -42,7 +42,7 @@ export function events(setStatus, reset) {
                 break;
             case 'reset':
                 if (reset) {
-                    reset();
+                    //reset();
                 }
             case 'pause':
                 setStatus('paused');
@@ -52,13 +52,23 @@ export function events(setStatus, reset) {
                 break;
         }
     }
-    const stream = new EventSource(`/api/game/events/`);
-    stream.onmessage = m => onEvent(JSON.parse(m.data));
-    stream.onerror = (e) => {
-        console.error("Error while receiving events: " + JSON.stringify(e));
+    let stream;
+    function connect() {
+        console.log('Connecting to game event stream');
+        stream = new EventSource(`/api/game/events/`);
+        stream.onmessage = m => onEvent(JSON.parse(m.data));
+        stream.onerror = (e) => {
+            console.error('Disconnecting from game event stream', e);
+            stream.close();
+            setTimeout(connect, 1000);
+        }
     }
+    connect();
     return () => {
-        stream.close();
+        console.log('Disconnecting from game event stream');
+        if (stream) {
+            stream.close();
+        }
     };
 }
 
