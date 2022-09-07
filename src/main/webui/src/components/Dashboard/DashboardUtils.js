@@ -8,7 +8,8 @@ export function computeDistance(power, nbUsers) {
     return (power * 100) / (CLICK_POWER * NB_CLICK_NEEDED_PER_USER * nbUsers);
 }
 
-export function resetTeam(t) {
+export function resetTeam(p) {
+    const t = {...p};
     _.forEach(t, u => u.generated = 0);
     return t;
 }

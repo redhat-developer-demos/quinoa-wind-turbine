@@ -1,13 +1,13 @@
-import React from 'react';
+import React, {useEffect, useState} from 'react';
 import _ from 'lodash';
 import styled from 'styled-components'
-import {Play, Pause, Refresh} from '@styled-icons/heroicons-outline';
-import {Trophy} from '@styled-icons/ionicons-outline';
+import {Play, Pause} from '@styled-icons/heroicons-outline';
+import {Trophy, CloudOffline} from '@styled-icons/ionicons-outline';
 import {gameApi, powerApi} from '../../api';
 import StopWatch from './StopWatch';
 import {SHOW_TOP} from '../../Config';
 import {computeWinner} from './DashboardUtils';
-import {Plug} from '@styled-icons/boxicons-regular'
+import {Plug, Reset} from '@styled-icons/boxicons-regular'
 
 
 const Title = styled.h1`
@@ -28,16 +28,33 @@ const LeftBarDiv = styled.div`
   flex-direction: column;
 `;
 
-const Control = ({className, status}) => (
-    <div className={className}>
-        {status === 'started' ? (
-            <button id="pause" onClick={() => gameApi.sendEvent('pause')}><Pause/></button>
-        ) : (
-            <button id="play" onClick={() => gameApi.sendEvent('start')}><Play/></button>
-        )}
-        <button id="reset" onClick={() => gameApi.sendEvent('reset')}><Refresh/></button>
-    </div>
-);
+const Control = ({className, status}) => {
+    const [clicked, setClicked] = useState(false);
+
+    function send(type) {
+        setClicked(true);
+        gameApi.sendEvent(type);
+    }
+
+    useEffect(() => {
+        setClicked(false);
+    }, [status]);
+    return (
+        <div className={className}>
+            {status === 'offline' ? (<button disabled><CloudOffline/></button>) : (
+                <>{status === 'started' ? (
+                    <button id="pause" onClick={() => send('pause')} disabled={clicked}><Pause/></button>
+                ) : (
+                    <button id="play" onClick={() => send('start')} disabled={clicked}><Play/></button>
+                )}
+                    {status !== 'initial' &&
+                    <button id="reset" onClick={() => send('reset')} disabled={clicked}><Reset/></button>}
+                </>
+            )}
+
+        </div>
+    );
+}
 
 const StyledControl = styled(Control)`
   margin: 20px 0;
@@ -52,6 +69,14 @@ const StyledControl = styled(Control)`
     svg {
       height: 100px;
       color: white;
+    }
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+
+    svg {
+      color: #a2a2a2;
     }
   }
 `;
@@ -146,14 +171,14 @@ const StyledTeam = styled(Team)`
 const LeftBar = (props) => {
     const winner = computeWinner(props.result);
     const teamDef = [
-        { id: 1, team: props.team1, generated: props.power[0], time: props.result.team1},
-        { id: 2, team: props.team2, generated: props.power[1], time: props.result.team2}
+        {id: 1, team: props.team1, generated: props.power[0], time: props.result.team1},
+        {id: 2, team: props.team2, generated: props.power[1], time: props.result.team2}
     ];
     teamDef.sort((a, b) => {
         if (winner >= 0) {
             return a.id === winner ? -1 : 1;
         }
-        if(a.generated === b.generated) {
+        if (a.generated === b.generated) {
             return a.id - b.id;
         }
         return b.generated - a.generated;

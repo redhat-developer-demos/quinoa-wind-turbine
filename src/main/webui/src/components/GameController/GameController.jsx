@@ -158,8 +158,8 @@ const GameController = (props) => {
             setPingTimeout(p => !p ? setTimeout(() => generatePower(0), 3000) : null);
         }
         return () => clearTimeout(pingTimeout);
-    }, [user, pingTimeout, setPingTimeout, setPower, setCounter])
-    useEffect(() => gameApi.status(setStatus, reset), [setStatus]);
+    }, [user, pingTimeout])
+    useEffect(() => gameApi.status(setStatus, reset), []);
     const statusColor = status !== 'offline' ? 'green' : 'grey';
     const color = user && gameApi.TEAM_COLORS[user.team - 1];
 

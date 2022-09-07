@@ -45,11 +45,11 @@ export function consume(status, setTeam) {
 
     powerStream.onmessage = m => getRealtimeData(JSON.parse(m.data));
     powerStream.onerror = (e) => {
-        console.error('Disconnecting from game event stream', e);
+        console.error('Disconnecting from power event stream on error', e);
         powerStream.close();
     }
     return () => {
-        console.log('Disconnecting from game event stream');
+        console.log('Disconnecting from power event stream');
         powerStream.close();
     };
 }

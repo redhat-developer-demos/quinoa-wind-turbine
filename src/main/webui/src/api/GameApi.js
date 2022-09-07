@@ -41,32 +41,33 @@ export function events(setStatus, reset) {
                 setStatus('started');
                 break;
             case 'reset':
-                if (reset) {
-                    reset();
-                }
+                reset();
+                setStatus('initial');
+                break;
             case 'pause':
                 setStatus('paused');
-                break;
-            case 'ping':
-                setStatus(s => s !== 'started' ? 'paused' : 'started');
                 break;
         }
     }
     let stream;
+    let i = 0;
     function connect() {
         console.log('Connecting to game event stream');
         stream = new EventSource(`/api/game/events/`);
         stream.onmessage = m => onEvent(JSON.parse(m.data));
         stream.onerror = (e) => {
-            console.error('Disconnecting from game event stream', e);
+            console.error('Disconnecting from game event stream on error', e);
             stream.close();
-            setTimeout(connect, 1000);
+            setStatus('offline');
+            if (i++ < 50) {
+                setTimeout(connect, 2000);
+            }
         }
     }
     connect();
     return () => {
-        console.log('Disconnecting from game event stream');
         if (stream) {
+            console.log('Disconnecting from game event stream');
             stream.close();
         }
     };

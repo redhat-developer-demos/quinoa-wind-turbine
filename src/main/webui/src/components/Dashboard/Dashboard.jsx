@@ -6,7 +6,7 @@ import RaceTrack from './RaceTrack';
 
 const Dashboard = (props) => {
     const [result, setResult] = useState({});
-    const [status, setStatus] = useState("offline");
+    const [status, setStatus] = useState("initial");
     const [team1, setTeam1] = useState({});
     const [team2, setTeam2] = useState({});
     const [time, setTime] = useState(0);
@@ -17,8 +17,8 @@ const Dashboard = (props) => {
         setResult({});
     };
     useEffect(() => powerApi.consume(status, [setTeam1, setTeam2]),
-        [status, setTeam1, setTeam2]);
-    useEffect(() => gameApi.events(setStatus, reset), [setStatus]);
+        [status]);
+    useEffect(() => gameApi.events(setStatus, reset), []);
 
     const nbUsers = computeNbUsers(team1, team2);
     const power = [computePower(team1), computePower(team2)];
@@ -32,7 +32,7 @@ const Dashboard = (props) => {
         if (result.team1 && result.team2) {
             gameApi.sendEvent('pause');
         }
-    }, [time, distances, setResult, result])
+    }, [time, distances, result])
 
     return (
         <div className={props.className}>
