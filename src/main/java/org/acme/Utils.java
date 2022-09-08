@@ -49,4 +49,13 @@ final class Utils {
         return NAMES.get(id);
     }
 
+    static <T> Multi<T> withPing(Multi<T> stream, T pingValue, long intervalSeconds) {
+        return Multi.createBy().merging()
+                .streams(
+                        stream,
+                        Multi.createFrom().ticks().every(Duration.ofSeconds(intervalSeconds))
+                                .onOverflow().drop()
+                                .onItem().transform(x -> pingValue)
+                );
+    }
 }
