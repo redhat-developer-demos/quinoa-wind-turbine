@@ -15,6 +15,7 @@ import org.jboss.logging.Logger;
 import org.jboss.resteasy.reactive.ResponseHeader;
 import org.jboss.resteasy.reactive.RestStreamElementType;
 
+import javax.annotation.security.RolesAllowed;
 import javax.enterprise.context.ApplicationScoped;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
@@ -28,6 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.acme.Utils.NAMES;
 import static org.acme.Utils.getNameById;
+import static org.acme.Utils.withPing;
 
 @ApplicationScoped
 @Path("game")
@@ -92,12 +94,13 @@ public class GameResource {
     @RestStreamElementType(MediaType.APPLICATION_JSON)
     @ResponseHeader(name = "Connection", value = "keep-alive")
     public Multi<GameEvent> events() {
-        return gameEventsIn.onOverflow().buffer(5000);
+        return withPing(gameEventsIn.onOverflow().buffer(5000), GameEvent.PING, 30);
     }
 
     @POST
     @Path("event")
     @Consumes(MediaType.APPLICATION_JSON)
+    @RolesAllowed("admin")
     public void sendGameEvent(GameEvent gameEvent) {
         System.out.println("sending: " + gameEvent);
         gameEventsOut.send(gameEvent);

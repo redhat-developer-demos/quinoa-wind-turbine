@@ -54,6 +54,7 @@ export function events(setStatus, reset) {
         console.log('Connecting to game event stream');
         stream = new EventSource(`/api/game/events/`);
         stream.onopen = () => {
+            i = 0;
             console.log('Connected to game event stream');
             setStatus(p => {
                 if (p === 'offline') {
@@ -66,8 +67,10 @@ export function events(setStatus, reset) {
         stream.onerror = (e) => {
             console.error('Disconnecting from game event stream on error', e);
             stream.close();
-            setStatus('offline');
-            if (i++ < 50) {
+            if(i > 0) {
+                setStatus('offline');
+            }
+            if (i++ < 300) {
                 setTimeout(connect, 2000);
             }
         };
@@ -117,6 +120,7 @@ export function status(setStatus, reset) {
             .then(onEvent)
             .catch(e => {
                 console.error(e);
+                setStatus('offline');
                 onEvent();
             });
     };
