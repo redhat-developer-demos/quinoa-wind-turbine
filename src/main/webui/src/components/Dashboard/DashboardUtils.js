@@ -14,12 +14,22 @@ export function resetTeam(p) {
     return t;
 }
 
-export function computeNbUsers(team1, team2) {
-    return Math.max(_.size(team1), _.size(team2));
+export function computeNbUsers(power, team) {
+    return  _.size(team);
 }
 
 export function computePower(t) {
-    return _.values(t).reduce((a, u) => a + u.generated, 0);
+    const team = _.values(t);
+    return team.reduce((a, u) => a + u.generated, 0);
+}
+
+export function sort(team) {
+    team.sort((a, b) => {
+        if (a.generated === b.generated) {
+            return a.id - b.id;
+        }
+        return b.generated - a.generated;
+    });
 }
 
 export function computeWinner(result) {

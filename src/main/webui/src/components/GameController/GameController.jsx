@@ -4,8 +4,8 @@ import Generator from './Generator';
 import {gameApi, powerApi} from '../../api';
 import {Bolt} from '@styled-icons/boxicons-solid';
 import {CloudDone, CloudOffline} from '@styled-icons/ionicons-outline';
-import {Plug} from '@styled-icons/boxicons-regular'
-import {ENABLE_SHAKING} from '../../Config';
+import {Plug, MobileVibration} from '@styled-icons/boxicons-regular'
+import {ENABLE_SHAKING, TEAM_COLORS} from '../../Config';
 import {sensors} from "../../api";
 
 const Container = styled.div`
@@ -27,17 +27,36 @@ const Status = styled.div`
   color: ${props => props.color};
 `
 
-const EnableShakingButton = styled.div`
+const EnableShakingOverlay = styled.div`
+  position: fixed;
   background-color: #4695EB;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  backdrop-filter: blur(3px);
+  align-items: center;
+  justify-content: center;
+`
+
+const EnableShakingButton = styled.div`
+  background-color: red;
+  width: 250px;
   padding: 10px;
   color: white;
   text-transform: uppercase;
   cursor: pointer;
-  position: fixed;
-  bottom: 0px;
-  left: 0;
-  right: 0;
   font-weight: bold;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 2rem;
+  
+  svg {
+    margin-right: 10px;
+  }
 `
 
 const Loading = styled.div`
@@ -161,7 +180,7 @@ const GameController = (props) => {
     }, [user, pingTimeout])
     useEffect(() => gameApi.status(setStatus, reset), []);
     const statusColor = status !== 'offline' ? 'green' : 'grey';
-    const color = user && gameApi.TEAM_COLORS[user.team - 1];
+    const color = user && TEAM_COLORS[user.team - 1];
 
     function enableShaking() {
         sensors.enableShakeSensor();
@@ -181,8 +200,6 @@ const GameController = (props) => {
                             {status === 'paused' && <CloudDone size={32}/>}
                         </Status>
                     </TopBar>
-                    {ENABLE_SHAKING && !shakingEnabled &&
-                    <EnableShakingButton onClick={enableShaking}>Enable Shaking</EnableShakingButton>}
                     {status === "started" ? (
                         <>
                             <Generator generatePower={generatePower} color={color} generated={generated}
@@ -198,6 +215,8 @@ const GameController = (props) => {
                             </Loading>
                         </>
                     )}
+                    {ENABLE_SHAKING && !shakingEnabled &&
+                    <EnableShakingOverlay><EnableShakingButton onClick={enableShaking}><MobileVibration size={80}/>Enable Shaking</EnableShakingButton></EnableShakingOverlay>}
                 </>
             )}
         </Container>

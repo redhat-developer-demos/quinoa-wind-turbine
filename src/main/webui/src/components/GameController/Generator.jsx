@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react'
 import styled from 'styled-components'
-import { CLICK_POWER, ENABLE_BLOWING, ENABLE_CLICKING, ENABLE_SHAKING, ENABLE_SWIPING } from '../../Config';
+import { CLICK_POWER, ENABLE_BLOWING, ENABLE_CLICKING, ENABLE_SWIPING } from '../../Config';
 import { sensors } from "../../api";
 
 

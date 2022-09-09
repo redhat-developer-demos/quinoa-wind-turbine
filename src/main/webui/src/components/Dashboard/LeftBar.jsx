@@ -5,8 +5,8 @@ import {Play, Pause} from '@styled-icons/heroicons-outline';
 import {Trophy, CloudOffline} from '@styled-icons/ionicons-outline';
 import {gameApi, powerApi} from '../../api';
 import StopWatch from './StopWatch';
-import {SHOW_TOP} from '../../Config';
-import {computeWinner} from './DashboardUtils';
+import {SHOW_TOP, TEAM_COLORS} from '../../Config';
+import {computeWinner, sort} from './DashboardUtils';
 import {Plug, Reset} from '@styled-icons/boxicons-regular'
 
 
@@ -139,7 +139,7 @@ const Team = (props) => {
     const top = team.sort((a, b) => b.generated - a.generated).slice(0, SHOW_TOP);
     return (
         <div className={props.className}>
-            <Header style={{color: gameApi.TEAM_COLORS[props.id - 1]}}>
+            <Header style={{color: TEAM_COLORS[props.id - 1]}}>
                 <span>
                     {props.winner === props.id && <Trophy size={32}/>}
                     Team {props.id}
@@ -168,21 +168,73 @@ const StyledTeam = styled(Team)`
 `;
 
 
-const LeftBar = (props) => {
+const WinnerDiv = styled.div`
+  position: fixed;
+  color: ${props => props.color};
+  border: 1px solid ${props => props.color};
+  left: calc(50% - 400px);
+  top: calc(50% - 250px);
+  padding: 30px;
+  box-sizing: border-box;
+  width: 800px;
+  height: 500px;
+  background-color: #262626;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  .winner {
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+
+    h1 {
+      margin-left: 20px;
+      font-size: 2.5rem;
+    }
+  }
+  h3 {
+    color: white;
+    margin-bottom: 0px;
+  }
+  li {
+    color: white;
+    line-height: 25px;
+  }
+`;
+
+export const Winner = (props) => {
+    const players = [..._.values(props.team1), ..._.values(props.team2)];
+    const top = players.sort((a, b) => b.generated - a.generated).slice(0, 10);
+    return (
+        <WinnerDiv color={TEAM_COLORS[props.winner - 1]}>
+            <div className="winner">
+                <Trophy size={150}/>
+                <h1>Team {props.winner} won the game!</h1>
+            </div>
+            {top.length > 0 && (
+                <>
+                    <h3>Overall Leaderboard:</h3>
+                    <ol>
+                        {top.map((u, id) => (
+                            <li key={id}>{u.name} - {powerApi.humanPower(u.generated)}</li>
+                        ))}
+                    </ol>
+                </>
+            )}
+        </WinnerDiv>
+    );
+}
+
+export const LeftBar = (props) => {
     const winner = computeWinner(props.result);
     const teamDef = [
         {id: 1, team: props.team1, generated: props.power[0], time: props.result.team1},
         {id: 2, team: props.team2, generated: props.power[1], time: props.result.team2}
     ];
-    teamDef.sort((a, b) => {
-        if (winner >= 0) {
-            return a.id === winner ? -1 : 1;
-        }
-        if (a.generated === b.generated) {
-            return a.id - b.id;
-        }
-        return b.generated - a.generated;
-    });
+    sort(teamDef);
     return (
         <LeftBarDiv>
             <Title>The Race</Title>
@@ -194,5 +246,3 @@ const LeftBar = (props) => {
         </LeftBarDiv>
     );
 }
-
-export default LeftBar;

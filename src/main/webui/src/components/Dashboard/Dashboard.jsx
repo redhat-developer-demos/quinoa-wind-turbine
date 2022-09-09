@@ -1,8 +1,12 @@
 import React, {useEffect, useState} from 'react';
 import {powerApi, gameApi} from '../../api';
-import {computeDistance, resetTeam, computePower, computeNbUsers} from './DashboardUtils';
-import LeftBar from './LeftBar';
+import {computeDistance, resetTeam, computePower, computeNbUsers, computeWinner} from './DashboardUtils';
+import {LeftBar, Winner} from './LeftBar';
 import RaceTrack from './RaceTrack';
+import {Trophy} from '@styled-icons/ionicons-outline';
+import { TEAM_COLORS } from '../../Config';
+
+
 
 const Dashboard = (props) => {
     const [result, setResult] = useState({});
@@ -19,25 +23,28 @@ const Dashboard = (props) => {
     useEffect(() => powerApi.consume(status, [setTeam1, setTeam2]),
         [status]);
     useEffect(() => gameApi.events(setStatus, reset), []);
-
-    const nbUsers = computeNbUsers(team1, team2);
     const power = [computePower(team1), computePower(team2)];
-    const distances = [computeDistance(power[0], nbUsers), computeDistance(power[1], nbUsers)];
+    const nbUsers1 = computeNbUsers(power[0], team1);
+    const nbUsers2 = computeNbUsers(power[1], team2);
+
+    const distances = [computeDistance(power[0], nbUsers1), computeDistance(power[1], nbUsers2)];
     useEffect(() => {
         if (!result.team1 && distances[0] >= 100) {
             setResult(p => ({...p, team1: time}))
         } else if (!result.team2 && distances[1] >= 100) {
             setResult(p => ({...p, team2: time}))
         }
-        if (result.team1 && result.team2) {
+        if (status === 'started' && result.team1 && result.team2) {
             gameApi.sendEvent('pause');
         }
-    }, [time, distances, result])
+    }, [status, time, distances, result])
 
+    const winner = computeWinner(result);
     return (
         <div className={props.className}>
             <LeftBar team1={team1} team2={team2} power={power} result={result} time={time} setTime={setTime} status={status}/>
             <RaceTrack distances={distances}/>
+            {winner > 0 && <Winner winner={winner} team1={team1} team2={team2} />}
         </div>
     )
 }

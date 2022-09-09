@@ -13,7 +13,7 @@ export default class Shake {
 
         this.options = {
             threshold: 10, //default velocity threshold for shake to register
-            timeout: 500 //default interval between events
+            timeout: 200 //default interval between events
         };
 
         if (typeof options === 'object') {

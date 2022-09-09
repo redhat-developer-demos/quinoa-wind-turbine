@@ -1,5 +1,5 @@
-import {useEffect, useState} from 'react';
-import styled from "styled-components";
+import {useEffect} from 'react';
+import styled from 'styled-components';
 
 const StopWatchContainer = styled.div`
   text-align: center;

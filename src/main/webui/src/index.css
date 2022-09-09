@@ -3,6 +3,7 @@
 :root {
   --code-font: ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace;
   --main-font: "Josefin Sans";
+  --main-bg: #DED7BF;
 }
 
 html, body {
@@ -14,10 +15,11 @@ body {
   font-family: var(--main-font), Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: rgba(189, 173, 117, 0.48);
+  background-color: var(--main-bg);
   color: black;
 }
 
 code {
   font-family: var(--code-font);
 }
+
