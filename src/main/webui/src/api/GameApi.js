@@ -1,5 +1,10 @@
+const mode = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
+const storage = mode ? sessionStorage : localStorage;
+
+console.log(`${mode}mode`);
+
 export async function assign() {
-    let id = sessionStorage.getItem('user-id');
+    let id = storage.getItem('user-id');
     if(!id || id === 'undefined') {
         id = '';
     }
@@ -12,7 +17,7 @@ export async function assign() {
         .then(convertResponse)
         .then(u => {
             if(u.id) {
-                sessionStorage.setItem('user-id', u.id);
+                storage.setItem('user-id', u.id);
             }
             return u;
         }).catch(e => console.error(e));
@@ -28,8 +33,6 @@ export async function sendEvent(type) {
         {...fetchOptions})
         .catch(e => console.error(e));
 }
-
-export const TEAM_COLORS = ['#6C84A3', 'orange'];
 
 export function events(setStatus, reset) {
 
@@ -112,7 +115,7 @@ export function status(setStatus, reset) {
                     break;
             }
         }
-        timeout = setTimeout(fetchStatus, 3000);
+        timeout = setTimeout(fetchStatus, 1000);
     }
     const fetchStatus = () => {
         fetch('/api/game/status')

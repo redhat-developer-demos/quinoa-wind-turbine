@@ -2,6 +2,8 @@ export const IS_TOUCH_DEVICE = (('ontouchstart' in window) ||
     (navigator.maxTouchPoints > 0) ||
     (navigator.msMaxTouchPoints > 0));
 
+export const TEAM_COLORS = ['#6C84A3', 'orange'];
+
 // Dashboard
 export const CLICK_POWER = 30; // in MW
 export const NB_CLICK_NEEDED_PER_USER = 150;
