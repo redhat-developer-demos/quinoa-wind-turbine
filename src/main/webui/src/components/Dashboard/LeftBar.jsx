@@ -28,7 +28,7 @@ const LeftBarDiv = styled.div`
   flex-direction: column;
 `;
 
-const Control = ({className, status}) => {
+const Control = ({className, status, winner}) => {
     const [clicked, setClicked] = useState(false);
 
     function send(type) {
@@ -42,11 +42,11 @@ const Control = ({className, status}) => {
     return (
         <div className={className}>
             {status === 'offline' ? (<button disabled><CloudOffline/></button>) : (
-                <>{status === 'started' ? (
+                <>{winner < 0 && (status === 'started' ? (
                     <button id="pause" onClick={() => send('pause')} disabled={clicked}><Pause/></button>
                 ) : (
                     <button id="play" onClick={() => send('start')} disabled={clicked}><Play/></button>
-                )}
+                ))}
                     {status !== 'initial' &&
                     <button id="reset" onClick={() => send('reset')} disabled={clicked}><Reset/></button>}
                 </>
@@ -242,7 +242,7 @@ export const LeftBar = (props) => {
                 {teamDef.map(d => (<StyledTeam key={d.id} {...d} winner={winner}/>))}
             </Teams>
             <StopWatch time={props.time} setTime={props.setTime} running={props.status === 'started'}/>
-            <StyledControl status={props.status}/>
+            <StyledControl winner={winner} status={props.status}/>
         </LeftBarDiv>
     );
 }

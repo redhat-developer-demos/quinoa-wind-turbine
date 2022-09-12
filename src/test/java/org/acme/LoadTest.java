@@ -26,8 +26,8 @@ public class LoadTest {
     public static final int USERS = 500;
     public static final int CLICKS = 200;
     public static final Random R = new Random();
-    public static final String SERVER_HOST = "quinoa-wind-turbine-windturbine-demo.apps.skatt.rl97.p1.openshiftapps.com";
-    public static final int SERVER_PORT = 80;
+    public static final String SERVER_HOST = "quinoa-wind-turbine-demo.apps.skatt.rl97.p1.openshiftapps.com";
+    public static final int SERVER_PORT = 443;
     public static final boolean SSL = SERVER_PORT == 443;
 
     @Test

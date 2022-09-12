@@ -45,6 +45,9 @@ public class PowerResource {
         if (power.destination() > 2) {
             throw new IllegalArgumentException("We only have 2 teams for now");
         }
+        if (power.quantity > 200) {
+           throw new IllegalStateException("Ouch this is too much for me to handle!");
+        }
         powerOut.send(power);
         
         // Sends action to leader board topic
