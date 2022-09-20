@@ -7,7 +7,6 @@ This project uses Quarkus, the Supersonic Subatomic Java Framework.
 ## Running the application in dev mode
 
 Install first:
-- NodeJS & Yarn `npm install --global yarn`
 - JDK 17
 - Maven
 - Quarkus CLI
@@ -79,12 +78,15 @@ oc delete all -l app.kubernetes.io/name=quinoa-wind-turbine
 
 ## Deploy on Cluster with admin rights
 
-### Install Let's encrypt:
+### SSL (if the cluster doesn't have a signed certificate):
 
+Let'encrypt (if the cluster doesn't have a signed certificate):
 ```bash
 oc apply -fhttps://raw.githubusercontent.com/tnozicka/openshift-acme/master/deploy/single-namespace/{role,serviceaccount,issuer-letsencrypt-live,deployment}.yaml
 oc create rolebinding openshift-acme --role=openshift-acme --serviceaccount="$( oc project -q ):openshift-acme" --dry-run -o yaml | oc apply -f -
 ```
+
+If the cluster has a signed certificate, create a route with an "edge" tls termination.
 
 ### Install Kafka
 

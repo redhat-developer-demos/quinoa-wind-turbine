@@ -42,5 +42,7 @@ nb-configuration.xml
 node_modules/
 build/
 dist/
+node/
+cache/
 
 src/main/kubernetes/openshift.yml
