@@ -179,6 +179,7 @@ Install AMQ Streams from OperatorHub and create a KafkaCluster named `my-cluster
 1. Create an infinispan cluster from the Web Console using the "Infinispan Helm chart"
 2. Name it `infinispan`
 
+### Flow
 
 
 Create a Secret with your Quay.io credentials with the encrypted password you copied before:
