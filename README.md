@@ -265,6 +265,12 @@ Create Argo CD Application to deploy the game
 oc apply -f argo/wind-turbine-app.yaml
 ```
 
+Start the Pipeline or edit `Config.js` to switch to V2:
+
+```js
+export const ENABLE_SHAKING = true;
+```
+
 ### SSL (if the cluster doesn't have a signed certificate):
 
 Let'encrypt (if the cluster doesn't have a signed certificate):
