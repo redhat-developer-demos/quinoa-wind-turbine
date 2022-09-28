@@ -271,6 +271,7 @@ Start the Pipeline or edit `Config.js` to switch to V2:
 export const ENABLE_SHAKING = true;
 ```
 
+
 ### SSL (if the cluster doesn't have a signed certificate):
 
 Let'encrypt (if the cluster doesn't have a signed certificate):
@@ -290,6 +291,9 @@ If the cluster has a signed certificate, create a route with an "edge" tls termi
 
 1. Create an infinispan cluster in the console using the "Infinispan Helm chart"
 2. Name it `infinispan`
+
+
+## When deploying from Quarkus
 
 ### Copy sandbox openshift resource file
 
