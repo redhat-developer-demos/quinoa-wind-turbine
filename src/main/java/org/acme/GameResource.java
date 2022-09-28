@@ -125,5 +125,4 @@ public class GameResource {
             return this.score.compareTo(o.score);
         }
     }
-
 }
