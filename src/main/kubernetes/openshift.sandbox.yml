@@ -14,7 +14,7 @@ spec:
     insecureEdgeTerminationPolicy: Redirect
     wildcardPolicy: None
 ---
-kind: DeploymentConfig
+kind: Deployment
 apiVersion: apps.openshift.io/v1
 metadata:
   name: quinoa-wind-turbine

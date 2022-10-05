@@ -62,13 +62,13 @@ cp src/main/kubernetes/openshift.sandbox.yml src/main/kubernetes/openshift.yml
 ### Deploy
 
 ```bash
-quarkus build  -Dquarkus.kubernetes.deploy=true -Dquarkus.profile=openshift-sandbox
+quarkus build  -Dquarkus.kubernetes.deploy=true -Dquarkus.profile=openshift-sandbox -Dquarkus.container-image.group=[project name]
 ```
 
 ### Update:
 
 ```bash
-quarkus build -Dquarkus.container-image.build=true -Dquarkus.profile=openshift-sandbox
+quarkus build -Dquarkus.container-image.build=true -Dquarkus.profile=openshift-sandbox -Dquarkus.container-image.group=[project name]
 ```
 
 ### Delete deployed  app
@@ -303,13 +303,13 @@ cp src/main/kubernetes/openshift.cluster.yml src/main/kubernetes/openshift.yml
 ### Deploy
 
 ```bash
-quarkus build  -Dquarkus.kubernetes.deploy=true -Dquarkus.profile=openshift-cluster
+quarkus build  -Dquarkus.kubernetes.deploy=true -Dquarkus.profile=openshift-cluster -Dquarkus.container-image.group=[project name]
 ```
 
 ### Update:
 
 ```bash
-quarkus build -Dquarkus.container-image.build=true -Dquarkus.profile=openshift-cluster
+quarkus build -Dquarkus.container-image.build=true -Dquarkus.profile=openshift-cluster  -Dquarkus.container-image.group=[project name]
 ```
 
 ### Delete deployed  app
