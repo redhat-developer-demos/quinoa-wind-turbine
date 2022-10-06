@@ -204,8 +204,8 @@ const GameController = (props) => {
                         <>
                             <Generator generatePower={generatePower} color={color} generated={generated}
                                        shakingEnabled={shakingEnabled}/>
-                            <span id="power-gen"><GeneratedIndicator
-                                unit={powerApi.humanPowerUnit(generated)}>{powerApi.humanPowerValue(generated)}</GeneratedIndicator></span>
+                            <GeneratedIndicator
+                                unit={powerApi.humanPowerUnit(generated)}>{powerApi.humanPowerValue(generated)}</GeneratedIndicator>
                         </>
                     ) : (
                         <>
