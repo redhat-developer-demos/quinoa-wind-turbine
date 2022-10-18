@@ -167,67 +167,6 @@ const StyledTeam = styled(Team)`
   }
 `;
 
-
-const WinnerDiv = styled.div`
-  position: fixed;
-  color: ${props => props.color};
-  border: 1px solid ${props => props.color};
-  left: calc(50% - 400px);
-  top: calc(50% - 250px);
-  padding: 30px;
-  box-sizing: border-box;
-  width: 800px;
-  height: 500px;
-  background-color: #262626;
-  border-radius: 5px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-
-  .winner {
-    flex-grow: 1;
-    display: flex;
-    align-items: center;
-    justify-content: space-around;
-
-    h1 {
-      margin-left: 20px;
-      font-size: 2.5rem;
-    }
-  }
-  h3 {
-    color: white;
-    margin-bottom: 0px;
-  }
-  li {
-    color: white;
-    line-height: 25px;
-  }
-`;
-
-export const Winner = (props) => {
-    const players = [..._.values(props.team1), ..._.values(props.team2)];
-    const top = players.sort((a, b) => b.generated - a.generated).slice(0, 10);
-    return (
-        <WinnerDiv color={TEAM_COLORS[props.winner - 1]}>
-            <div className="winner">
-                <Trophy size={150}/>
-                <h1>Team {props.winner} won the game!</h1>
-            </div>
-            {top.length > 0 && (
-                <>
-                    <h3>Overall Leaderboard:</h3>
-                    <ol>
-                        {top.map((u, id) => (
-                            <li key={id}>{u.name} - {powerApi.humanPower(u.generated)}</li>
-                        ))}
-                    </ol>
-                </>
-            )}
-        </WinnerDiv>
-    );
-}
-
 export const LeftBar = (props) => {
     const winner = computeWinner(props.result);
     const teamDef = [
