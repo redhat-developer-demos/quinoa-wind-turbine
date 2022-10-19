@@ -1,5 +1,5 @@
 import Shake from './Shake';
-import { ENABLE_BLOWING, ENABLE_SHAKING } from '../Config';
+import { ENABLE_BLOWING } from '../Config';
 
 let analyserNode;
 let pcmData;

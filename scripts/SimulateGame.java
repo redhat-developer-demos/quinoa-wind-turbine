@@ -1,12 +1,14 @@
-package org.acme;
+///usr/bin/env jbang "$0" "$@" ; exit $?
+//DEPS io.vertx:vertx-web-client:4.3.4
 
+import java.util.concurrent.ExecutorService;
+
+import static java.lang.System.*;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -20,21 +22,23 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-@Disabled
-public class LoadTest {
+public class SimulateGame {
     private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-    public static final int USERS = 500;
-    public static final int CLICKS = 200;
+    public static final int USERS = 50;
+    public static final int CLICKS = 500;
     public static final Random R = new Random();
-    public static final String SERVER_HOST = "quinoa-wind-turbine-demo.apps.skatt.rl97.p1.openshiftapps.com";
-    public static final int SERVER_PORT = 443;
+    public static final String SERVER_HOST = "localhost";
+    public static final int SERVER_PORT = 8080;
     public static final boolean SSL = SERVER_PORT == 443;
 
-    @Test
-    void load() throws InterruptedException {
+    public static void main(String... args) throws InterruptedException {
+        load();
+    }
+
+    static void load() throws InterruptedException {
         Vertx vertx = Vertx.vertx();
         WebClient client = WebClient.create(vertx, new WebClientOptions().setTrustAll(true).setVerifyHost(false).setMaxPoolSize(500));
-        final List<GameResource.User> users = Collections.synchronizedList(new ArrayList<>());
+        final List<JsonObject> users = Collections.synchronizedList(new ArrayList<>());
         final Set<String> names = new HashSet<>();
         final CountDownLatch latchLogin = new CountDownLatch(USERS);
         for (int i = 0; i < USERS; i++) {
@@ -49,9 +53,9 @@ public class LoadTest {
                             return;
                         }
                         try {
-                            final GameResource.User user = r.result().bodyAsJson(GameResource.User.class);
+                            final JsonObject user = r.result().bodyAsJsonObject();
                             users.add(user);
-                            names.add(user.name());
+                            names.add(user.getString("name"));
                             System.out.println("login " + user + " " + index);
                             latchLogin.countDown();
                         } catch (Exception e) {
@@ -87,12 +91,12 @@ public class LoadTest {
         final CountDownLatch latchClick = new CountDownLatch(USERS * CLICKS);
 
         for (int i = 0; i < CLICKS; i++) {
-            for (GameResource.User user : users) {
+            for (JsonObject user : users) {
                 client.request(HttpMethod.POST, SERVER_PORT, SERVER_HOST,
                                 "/api/power")
                         .ssl(SSL)
-                        .sendJsonObject(new JsonObject().put("quantity", R.nextInt(20, user.team() == 1 ? 35 : 40) ).put("source", user.name())
-                                .put("destination", user.team()))
+                        .sendJsonObject(new JsonObject().put("quantity", R.nextInt(user.getInteger("team") == 1 ? 30 : 40) ).put("source", user.getString("name"))
+                                .put("destination", user.getInteger("team")))
                         .onComplete((r) -> {
                             if (r.failed()) {
                                 r.cause().printStackTrace();
@@ -104,9 +108,4 @@ public class LoadTest {
         latchClick.await();
     }
 
-    @Test
-    void name() {
-        System.out.println(Utils.NAMES.size());
-        System.out.println(new HashSet<>(Utils.NAMES).size());
-    }
 }

@@ -1,12 +1,9 @@
 import React, {useEffect, useState} from 'react';
 import {powerApi, gameApi} from '../../api';
 import {computeDistance, resetTeam, computePower, computeNbUsers, computeWinner} from './DashboardUtils';
-import {LeftBar, Winner} from './LeftBar';
+import {LeftBar} from './LeftBar';
 import RaceTrack from './RaceTrack';
-import {Trophy} from '@styled-icons/ionicons-outline';
-import { TEAM_COLORS } from '../../Config';
-
-
+import {Winner} from './Winner';
 
 const Dashboard = (props) => {
     const [result, setResult] = useState({});
