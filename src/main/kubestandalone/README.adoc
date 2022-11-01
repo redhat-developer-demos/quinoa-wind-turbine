@@ -1,0 +1,6 @@
+* Install AMQ Streams and create a KafkaCluster named `my-cluster` (demo namespace)
+
+* Create an infinispan cluster from the Dev Web Console using the "Infinispan Helm chart" Name it infinispan (demo namespace)
+
+
+

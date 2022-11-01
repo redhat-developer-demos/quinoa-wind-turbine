@@ -1,0 +1,24 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  annotations:
+    openshift.io/host.generated: "true"
+  labels:
+    app: quinoa-wind-turbine
+    app.kubernetes.io/component: quinoa-wind-turbine
+    app.kubernetes.io/instance: quinoa-wind-turbine
+    app.kubernetes.io/name: quinoa-wind-turbine
+    app.kubernetes.io/part-of: wind-turbine
+    app.openshift.io/runtime-version: 1.0.0
+  name: quinoa-wind-turbine
+spec:
+  port:
+    targetPort: 8080-tcp
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: edge
+  to:
+    kind: Service
+    name: quinoa-wind-turbine
+    weight: 100
+  wildcardPolicy: None
