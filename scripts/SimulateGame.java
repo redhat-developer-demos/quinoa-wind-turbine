@@ -27,15 +27,13 @@ public class SimulateGame {
     public static final int USERS = 50;
     public static final int CLICKS = 500;
     public static final Random R = new Random();
-    public static final String SERVER_HOST = "localhost";
-    public static final int SERVER_PORT = 8080;
-    public static final boolean SSL = SERVER_PORT == 443;
 
     public static void main(String... args) throws InterruptedException {
-        load();
+        load(args[0], Integer.parseInt(args[1]));
     }
 
-    static void load() throws InterruptedException {
+    static void load(String host, int port) throws InterruptedException {
+        boolean ssl = port == 443;
         Vertx vertx = Vertx.vertx();
         WebClient client = WebClient.create(vertx, new WebClientOptions().setTrustAll(true).setVerifyHost(false).setMaxPoolSize(500));
         final List<JsonObject> users = Collections.synchronizedList(new ArrayList<>());
@@ -43,9 +41,9 @@ public class SimulateGame {
         final CountDownLatch latchLogin = new CountDownLatch(USERS);
         for (int i = 0; i < USERS; i++) {
             final int index = i;
-            client.request(HttpMethod.POST, SERVER_PORT, SERVER_HOST,
+            client.request(HttpMethod.POST, port, host,
                             "/api/game/assign")
-                    .ssl(SSL)
+                    .ssl(ssl)
                     .send()
                     .onComplete(r -> {
                         if (r.failed()) {
@@ -70,9 +68,9 @@ public class SimulateGame {
         System.out.println(names.size() + " different names");
         AtomicBoolean started = new AtomicBoolean(false);
         while (!started.get()) {
-            client.request(HttpMethod.GET, SERVER_PORT, SERVER_HOST,
+            client.request(HttpMethod.GET, port, host,
                             "/api/game/status")
-                    .ssl(SSL)
+                    .ssl(ssl)
                     .send()
                     .onComplete(r -> {
                         if (r.failed()) {
@@ -92,9 +90,9 @@ public class SimulateGame {
 
         for (int i = 0; i < CLICKS; i++) {
             for (JsonObject user : users) {
-                client.request(HttpMethod.POST, SERVER_PORT, SERVER_HOST,
+                client.request(HttpMethod.POST, port, host,
                                 "/api/power")
-                        .ssl(SSL)
+                        .ssl(ssl)
                         .sendJsonObject(new JsonObject().put("quantity", R.nextInt(user.getInteger("team") == 1 ? 30 : 40) ).put("source", user.getString("name"))
                                 .put("destination", user.getInteger("team")))
                         .onComplete((r) -> {

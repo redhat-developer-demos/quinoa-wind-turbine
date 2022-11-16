@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react'
 import styled from 'styled-components'
-import { CLICK_POWER, ENABLE_BLOWING, ENABLE_CLICKING, ENABLE_SWIPING } from '../../Config';
+import { TAP_POWER, ENABLE_BLOWING, ENABLE_TAPPING, ENABLE_SWIPING } from '../../Config';
 import { sensors } from "../../api";
 
 
@@ -62,11 +62,11 @@ const Generator = (props) => {
         }, []);
     }
 
-    const onClick = (e) => {
+    const onTap = (e) => {
         e.preventDefault();
         // Clicking
-        if (ENABLE_CLICKING) {
-            props.generatePower(CLICK_POWER, true);
+        if (ENABLE_TAPPING) {
+            props.generatePower(TAP_POWER, true);
         }
     }
 
@@ -82,7 +82,7 @@ const Generator = (props) => {
                 xmlSpace="preserve"
                 id="generator"
                 xmlns="http://www.w3.org/2000/svg"
-                onClick={onClick}
+                onTouchStart={onTap}
             >
                 <g id="g409" transform="translate(-171,-10)">
                     <g transform="matrix(0.1,0,0,-0.1,0,511)" id="g407">

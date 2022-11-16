@@ -1,11 +1,11 @@
-import { CLICK_POWER, NB_CLICK_NEEDED_PER_USER } from '../../Config';
+import { TAP_POWER, NB_TAP_NEEDED_PER_USER } from '../../Config';
 import _ from 'lodash';
 
 export function computeDistance(power, nbUsers) {
     if (nbUsers === 0) {
         return 0;
     }
-    return (power * 100) / (CLICK_POWER * NB_CLICK_NEEDED_PER_USER * nbUsers);
+    return (power * 100) / (TAP_POWER * NB_TAP_NEEDED_PER_USER * nbUsers);
 }
 
 export function resetTeam(p) {
