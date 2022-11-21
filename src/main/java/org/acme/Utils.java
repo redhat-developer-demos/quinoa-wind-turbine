@@ -1,27 +1,18 @@
 package org.acme;
 
 import io.smallrye.mutiny.Multi;
-import org.jboss.logging.Logger;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static java.util.Collections.unmodifiableList;
 
 final class Utils {
-    private static final Logger LOG = Logger.getLogger(Utils.class);
     public static final List<String> NAMES;
 
     static  {
