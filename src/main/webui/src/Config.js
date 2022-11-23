@@ -5,7 +5,7 @@ export const IS_TOUCH_DEVICE = (('ontouchstart' in window)
 export const TEAM_COLORS = ['#6C84A3', 'orange'];
 
 // Dashboard
-export const TAP_POWER = 10; // in MW
+export const TAP_POWER = 15; // in MW
 export const NB_TAP_NEEDED_PER_USER = 150;
 export const SHOW_TOP = 5;
 
