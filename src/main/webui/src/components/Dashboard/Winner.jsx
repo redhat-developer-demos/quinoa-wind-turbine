@@ -1,14 +1,14 @@
-import _ from "lodash";
-import {TEAM_COLORS} from '../../Config';
-import {Trophy} from "@styled-icons/ionicons-outline";
-import {powerApi} from "../../api";
-import React from "react";
-import styled from "styled-components";
+import _ from 'lodash';
+import { Trophy } from '@styled-icons/ionicons-outline';
+import React from 'react';
+import styled from 'styled-components';
+import { powerApi } from '../../api';
+import { TEAM_COLORS } from '../../Config';
 
 const WinnerDiv = styled.div`
   position: fixed;
-  color: ${props => props.color};
-  border: 1px solid ${props => props.color};
+  color: ${(props) => props.color};
+  border: 1px solid ${(props) => props.color};
   left: calc(50% - 400px);
   top: calc(50% - 250px);
   padding: 30px;
@@ -61,35 +61,47 @@ const WinnerDiv = styled.div`
   }
 `;
 const compareFn = (a, b) => b.generated - a.generated;
-const Leaderboard = (props) => {
+function Leaderboard(props) {
   return (
-      <div>
-          <h3>{props.title}</h3>
-          <div className="scroller">
-              <ol>
-                  {props.players.map((u, id) => (
-                      <li key={id}>{u.name} - {powerApi.humanPower(u.generated)}</li>
-                  ))}
-              </ol>
-          </div>
+    <div>
+      <h3>{props.title}</h3>
+      <div className="scroller">
+        <ol>
+          {props.players.map((u) => (
+            <li key={u.name}>
+              {u.name}
+              {' '}
+              -
+              {' '}
+              {powerApi.humanPower(u.generated)}
+            </li>
+          ))}
+        </ol>
       </div>
+    </div>
   );
-};
-export const Winner = (props) => {
-    const team1 = _.values(props.team1).sort(compareFn);
-    const team2 = _.values(props.team2).sort(compareFn);
-    const overall = [...team1, ...team2].sort(compareFn);
-    return (
-        <WinnerDiv color={TEAM_COLORS[props.winner - 1]}>
-            <div className="winner">
-                <Trophy size={150}/>
-                <h1>Team {props.winner} won the game!</h1>
-            </div>
-            <div className="leaderboards">
-                <Leaderboard players={overall} title="Overall leaderboard" />
-                <Leaderboard players={team1} title="Team 1" />
-                <Leaderboard players={team2} title="Team 2" />
-            </div>
-        </WinnerDiv>
-    );
+}
+
+export default function Winner(props) {
+  const team1 = _.values(props.team1).sort(compareFn);
+  const team2 = _.values(props.team2).sort(compareFn);
+  const overall = [...team1, ...team2].sort(compareFn);
+  return (
+    <WinnerDiv color={TEAM_COLORS[props.winner - 1]}>
+      <div className="winner">
+        <Trophy size={150} />
+        <h1>
+          Team
+          {props.winner}
+          {' '}
+          won the game!
+        </h1>
+      </div>
+      <div className="leaderboards">
+        <Leaderboard players={overall} title="Overall leaderboard" />
+        <Leaderboard players={team1} title="Team 1" />
+        <Leaderboard players={team2} title="Team 2" />
+      </div>
+    </WinnerDiv>
+  );
 }
