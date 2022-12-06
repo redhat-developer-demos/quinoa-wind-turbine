@@ -23,14 +23,31 @@ Create a new Openshift sandbox, then you need to log in from your terminal.
 ### Managed Kafka
 
 1. Create Kafka instance
-2. Add Access:
+   1. Go to console.redhat.com > Application And Data Services > Streams for Apache Kafka > Kafka Instances > Create Kafka instance
+   2. Name doesn't matter, and you can use default settings
+2. Once the cluster has been created, click on it and add Access:
+   1. Go to 'Access' Tab > Manage access
    1. All Accounts
-   2. Add perms
-   3. Consumer group is * allow All
-   4. Topic is * allow All
-   5. Save
-3. Add topic `power`, `game-events` and `user-actions` with default config
+   1. Add permissions:
+      1. `Consumer group is * allow All`
+      2. `Topic is * allow All`
+   1. Save
+3. Add topics `power`, `game-events` and `user-actions` with default config
 4. In Openshift add "Red Hat OpenShift Streams for Apache Kafka"
+   1. If you don't have the rhoas cli client yet, get it here: <https://access.redhat.com/documentation/en-us/red_hat_openshift_application_services/1/guide/bb30ee92-9e0a-4fd6-a67f-aed8910d7da3#proc-installing-rhoas_installing-rhoas-cli>
+   1. Log in to Red Hat Openshift Application Services:
+
+      ```bash
+      rhoas login
+      ```
+
+   1. Get an Api token at console.redhat.com/openshift/token
+   1. Connect your sandbox to the Kafka cluster:
+
+      ```bash
+      rhoas cluster connect --token YOURTOKEN
+      ```
+
 5. Select instance
 6. Deploy Windturbine app
 7. Add link in Topology view
@@ -316,3 +333,4 @@ quarkus build -Dquarkus.container-image.build=true -Dquarkus.profile=openshift-c
 ```bash
 oc delete all -l app.kubernetes.io/name=quinoa-wind-turbine
 ```
+
