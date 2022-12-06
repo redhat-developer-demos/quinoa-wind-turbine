@@ -44,6 +44,27 @@ const LoadingDiv = styled.div`
   }
 `;
 
+function StatusContent(props) {
+  switch (props.status) {
+    case 'started':
+      return (
+        <Generator
+          generatePower={props.generatePower}
+          color={props.color}
+          generated={props.generated}
+          shakingEnabled={props.shakingEnabled}
+        />
+      );
+    default:
+      return (
+        <LoadingDiv>
+          <div><img src={`./car-${props.user.team}.png`} /></div>
+          <div>Waiting for game...</div>
+        </LoadingDiv>
+      );
+  }
+}
+
 export default function GameController() {
   const [user, setUser] = useState();
   const [status, setStatus] = useState('offline');
@@ -54,15 +75,18 @@ export default function GameController() {
   function reset() {
     setCounter(0);
   }
+
   function generatePower(quantity) {
     if (user && (quantity === 0 || status === 'started')) {
       console.log(`Generate: ${quantity}`);
       clearTimeout(pingTimeout);
       setPingTimeout(null);
       setCounter((c) => c + quantity);
-      powerApi.generate(user, quantity).then(() => {});
+      powerApi.generate(user, quantity).then(() => {
+      });
     }
   }
+
   function enableShaking(e) {
     e.preventDefault();
     sensors.enableShakeSensor();
@@ -86,21 +110,16 @@ export default function GameController() {
       {user && (
         <>
           <TopBar color={color} user={user} status={status} />
-          {status === 'started' ? (
-            <Generator
-              generatePower={generatePower}
-              color={color}
-              generated={generated}
-              shakingEnabled={shakingEnabled}
-            />
-          ) : (
-            <LoadingDiv>
-              <div><img src={`./car-${user.team}.png`} /></div>
-              <div>Waiting for game...</div>
-            </LoadingDiv>
-          )}
+          <StatusContent
+            user={user}
+            status={status}
+            generatePower={generatePower}
+            color={color}
+            generated={generated}
+            shakingEnabled={shakingEnabled}
+          />
           {ENABLE_SHAKING && !shakingEnabled
-            && <EnableShakingModal onClick={enableShaking} />}
+                    && <EnableShakingModal onClick={enableShaking} />}
         </>
       )}
     </Container>
