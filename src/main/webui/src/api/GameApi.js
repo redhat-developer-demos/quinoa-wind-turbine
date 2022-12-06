@@ -55,6 +55,8 @@ export function events(setStatus, reset) {
         setStatus('initial');
         break;
       case 'finish':
+        setStatus('finished');
+        break;
       case 'pause':
         setStatus('paused');
         break;
@@ -128,6 +130,9 @@ class StatusHandler {
             this.reset();
           }
           this.setStatus({ value: 'paused' });
+          break;
+        case 'finish':
+          this.setStatus({ value: 'finished', data: e.data });
           break;
         case 'pause':
           this.setStatus({ value: 'paused' });

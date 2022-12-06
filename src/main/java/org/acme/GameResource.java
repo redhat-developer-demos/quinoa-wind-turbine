@@ -50,8 +50,10 @@ public class GameResource {
         LOG.info("List of names initialized with " + NAMES.size() + " items");
     }
 
-    public GameResource(CounterManager counterManager, @Channel("game-events-in") Multi<GameEvent> gameEventsIn,
-                        @Channel("game-events-out") Emitter<GameEvent> gameEventsOut, @Channel("power-out") Emitter<Power> powerOut) {
+    public GameResource(CounterManager counterManager,
+                        @Channel("game-events-in") Multi<GameEvent> gameEventsIn,
+                        @Channel("game-events-out") Emitter<GameEvent> gameEventsOut,
+                        @Channel("power-out") Emitter<Power> powerOut) {
         counterManager.defineCounter("users",
             CounterConfiguration.builder(CounterType.UNBOUNDED_STRONG).storage(Storage.PERSISTENT).build());
         this.usersCounter = counterManager.getStrongCounter("users");
@@ -118,7 +120,6 @@ public class GameResource {
         public GameEvent(String type) {
             this(type, Collections.emptyMap());
         }
-
         static final GameEvent PING = new GameEvent("ping");
     }
 

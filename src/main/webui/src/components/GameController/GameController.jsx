@@ -46,7 +46,6 @@ const LoadingDiv = styled.div`
 `;
 
 function StatusContent(props) {
-  const rank = props.status.data && props.status.data.overall.findIndex((r) => r.name === props.user.name) + 1;
   switch (props.status.value) {
     case 'started':
       return (
@@ -59,7 +58,7 @@ function StatusContent(props) {
       );
     case 'finished':
       return (
-        <RankModal rank={rank} />
+        <RankModal data={props.status.data} user={props.user} />
       );
     default:
       return (

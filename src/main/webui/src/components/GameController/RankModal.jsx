@@ -1,7 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-const RankOverlay = styled.div`
+const RankModalOverlay = styled.div`
   position: fixed;
   background-color: #4695EB;
   top: 70px;
@@ -27,10 +27,11 @@ const RankOverlay = styled.div`
 `;
 
 export default function RankModal(props) {
+  const rank = props.data && props.data.overall.findIndex((u) => u.name === props.user.name) + 1;
   return (
-    <RankOverlay>
+    <RankModalOverlay>
       <h1>Overall Rank</h1>
-      <div className="rank">{props.rank}</div>
-    </RankOverlay>
+      <div className="rank">{rank}</div>
+    </RankModalOverlay>
   );
 }
