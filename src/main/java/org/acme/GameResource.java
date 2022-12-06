@@ -61,7 +61,6 @@ public class GameResource {
             lastGameEvent.set(s);
             System.out.println("Set last game event: " + s.type);
         });
-        System.out.println("v1");
     }
 
     @POST
