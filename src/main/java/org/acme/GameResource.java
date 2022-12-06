@@ -49,9 +49,9 @@ public class GameResource {
     }
 
     public GameResource(CounterManager counterManager, @Channel("game-events-in") Multi<GameEvent> gameEventsIn,
-            @Channel("game-events-out") Emitter<GameEvent> gameEventsOut, @Channel("power-out") Emitter<Power> powerOut) {
+                        @Channel("game-events-out") Emitter<GameEvent> gameEventsOut, @Channel("power-out") Emitter<Power> powerOut) {
         counterManager.defineCounter("users",
-                CounterConfiguration.builder(CounterType.UNBOUNDED_STRONG).storage(Storage.PERSISTENT).build());
+            CounterConfiguration.builder(CounterType.UNBOUNDED_STRONG).storage(Storage.PERSISTENT).build());
         this.usersCounter = counterManager.getStrongCounter("users");
         // Thanks to this, we can join a party after the start
         this.gameEventsIn = gameEventsIn;
@@ -77,7 +77,7 @@ public class GameResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Uni<User> assignNameAndTeam() {
         return Uni.createFrom().future(usersCounter.incrementAndGet())
-                .map(c -> assignNameAndTeam(c.intValue()));
+            .map(c -> assignNameAndTeam(c.intValue()));
 
     }
 

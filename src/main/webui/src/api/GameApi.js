@@ -1,7 +1,6 @@
-const mode = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
-const storage = mode ? sessionStorage : localStorage;
+import { DEV_MODE } from '../Config';
 
-console.log(`${mode}mode`);
+const storage = DEV_MODE ? sessionStorage : localStorage;
 
 function convertResponse(response) {
   if (response.ok) {

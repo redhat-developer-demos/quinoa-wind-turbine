@@ -30,5 +30,6 @@ module.exports = {
     'react/jsx-props-no-spreading': 'off',
     'jsx-a11y/alt-text': 'off',
     'react/jsx-no-bind': 'off',
+    'no-fallthrough': 'off',
   },
 };
