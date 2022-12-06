@@ -1,21 +1,20 @@
-import React, {useEffect, useState} from 'react';
+import React, { useEffect, useState } from 'react';
 import _ from 'lodash';
-import styled from 'styled-components'
-import {Play, Pause} from '@styled-icons/heroicons-outline';
-import {Trophy, CloudOffline} from '@styled-icons/ionicons-outline';
-import {gameApi, powerApi} from '../../api';
+import styled from 'styled-components';
+import { Play, Pause } from '@styled-icons/heroicons-outline';
+import { Trophy, CloudOffline } from '@styled-icons/ionicons-outline';
+import { Plug, Reset } from '@styled-icons/boxicons-regular';
+import { gameApi, powerApi } from '../../api';
 import StopWatch from './StopWatch';
-import {SHOW_TOP, TEAM_COLORS} from '../../Config';
-import {computeWinner, sort} from './DashboardUtils';
-import {Plug, Reset} from '@styled-icons/boxicons-regular'
-
+import { SHOW_TOP, TEAM_COLORS } from '../../Config';
+import { computeWinner, sort } from './DashboardUtils';
 
 const Title = styled.h1`
   text-align: center;
   font-weight: 700;
   font-size: 3rem;
   color: white;
-`
+`;
 
 const LeftBarDiv = styled.div`
   position: fixed;
@@ -28,32 +27,33 @@ const LeftBarDiv = styled.div`
   flex-direction: column;
 `;
 
-const Control = ({className, status, winner}) => {
-    const [clicked, setClicked] = useState(false);
+function Control({ className, status, winner }) {
+  const [clicked, setClicked] = useState(false);
 
-    function send(type) {
-        setClicked(true);
-        gameApi.sendEvent(type);
-    }
+  function send(type) {
+    setClicked(true);
+    gameApi.sendEvent(type);
+  }
 
-    useEffect(() => {
-        setClicked(false);
-    }, [status]);
-    return (
-        <div className={className}>
-            {status === 'offline' ? (<button disabled><CloudOffline/></button>) : (
-                <>{winner < 0 && (status === 'started' ? (
-                    <button id="pause" onClick={() => send('pause')} disabled={clicked}><Pause/></button>
-                ) : (
-                    <button id="play" onClick={() => send('start')} disabled={clicked}><Play/></button>
-                ))}
-                    {status !== 'initial' &&
-                    <button id="reset" onClick={() => send('reset')} disabled={clicked}><Reset/></button>}
-                </>
-            )}
+  useEffect(() => {
+    setClicked(false);
+  }, [status]);
+  return (
+    <div className={className}>
+      {status === 'offline' ? (<button disabled><CloudOffline /></button>) : (
+        <>
+          {winner < 0 && (status === 'started' ? (
+            <button id="pause" onClick={() => send('pause')} disabled={clicked}><Pause /></button>
+          ) : (
+            <button id="play" onClick={() => send('start')} disabled={clicked}><Play /></button>
+          ))}
+          {status !== 'initial'
+                    && <button id="reset" onClick={() => send('reset')} disabled={clicked}><Reset /></button>}
+        </>
+      )}
 
-        </div>
-    );
+    </div>
+  );
 }
 
 const StyledControl = styled(Control)`
@@ -95,7 +95,7 @@ const Teams = styled.div`
       font-size: 1rem;
     }
   }
-`
+`;
 
 const Header = styled.div`
   display: flex;
@@ -131,31 +131,42 @@ const Header = styled.div`
   }
 
 
-`
+`;
 
-
-const Team = (props) => {
-    const team = _.values(props.team);
-    const top = team.sort((a, b) => b.generated - a.generated).slice(0, SHOW_TOP);
-    return (
-        <div className={props.className}>
-            <Header style={{color: TEAM_COLORS[props.id - 1]}}>
-                <span>
-                    {props.winner === props.id && <Trophy size={32}/>}
-                    Team {props.id}
-                </span>
-                {props.winner < 0 && <span className="total-power">{powerApi.humanPower(props.generated)}</span>}
-                {props.time && <span><StopWatch time={props.time} running={false}/></span>}
-                {!props.time && <span className="count-players"><Plug size={20}/>{team.length}</span>}
-            </Header>
-            <ol>
-                {top.length > 0 ? top.map((u, id) => (
-                    <li key={id}>{u.name} - {powerApi.humanPower(u.generated)}</li>
-                )) : (<li>Waiting for players...</li>)
-                }
-            </ol>
-        </div>
-    );
+function Team(props) {
+  const team = _.values(props.team);
+  const top = team.sort((a, b) => b.generated - a.generated).slice(0, SHOW_TOP);
+  return (
+    <div className={props.className}>
+      <Header style={{ color: TEAM_COLORS[props.id - 1] }}>
+        <span>
+          {props.winner === props.id && <Trophy size={32} />}
+          Team
+          {' '}
+          {props.id}
+        </span>
+        {props.winner < 0 && <span className="total-power">{powerApi.humanPower(props.generated)}</span>}
+        {props.time && <span><StopWatch time={props.time} running={false} /></span>}
+        {!props.time && (
+        <span className="count-players">
+          <Plug size={20} />
+          {team.length}
+        </span>
+        )}
+      </Header>
+      <ol>
+        {top.length > 0 ? top.map((u) => (
+          <li key={u.name}>
+            {u.name}
+            {' '}
+            -
+            {' '}
+            {powerApi.humanPower(u.generated)}
+          </li>
+        )) : (<li>Waiting for players...</li>)}
+      </ol>
+    </div>
+  );
 }
 
 const StyledTeam = styled(Team)`
@@ -167,21 +178,25 @@ const StyledTeam = styled(Team)`
   }
 `;
 
-export const LeftBar = (props) => {
-    const winner = computeWinner(props.result);
-    const teamDef = [
-        {id: 1, team: props.team1, generated: props.power[0], time: props.result.team1},
-        {id: 2, team: props.team2, generated: props.power[1], time: props.result.team2}
-    ];
-    sort(teamDef);
-    return (
-        <LeftBarDiv>
-            <Title>The Race</Title>
-            <Teams>
-                {teamDef.map(d => (<StyledTeam key={d.id} {...d} winner={winner}/>))}
-            </Teams>
-            <StopWatch time={props.time} setTime={props.setTime} running={props.status === 'started'}/>
-            <StyledControl winner={winner} status={props.status}/>
-        </LeftBarDiv>
-    );
+export default function LeftBar(props) {
+  const winner = computeWinner(props.result);
+  const teamDef = [
+    {
+      id: 1, team: props.team1, generated: props.power[0], time: props.result.team1,
+    },
+    {
+      id: 2, team: props.team2, generated: props.power[1], time: props.result.team2,
+    },
+  ];
+  sort(teamDef);
+  return (
+    <LeftBarDiv>
+      <Title>The Race</Title>
+      <Teams>
+        {teamDef.map((d) => (<StyledTeam key={d.id} {...d} winner={winner} />))}
+      </Teams>
+      <StopWatch time={props.time} setTime={props.setTime} running={props.status === 'started'} />
+      <StyledControl winner={winner} status={props.status} />
+    </LeftBarDiv>
+  );
 }

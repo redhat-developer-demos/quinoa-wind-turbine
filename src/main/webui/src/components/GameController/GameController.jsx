@@ -1,12 +1,11 @@
-import React, {useEffect, useState} from 'react'
-import styled from 'styled-components'
+import React, { useEffect, useState } from 'react';
+import styled from 'styled-components';
+import { Bolt } from '@styled-icons/boxicons-solid';
+import { CloudDone, CloudOffline } from '@styled-icons/ionicons-outline';
+import { Plug, MobileVibration } from '@styled-icons/boxicons-regular';
+import { gameApi, powerApi, sensors } from '../../api';
 import Generator from './Generator';
-import {gameApi, powerApi} from '../../api';
-import {Bolt} from '@styled-icons/boxicons-solid';
-import {CloudDone, CloudOffline} from '@styled-icons/ionicons-outline';
-import {Plug, MobileVibration} from '@styled-icons/boxicons-regular'
-import {ENABLE_SHAKING, TEAM_COLORS} from '../../Config';
-import {sensors} from "../../api";
+import { ENABLE_SHAKING, TEAM_COLORS } from '../../Config';
 
 const Container = styled.div`
   text-align: center;
@@ -20,12 +19,12 @@ const Container = styled.div`
   position: fixed;
   justify-content: center;
   flex-direction: column;
-`
+`;
 
 const Status = styled.div`
   margin-left: 10px;
-  color: ${props => props.color};
-`
+  color: ${(props) => props.color};
+`;
 
 const EnableShakingOverlay = styled.div`
   position: fixed;
@@ -39,7 +38,7 @@ const EnableShakingOverlay = styled.div`
   backdrop-filter: blur(3px);
   align-items: center;
   justify-content: center;
-`
+`;
 
 const EnableShakingButton = styled.div`
   background-color: red;
@@ -57,7 +56,7 @@ const EnableShakingButton = styled.div`
   svg {
     margin-right: 10px;
   }
-`
+`;
 
 const Loading = styled.div`
   display: flex;
@@ -81,7 +80,7 @@ const Loading = styled.div`
       transform: rotate(360deg);
     }
   }
-`
+`;
 
 const User = styled.div`
   flex-grow: 1;
@@ -90,7 +89,7 @@ const User = styled.div`
   svg {
     margin-right: 10px;
   }
-`
+`;
 
 const Team = styled.div`
   display: flex;
@@ -107,7 +106,7 @@ const Team = styled.div`
     line-height: 1rem;
     font-weight: bold;
   }
-`
+`;
 
 const TopBar = styled.div`
   position: fixed;
@@ -118,7 +117,7 @@ const TopBar = styled.div`
   display: flex;
   color: white;
   font-size: 2rem;
-  background-color: ${props => props.color};
+  background-color: ${(props) => props.color};
   align-items: center;
   padding-right: 10px;
   padding-left: 10px;
@@ -126,7 +125,7 @@ const TopBar = styled.div`
   div {
     text-align: left;
   }
-`
+`;
 
 const GeneratedIndicator = styled.div`
   display: flex;
@@ -139,89 +138,102 @@ const GeneratedIndicator = styled.div`
   margin-top: 40px;
 
   &:after {
-    content: '${props => props.unit}';
+    content: '${(props) => props.unit}';
     font-size: 1.5rem;
     line-height: 1.5rem;
     font-weight: bold;
   }
-`
+`;
 
-const GameController = (props) => {
-    const [user, setUser] = useState();
-    const [status, setStatus] = useState("offline");
-    const [generated, setCounter] = useState(0);
-    const [power, setPower] = useState(0);
-    const [pingTimeout, setPingTimeout] = useState();
-    const [shakingEnabled, setShakingEnabled] = useState(false);
-    useEffect(() => {
-        gameApi.assign().then(setUser);
-    }, []);
+function GameController() {
+  const [user, setUser] = useState();
+  const [status, setStatus] = useState('offline');
+  const [generated, setCounter] = useState(0);
+  const [pingTimeout, setPingTimeout] = useState();
+  const [shakingEnabled, setShakingEnabled] = useState(false);
+  useEffect(() => {
+    gameApi.assign().then(setUser);
+  }, []);
 
-    function generatePower(quantity, fromClick) {
-        if (user && (quantity === 0 || status === 'started')) {
-            console.log(`Generate: ${quantity}`);
-            setPower(quantity);
-            clearTimeout(pingTimeout);
-            setPingTimeout(null);
-            setCounter((c) => c + quantity);
-            powerApi.generate(user, quantity).then(r => {});
-        }
+  function generatePower(quantity) {
+    if (user && (quantity === 0 || status === 'started')) {
+      console.log(`Generate: ${quantity}`);
+      clearTimeout(pingTimeout);
+      setPingTimeout(null);
+      setCounter((c) => c + quantity);
+      powerApi.generate(user, quantity).then(() => {});
     }
+  }
 
-    const reset = () => {
-        setPower(0);
-        setCounter(0);
-    };
-    useEffect(() => {
-        if (user && !pingTimeout) {
-            setPingTimeout(p => !p ? setTimeout(() => generatePower(0), 3000) : null);
-        }
-        return () => clearTimeout(pingTimeout);
-    }, [user, pingTimeout])
-    useEffect(() => gameApi.status(setStatus, reset), []);
-    const statusColor = status !== 'offline' ? 'green' : 'grey';
-    const color = user && TEAM_COLORS[user.team - 1];
-
-    function enableShaking() {
-        sensors.enableShakeSensor();
-        setShakingEnabled(true);
+  const reset = () => {
+    setCounter(0);
+  };
+  useEffect(() => {
+    if (user && !pingTimeout) {
+      setPingTimeout((p) => (!p ? setTimeout(() => generatePower(0), 3000) : null));
     }
+    return () => clearTimeout(pingTimeout);
+  }, [user, pingTimeout]);
+  useEffect(() => gameApi.status(setStatus, reset), []);
+  const statusColor = status !== 'offline' ? 'green' : 'grey';
+  const color = user && TEAM_COLORS[user.team - 1];
 
-    return (
-        <Container>
-            {user && (
-                <>
-                    <TopBar color={color}>
-                        <User><Plug size={32}/><span id="user-name">{user.name}</span></User>
-                        <Team id="user-team">{user.team}</Team>
-                        <Status color={statusColor}>
-                            {status === 'started' && <Bolt size={32}/>}
-                            {status === 'offline' && <CloudOffline size={32}/>}
-                            {status === 'paused' && <CloudDone size={32}/>}
-                        </Status>
-                    </TopBar>
-                    {status === "started" ? (
-                        <>
-                            <Generator generatePower={generatePower} color={color} generated={generated}
-                                       shakingEnabled={shakingEnabled}/>
-                            <span id="power-generator"><GeneratedIndicator
-                                unit={powerApi.humanPowerUnit(generated)}>{powerApi.humanPowerValue(generated)}</GeneratedIndicator>
-                             </span>
-                        </>
-                    ) : (
-                        <>
-                            <Loading>
-                                <div><img src={`./car-${user.team}.png`}/></div>
-                                <div>Waiting for game...</div>
-                            </Loading>
-                        </>
+  function enableShaking() {
+    sensors.enableShakeSensor();
+    setShakingEnabled(true);
+  }
+
+  return (
+    <Container>
+      {user && (
+        <>
+          <TopBar color={color}>
+            <User>
+              <Plug size={32} />
+              <span id="user-name">{user.name}</span>
+            </User>
+            <Team id="user-team">{user.team}</Team>
+            <Status color={statusColor}>
+              {status === 'started' && <Bolt size={32} />}
+              {status === 'offline' && <CloudOffline size={32} />}
+              {status === 'paused' && <CloudDone size={32} />}
+            </Status>
+          </TopBar>
+          {status === 'started' ? (
+            <>
+              <Generator
+                generatePower={generatePower}
+                color={color}
+                generated={generated}
+                shakingEnabled={shakingEnabled}
+              />
+              <span id="power-generator">
+                <GeneratedIndicator
+                  unit={powerApi.humanPowerUnit(generated)}
+                >
+                  {powerApi.humanPowerValue(generated)}
+                </GeneratedIndicator>
+              </span>
+            </>
+          ) : (
+            <Loading>
+              <div><img src={`./car-${user.team}.png`} /></div>
+              <div>Waiting for game...</div>
+            </Loading>
+          )}
+          {ENABLE_SHAKING && !shakingEnabled
+                    && (
+                    <EnableShakingOverlay>
+                      <EnableShakingButton onClick={enableShaking}>
+                        <MobileVibration size={80} />
+                        Enable Shaking
+                      </EnableShakingButton>
+                    </EnableShakingOverlay>
                     )}
-                    {ENABLE_SHAKING && !shakingEnabled &&
-                    <EnableShakingOverlay><EnableShakingButton onClick={enableShaking}><MobileVibration size={80}/>Enable Shaking</EnableShakingButton></EnableShakingOverlay>}
-                </>
-            )}
-        </Container>
-    )
+        </>
+      )}
+    </Container>
+  );
 }
 
 export default GameController;
