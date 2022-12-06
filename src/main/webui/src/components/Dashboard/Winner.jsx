@@ -60,7 +60,7 @@ const WinnerDiv = styled.div`
     overflow: hidden;
   }
 `;
-const compareFn = (a, b) => b.generated - a.generated;
+
 function Leaderboard(props) {
   return (
     <div>
@@ -83,11 +83,8 @@ function Leaderboard(props) {
 }
 
 export default function Winner(props) {
-  const team1 = _.values(props.team1).sort(compareFn);
-  const team2 = _.values(props.team2).sort(compareFn);
-  const overall = [...team1, ...team2].sort(compareFn);
   return (
-    <WinnerDiv color={TEAM_COLORS[props.winner - 1]}>
+    <WinnerDiv color={TEAM_COLORS[props.rank.winner - 1]}>
       <div className="winner">
         <Trophy size={150} />
         <h1>
@@ -98,9 +95,9 @@ export default function Winner(props) {
         </h1>
       </div>
       <div className="leaderboards">
-        <Leaderboard players={overall} title="Overall leaderboard" />
-        <Leaderboard players={team1} title="Team 1" />
-        <Leaderboard players={team2} title="Team 2" />
+        <Leaderboard players={props.rank.overall} title="Overall leaderboard" />
+        <Leaderboard players={props.rank.team1} title="Team 1" />
+        <Leaderboard players={props.rank.team2} title="Team 2" />
       </div>
     </WinnerDiv>
   );

@@ -1,6 +1,22 @@
 import _ from 'lodash';
 import { TAP_POWER, NB_TAP_NEEDED_PER_USER } from '../../Config';
 
+function teamRank(a, b) { return b.generated - a.generated; }
+
+function computeWinner(result) {
+  if (result.team1 && result.team2) {
+    return result.team1 < result.team2 ? 1 : 2;
+  }
+  if (result.team1) {
+    return 1;
+  }
+  if (result.team2) {
+    return 2;
+  }
+  return -1;
+}
+
+
 export function computeDistance(power, nbUsers) {
   if (nbUsers === 0) {
     return 0;
@@ -23,7 +39,7 @@ export function computePower(t) {
   return team.reduce((a, u) => a + u.generated, 0);
 }
 
-export function sort(team) {
+export function sortTeams(team) {
   team.sort((a, b) => {
     if (a.generated === b.generated) {
       return a.id - b.id;
@@ -32,15 +48,14 @@ export function sort(team) {
   });
 }
 
-export function computeWinner(result) {
-  if (result.team1 && result.team2) {
-    return result.team1 < result.team2 ? 1 : 2;
-  }
-  if (result.team1) {
-    return 1;
-  }
-  if (result.team2) {
-    return 2;
-  }
-  return -1;
+
+export function computeRank(result, mapTeam1, mapTeam2) {
+  const team1 = _.values(mapTeam1).sort(teamRank);
+  const team2 = _.values(mapTeam2).sort(teamRank);
+  return {
+    winner: computeWinner(result),
+    team1,
+    team2,
+    overall: [...team1, ...team2].sort(teamRank),
+  };
 }

@@ -7,7 +7,7 @@ import { Plug, Reset } from '@styled-icons/boxicons-regular';
 import { gameApi, powerApi } from '../../api';
 import StopWatch from './StopWatch';
 import { SHOW_TOP, TEAM_COLORS } from '../../Config';
-import { computeWinner, sort } from './DashboardUtils';
+import { sortTeams } from './DashboardUtils';
 
 const Title = styled.h1`
   text-align: center;
@@ -179,7 +179,7 @@ const StyledTeam = styled(Team)`
 `;
 
 export default function LeftBar(props) {
-  const winner = computeWinner(props.result);
+  const { winner } = props.rank;
   const teamDef = [
     {
       id: 1, team: props.team1, generated: props.power[0], time: props.result.team1,
@@ -188,7 +188,7 @@ export default function LeftBar(props) {
       id: 2, team: props.team2, generated: props.power[1], time: props.result.team2,
     },
   ];
-  sort(teamDef);
+  sortTeams(teamDef);
   return (
     <LeftBarDiv>
       <Title>The Race</Title>

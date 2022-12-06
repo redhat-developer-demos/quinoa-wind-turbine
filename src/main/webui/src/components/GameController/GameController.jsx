@@ -45,7 +45,7 @@ const LoadingDiv = styled.div`
 `;
 
 function StatusContent(props) {
-  switch (props.status) {
+  switch (props.status.value) {
     case 'started':
       return (
         <Generator
@@ -67,7 +67,7 @@ function StatusContent(props) {
 
 export default function GameController() {
   const [user, setUser] = useState();
-  const [status, setStatus] = useState('offline');
+  const [status, setStatus] = useState({ value: 'offline' });
   const [generated, setCounter] = useState(0);
   const [pingTimeout, setPingTimeout] = useState();
   const [shakingEnabled, setShakingEnabled] = useState(false);
@@ -77,7 +77,7 @@ export default function GameController() {
   }
 
   function generatePower(quantity) {
-    if (user && (quantity === 0 || status === 'started')) {
+    if (user && (quantity === 0 || status.value === 'started')) {
       console.log(`Generate: ${quantity}`);
       clearTimeout(pingTimeout);
       setPingTimeout(null);
@@ -109,7 +109,7 @@ export default function GameController() {
     <Container>
       {user && (
         <>
-          <TopBar color={color} user={user} status={status} />
+          <TopBar color={color} user={user} status={status.value} />
           <StatusContent
             user={user}
             status={status}

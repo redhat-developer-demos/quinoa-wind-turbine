@@ -31,7 +31,7 @@ export async function assign() {
     }).catch((e) => console.error(e));
 }
 
-export async function sendEvent(type) {
+export async function sendEvent(type, data) {
   const fetchOptions = {
     method: 'POST',
     body: JSON.stringify({ type }),
@@ -89,6 +89,7 @@ export function events(setStatus, reset) {
     };
   }
   connect();
+  sendEvent('reset');
   return () => {
     if (stream) {
       console.log('Disconnecting from game event stream');
@@ -97,44 +98,59 @@ export function events(setStatus, reset) {
   };
 }
 
-export function status(setStatus, reset) {
-  let timeout;
-  const onEvent = (e) => {
+class StatusHandler {
+  constructor(setStatus, reset) {
+    this.setStatus = setStatus;
+    this.reset = reset;
+  }
+
+  fetchStatus = () => {
+    fetch('/api/game/status')
+      .then(convertResponse)
+      .then(this.onEvent)
+      .catch((e) => {
+        console.error(e);
+        this.setStatus('offline');
+        this.onEvent();
+      });
+  };
+
+  onEvent = (e) => {
     if (e) {
       console.log(`=> Received game event: ${e.type}`);
       switch (e.type) {
         case 'start':
-          setStatus('started');
+          this.setStatus({ value: 'started' });
           break;
         case 'reset':
-          if (reset) {
-            reset();
+          if (this.reset) {
+            this.reset();
           }
+          this.setStatus({ value: 'paused' });
+          break;
         case 'pause':
-          setStatus('paused');
+          this.setStatus({ value: 'paused' });
           break;
         case 'empty':
-          setStatus((s) => (s !== 'started' ? 'paused' : 'started'));
+          this.setStatus((s) => (s !== 'started' ? { value: 'paused' } : { value: 'started' }));
           break;
+        default:
+          console.error(`invalid event type: ${e.type}`);
       }
     }
-    timeout = setTimeout(fetchStatus, 1000);
+    this.timeout = setTimeout(this.fetchStatus, 1000);
   };
-  const fetchStatus = () => {
-    fetch('/api/game/status')
-      .then(convertResponse)
-      .then(onEvent)
-      .catch((e) => {
-        console.error(e);
-        setStatus('offline');
-        onEvent();
-      });
-  };
-  fetchStatus();
-  return () => {
-    if (timeout) {
-      clearTimeout(timeout);
-      timeout = null;
+
+  clear = () => {
+    if (this.timeout) {
+      clearTimeout(this.timeout);
+      this.timeout = null;
     }
   };
+}
+
+export function status(setStatus, reset) {
+  const statusHandler = new StatusHandler(setStatus, reset);
+  statusHandler.fetchStatus();
+  return statusHandler.clear;
 }
