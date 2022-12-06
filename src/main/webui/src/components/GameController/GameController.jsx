@@ -5,6 +5,7 @@ import Generator from './Generator';
 import { ENABLE_SHAKING, TEAM_COLORS } from '../../Config';
 import TopBar from './TopBar';
 import EnableShakingModal from './EnableShakingModal';
+import RankModal from './RankModal';
 
 const Container = styled.div`
   text-align: center;
@@ -45,6 +46,7 @@ const LoadingDiv = styled.div`
 `;
 
 function StatusContent(props) {
+  const rank = props.status.data && props.status.data.overall.findIndex((r) => r.name === props.user.name) + 1;
   switch (props.status.value) {
     case 'started':
       return (
@@ -54,6 +56,10 @@ function StatusContent(props) {
           generated={props.generated}
           shakingEnabled={props.shakingEnabled}
         />
+      );
+    case 'finished':
+      return (
+        <RankModal rank={rank} />
       );
     default:
       return (

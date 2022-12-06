@@ -114,7 +114,11 @@ public class GameResource {
     static record CounterEvent(String source, Integer team) {
     }
 
-    static record GameEvent(String type) {
+    static record GameEvent(String type, Map<String, Object> data) {
+        public GameEvent(String type) {
+            this(type, Collections.emptyMap());
+        }
+
         static final GameEvent PING = new GameEvent("ping");
     }
 

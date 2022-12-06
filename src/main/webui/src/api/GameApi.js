@@ -34,7 +34,7 @@ export async function assign() {
 export async function sendEvent(type, data) {
   const fetchOptions = {
     method: 'POST',
-    body: JSON.stringify({ type }),
+    body: JSON.stringify({ type, data: data || {} }),
     headers: { 'Content-Type': 'application/json' },
   };
   return fetch(
@@ -54,6 +54,7 @@ export function events(setStatus, reset) {
         reset();
         setStatus('initial');
         break;
+      case 'finish':
       case 'pause':
         setStatus('paused');
         break;
@@ -117,7 +118,7 @@ class StatusHandler {
 
   onEvent = (e) => {
     if (e) {
-      console.log(`=> Received game event: ${e.type}`);
+      console.log(`=> Received game event: ${e.type} ${JSON.stringify(e.data)}`);
       switch (e.type) {
         case 'start':
           this.setStatus({ value: 'started' });
@@ -130,6 +131,9 @@ class StatusHandler {
           break;
         case 'pause':
           this.setStatus({ value: 'paused' });
+          break;
+        case 'finish':
+          this.setStatus({ value: 'finished', data: e.data });
           break;
         case 'empty':
           this.setStatus((s) => (s !== 'started' ? { value: 'paused' } : { value: 'started' }));
