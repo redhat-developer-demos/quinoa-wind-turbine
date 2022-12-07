@@ -39,9 +39,14 @@ function Dashboard(props) {
       setResult((p) => ({ ...p, team2: time }));
     }
     if (status === 'started' && result.team1 && result.team2) {
-      const r = computeRank(result, team1, team2);
-      setRank(r);
-      gameApi.sendEvent('finish', { overall: r.overall });
+      setRank((prev) => {
+        if (prev.winner < 0) {
+          const r = computeRank(result, team1, team2);
+          gameApi.sendEvent('finish', { overall: r.overall });
+          return r;
+        }
+        return prev;
+      });
     }
   }, [status, time, distances, result]);
 
