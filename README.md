@@ -257,9 +257,8 @@ sed -i 's/rhdevelopers/yourgithubuser/g' tekton/pipeline-cached.yaml
 
 ```bash
 oc apply -f app-source-pvc.yaml 
-oc apply -f maven-repo-pvc.yaml 
 oc apply -f git-update-deployment.yaml
-oc apply -f cached-pipeline.yaml
+oc apply -f build-cache-pvc.yaml
 oc apply -f maven-task-cached.yaml 
 oc apply -f pipeline-cached.yaml 
 oc apply -f triggerbinding.yaml
