@@ -256,15 +256,16 @@ sed -i 's/rhdevelopers/yourgithubuser/g' tekton/pipeline-cached.yaml
 ```
 
 ```bash
-oc apply -f app-source-pvc.yaml 
-oc apply -f build-cache-pvc.yaml 
-oc apply -f git-update-deployment.yaml
-oc apply -f maven-task-cached.yaml 
-oc apply -f pipeline-cached.yaml 
-oc apply -f triggerbinding.yaml
-oc apply -f triggertemplate-cached.yaml
-oc apply -f eventlistener.yaml
-oc apply -f el-route.yaml
+oc apply -f tekton/app-source-pvc.yaml 
+oc apply -f tekton/build-cache-pvc.yaml 
+oc apply -f tekton/git-update-deployment.yaml
+oc apply -f tekton/maven-task-cached.yaml 
+oc apply -f tekton/pipeline-cached.yaml 
+oc apply -f tekton/triggerbinding.yaml
+oc apply -f tekton/triggertemplate-cached.yaml
+oc apply -f tekton/eventlistener.yaml
+oc apply -f tekton/el-route.yaml
+
 ```
 
 Update all references to quay.io with your repos for quinoa-wind-turbine references:
