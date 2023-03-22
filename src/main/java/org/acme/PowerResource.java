@@ -1,10 +1,9 @@
 package org.acme;
 
 import io.smallrye.mutiny.Multi;
-import io.smallrye.reactive.messaging.kafka.Record;
-
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
+import org.eclipse.microprofile.reactive.messaging.OnOverflow;
 import org.jboss.resteasy.reactive.RestStreamElementType;
 
 import javax.annotation.security.RolesAllowed;
@@ -15,7 +14,6 @@ import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
-
 import java.time.Duration;
 import java.util.List;
 
@@ -23,11 +21,10 @@ import java.util.List;
 @Path("power")
 public class PowerResource {
 
-    @Channel("power-in") Multi<Power> powerIn;
-    @Channel("power-out") Emitter<Power> powerOut;
-
-    // For statistics/leader boards to Kafka
-    @Channel("user-actions-out") Emitter<Record<String, Integer>> userActionsOut;
+    @Channel("power") Multi<Power> powerIn;
+    @Channel("power")
+    @OnOverflow(OnOverflow.Strategy.DROP)
+    Emitter<Power> powerOut;
 
     @Path("stream")
     @GET
@@ -49,9 +46,6 @@ public class PowerResource {
            throw new IllegalStateException("Ouch this is too much for me to handle!");
         }
         powerOut.send(power);
-        
-        // Sends action to leader board topic
-        userActionsOut.send(Record.of(power.source(), power.quantity()));
     }
 
     public static record Power(int quantity, String source, int destination) {

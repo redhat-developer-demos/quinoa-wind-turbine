@@ -6,11 +6,7 @@ import io.smallrye.mutiny.Uni;
 import org.acme.PowerResource.Power;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
-import org.infinispan.counter.api.CounterConfiguration;
-import org.infinispan.counter.api.CounterManager;
-import org.infinispan.counter.api.CounterType;
-import org.infinispan.counter.api.Storage;
-import org.infinispan.counter.api.StrongCounter;
+import org.eclipse.microprofile.reactive.messaging.OnOverflow;
 import org.jboss.logging.Logger;
 import org.jboss.resteasy.reactive.ResponseHeader;
 import org.jboss.resteasy.reactive.RestStreamElementType;
@@ -27,6 +23,7 @@ import javax.ws.rs.core.MediaType;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.acme.Utils.NAMES;
@@ -43,20 +40,17 @@ public class GameResource {
     private final AtomicReference<GameEvent> lastGameEvent = new AtomicReference<>();
     private final Emitter<GameEvent> gameEventsOut;
     private final Multi<GameEvent> gameEventsIn;
-    private final StrongCounter usersCounter;
+    private final AtomicInteger usersCounter;
     private final Emitter<Power> powerOut;
 
     static {
         LOG.info("List of names initialized with " + NAMES.size() + " items");
     }
 
-    public GameResource(CounterManager counterManager,
-                        @Channel("game-events-in") Multi<GameEvent> gameEventsIn,
-                        @Channel("game-events-out") Emitter<GameEvent> gameEventsOut,
-                        @Channel("power-out") Emitter<Power> powerOut) {
-        counterManager.defineCounter("users",
-            CounterConfiguration.builder(CounterType.UNBOUNDED_STRONG).storage(Storage.PERSISTENT).build());
-        this.usersCounter = counterManager.getStrongCounter("users");
+    public GameResource(@Channel("game-events") Multi<GameEvent> gameEventsIn,
+                        @Channel("game-events") @OnOverflow(OnOverflow.Strategy.DROP) Emitter<GameEvent> gameEventsOut,
+                        @Channel("power") @OnOverflow(OnOverflow.Strategy.DROP) Emitter<Power> powerOut) {
+        this.usersCounter = new AtomicInteger();
         // Thanks to this, we can join a party after the start
         this.gameEventsIn = gameEventsIn;
         this.gameEventsOut = gameEventsOut;
@@ -80,8 +74,7 @@ public class GameResource {
     @Path("assign")
     @Produces(MediaType.APPLICATION_JSON)
     public Uni<User> assignNameAndTeam() {
-        return Uni.createFrom().future(usersCounter.incrementAndGet())
-            .map(c -> assignNameAndTeam(c.intValue()));
+        return Uni.createFrom().item(assignNameAndTeam(usersCounter.incrementAndGet()));
 
     }
 
