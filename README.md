@@ -131,6 +131,12 @@ Flag it as **Public Repository** and click **Create Public Repository**
 
 Login to OpenShift Web Console to install prerequisites.
 
+First, create a project for the demo:
+```bash
+oc new-project demo --description='wind-turbine-race'
+```
+*You can choose a different name, but then you have to update `argo/wind-turbine-app.yaml` before you deploy the app (see below in the **Flow** section).*
+
 ### Install Operators
 
 
@@ -251,7 +257,7 @@ Create Tekton pipeline manifests
 Change the GitOps repo to your fork:
 ```bash
 sed -i 's/rhdevelopers/yourquayuser/g' tekton/pipeline-cached.yaml
-sed -i 's/rhdevelopers/yourgithubuser/g' tekton/pipeline-cached.yaml
+sed -i 's/redhat-developer-demos/yourgithubuser/g' tekton/pipeline-cached.yaml
 ```
 
 ```bash
@@ -270,9 +276,10 @@ oc apply -f tekton/el-route.yaml
 Update all references to quay.io with your repos for quinoa-wind-turbine references:
 
 ```bash
-sed -i 's/rhdevelopers/yourquayuser/g' k8s/api-deployment.yaml
-sed -i 's/rhdevelopers/yourgithubuser/g' argo/wind-turbine-app.yaml
-git commit
+sed -i 's/rhdevelopers/yourquayuser/g' k8s/deployment.yaml
+sed -i 's/redhat-developer-demos/yourgithubuser/g' argo/wind-turbine-app.yaml
+git add .
+git commit  -m "update reference to quay and github"
 git push
 ```
 
