@@ -39,7 +39,7 @@ spec:
             secretKeyRef:
               key: password
               name: infinispan-generated-secret
-        image: quay.io/rhdevelopers/quinoa-wind-turbine:click
+        image: quay.io/modzelewski/quinoa-wind-turbine:click
         imagePullPolicy: IfNotPresent
         name: quinoa-wind-turbine
         ports:
