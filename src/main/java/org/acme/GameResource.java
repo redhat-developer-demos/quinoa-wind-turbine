@@ -4,9 +4,11 @@ import io.quarkus.runtime.Startup;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
+import jakarta.inject.Inject;
 import org.acme.PowerResource.Power;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
+import org.infinispan.client.hotrod.RemoteCacheManager;
 import org.infinispan.counter.api.CounterConfiguration;
 import org.infinispan.counter.api.CounterManager;
 import org.infinispan.counter.api.CounterType;
@@ -50,10 +52,12 @@ public class GameResource {
         LOG.info("List of names initialized with " + NAMES.size() + " items");
     }
 
-    public GameResource(CounterManager counterManager,
+    public GameResource(RemoteCacheManager remoteCacheManager,
+                        CounterManager counterManager,
                         @Channel("game-events-in") Multi<GameEvent> gameEventsIn,
                         @Channel("game-events-out") Emitter<GameEvent> gameEventsOut,
                         @Channel("power-out") Emitter<Power> powerOut) {
+        remoteCacheManager.getCache();
         counterManager.defineCounter("users",
             CounterConfiguration.builder(CounterType.UNBOUNDED_STRONG).storage(Storage.PERSISTENT).build());
         this.usersCounter = counterManager.getStrongCounter("users");
