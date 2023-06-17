@@ -1,0 +1,57 @@
+schemaVersion: 2.2.0
+metadata:
+  name: java-quarkus
+  version: 1.2.1
+  provider: Red Hat
+  supportUrl: https://github.com/devfile-samples/devfile-support#support-information
+  icon: https://design.jboss.org/quarkus/logo/final/SVG/quarkus_icon_rgb_default.svg
+  website: https://quarkus.io
+  displayName: Quarkus Java
+  description: Quarkus with Java
+  tags:
+    - Java
+    - Quarkus
+  projectType: Quarkus
+  language: Java
+  attributes:
+    alpha.dockerimage-port: 8081 
+components:
+  - name: image-build
+    image:
+      imageName: java-quarkus-image:latest
+      dockerfile:
+        uri: src/main/docker/Dockerfile.jvm.staged
+        buildContext: .
+        rootRequired: false
+  - name: kubernetes-deploy
+    attributes:
+      deployment/replicas: 1 
+      deployment/cpuLimit: '100m'
+      deployment/cpuRequest: 10m
+      deployment/memoryLimit: 1024Mi
+      deployment/memoryRequest: 100Mi
+      deployment/container-port: 8081
+    kubernetes:
+      uri: deploy.yaml
+      endpoints:
+        - name: http-8081
+          targetPort: 8081
+          path: /
+          protocol: https
+          secure: true
+          exposure: public
+commands:
+  - id: build-image
+    apply:
+      component: image-build
+  - id: deployk8s
+    apply:
+      component: kubernetes-deploy
+  - id: deploy
+    composite:
+      commands:
+        - build-image
+        - deployk8s
+      group:
+        kind: deploy
+        isDefault: true

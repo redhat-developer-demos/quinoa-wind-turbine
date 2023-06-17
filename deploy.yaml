@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quinoa-wind-turbine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: quinoa-wind-turbine
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: quinoa-wind-turbine
+    spec:
+      containers:
+        - image: quay.io/jduimovich0/quinoa-wind-turbine:2023-03-20-164726
+          imagePullPolicy: Always
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          name: quinoa-wind-turbine-image
+          ports:
+            - containerPort: 8081
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/instance: quinoa-wind-turbine
+  name: quinoa-wind-turbine
+spec:
+  ports:
+    - port: 8081
+      targetPort: 8081
+  selector:
+    app.kubernetes.io/instance: quinoa-wind-turbine

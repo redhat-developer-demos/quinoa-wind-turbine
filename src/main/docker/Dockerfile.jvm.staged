@@ -1,0 +1,70 @@
+####
+# This Dockerfile is used in order to build a container that runs the Quarkus application in JVM mode
+#
+# Build the image with:
+#
+# docker build -f src/main/docker/Dockerfile.jvm.staged -t quarkus/code-with-quarkus-jvm .
+#
+# Then run the container using:
+#
+# docker run -i --rm -p 8081:8081 quarkus/code-with-quarkus-jvm
+#
+# If you want to include the debug port into your docker image
+# you will have to expose the debug port (default 5005) like this :  EXPOSE 8080 5050
+#
+# Then run the container using :
+#
+# docker run -i --rm -p 8081:8081 -p 5005:5005 -e JAVA_ENABLE_DEBUG="true" quarkus/code-with-quarkus-jvm
+#
+###
+FROM registry.access.redhat.com/ubi8/openjdk-17:1.14-10.1675788279
+
+USER root
+WORKDIR /build
+
+COPY pom.xml .
+RUN mvn dependency:go-offline
+
+COPY src src
+RUN mvn package -Dmaven.test.skip=true
+
+RUN mkdir -p /build/target/quarkus-app-tmp
+RUN grep version /build/target/maven-archiver/pom.properties | cut -d '=' -f2 >.env-version 
+RUN grep artifactId /build/target/maven-archiver/pom.properties | cut -d '=' -f2 >.env-id
+
+# mv the uber jar in case the quarkus property quarkus.package.type=uber-jar is set
+RUN mv /build/target/$(cat .env-id)-$(cat .env-version)*.jar /build/target/quarkus-app-tmp/
+
+FROM registry.access.redhat.com/ubi8/ubi-minimal:8.7-1085 
+
+ARG JAVA_PACKAGE=java-17-openjdk-devel
+ARG RUN_JAVA_VERSION=1.3.8
+ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en'
+# Install java and the run-java script
+# Also set up permissions for user `1001`
+RUN microdnf install curl ca-certificates ${JAVA_PACKAGE} \
+    && microdnf update \
+    && microdnf clean all \
+    && mkdir /deployments \
+    && chown 1001 /deployments \
+    && chmod "g+rwX" /deployments \
+    && chown 1001:root /deployments \
+    && curl https://repo1.maven.org/maven2/io/fabric8/run-java-sh/${RUN_JAVA_VERSION}/run-java-sh-${RUN_JAVA_VERSION}-sh.sh -o /deployments/run-java.sh \
+    && chown 1001 /deployments/run-java.sh \
+    && chmod 555 /deployments/run-java.sh \
+    && echo "securerandom.source=file:/dev/urandom" >> /etc/alternatives/jre/lib/security/java.security
+
+# Configure the JAVA_OPTIONS, you can add -XshowSettings:vm to also display the heap size.
+ENV JAVA_OPTIONS="-Dquarkus.http.host=0.0.0.0 -Dquarkus.http.port=8081 -Djava.util.logging.manager=org.jboss.logmanager.LogManager"
+# We make four distinct layers so if there are application changes the library layers can be re-used
+COPY --from=0 --chown=1001 /build/target/quarkus-app-tmp/*.jar /deployments/export-run-artifact.jar
+COPY --from=0 --chown=1001 /build/target/*quarkus-app/*lib/ /deployments/lib/
+# Overwrite the uber jar if package type is normal
+COPY --from=0 --chown=1001 /build/target/*quarkus-app/*.jar /deployments/export-run-artifact.jar 
+COPY --from=0 --chown=1001 /build/target/*quarkus-app/*app/ /deployments/app/
+COPY --from=0 --chown=1001 /build/target/*quarkus-app/*quarkus/ /deployments/quarkus/
+
+EXPOSE 8081
+USER 1001
+
+ENTRYPOINT [ "/deployments/run-java.sh" ]
