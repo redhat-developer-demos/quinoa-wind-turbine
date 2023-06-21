@@ -339,3 +339,4 @@ quarkus build -Dquarkus.container-image.build=true -Dquarkus.profile=openshift-c
 ```bash
 oc delete all -l app.kubernetes.io/name=quinoa-wind-turbine
 ```
+
