@@ -17,6 +17,7 @@ export const ENABLE_SHAKING = false; // "false" in v1, set to "true" in v2
 export const ENABLE_BLOWING = false;
 export const ENABLE_SWIPING = false;
 
+
 // LOGGING
 console.log(`devMode: ${DEV_MODE}`);
 console.log(`Tap needed: ${NB_TAP_NEEDED_PER_USER}`);
