@@ -15,7 +15,7 @@ export const SHOW_TOP = 5;
 export const ENABLE_TAPPING = true;
 export const ENABLE_SHAKING = false; // "false" in v1, set to "true" in v2
 export const ENABLE_BLOWING = false;
-export const ENABLE_SWIPING = false;
+export const ENABLE_SWIPING = true;
 
 // LOGGING
 console.log(`devMode: ${DEV_MODE}`);
