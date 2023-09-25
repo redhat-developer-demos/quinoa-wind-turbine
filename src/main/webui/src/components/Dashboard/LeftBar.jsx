@@ -141,9 +141,9 @@ function Team(props) {
       <Header style={{ color: TEAM_COLORS[props.id - 1] }}>
         <span>
           {props.winner === props.id && <Trophy size={32} />}
-          Team
+          Team <br />
           {' '}
-          {props.id}
+          {props.id == 1 ? 'Barbie' : 'Oppenheimer'}
         </span>
         {props.winner < 0 && <span className="total-power">{powerApi.humanPower(props.generated)}</span>}
         {props.time && <span><StopWatch time={props.time} running={false} /></span>}

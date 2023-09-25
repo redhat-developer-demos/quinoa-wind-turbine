@@ -56,13 +56,14 @@ const StatusDiv = styled.div`
 
 function TopBar(props) {
   const statusColor = props.status !== 'offline' ? 'green' : 'grey';
+  const teamName = props.user.team == 1 ? 'Barbie' : 'Oppenheimer';
   return (
     <TopBarDiv color={props.color}>
       <UserDiv>
         <Plug size={32} />
         <span id="user-name">{props.user.name}</span>
       </UserDiv>
-      <TeamDiv id="user-team">{props.user.team}</TeamDiv>
+      <TeamDiv id="user-team">{teamName}</TeamDiv>
       <StatusDiv color={statusColor}>
         {props.status === 'started' && <Bolt size={32} />}
         {props.status === 'offline' && <CloudOffline size={32} />}
