@@ -88,8 +88,8 @@ export default function Winner(props) {
       <div className="winner">
         <Trophy size={150} />
         <h1>
-          Team {' '}
-          {props.rank.winner == 1 ? 'Barbie' : 'Oppenheimer' }
+          Team
+          {props.winner}
           {' '}
           won the game!
         </h1>

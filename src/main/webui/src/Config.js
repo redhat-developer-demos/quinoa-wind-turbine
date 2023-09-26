@@ -4,7 +4,7 @@ export const IS_TOUCH_DEVICE = (('ontouchstart' in window)
     || (navigator.maxTouchPoints > 0)
     || (navigator.msMaxTouchPoints > 0));
 
-export const TEAM_COLORS = ['hotpink', 'orange'];
+export const TEAM_COLORS = ['#6C84A3', 'orange'];
 
 // Dashboard
 export const TAP_POWER = 15; // in MW
