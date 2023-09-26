@@ -53,7 +53,7 @@ function RaceTrackSvg(props) {
         width={777}
         height={518}
         preserveAspectRatio="none"
-        xlinkHref="race-track-1.png"
+        xlinkHref="/static/race-track-1.png"
       />
 
       <g className="car" id="car1">

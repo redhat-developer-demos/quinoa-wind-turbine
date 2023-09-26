@@ -7,13 +7,13 @@
   <version>1.0.0-SNAPSHOT</version>
   <properties>
     <compiler-plugin.version>3.8.1</compiler-plugin.version>
-    <maven.compiler.release>11</maven.compiler.release>
+    <maven.compiler.release>17</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-    <quarkus-quinoa.version>2.2.1</quarkus-quinoa.version>
     <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
     <quarkus.platform.group-id>io.quarkus</quarkus.platform.group-id>
     <quarkus.platform.version>3.4.1</quarkus.platform.version>
+    <quarkus-web-bundler.version>1.1.3</quarkus-web-bundler.version>
     <skipITs>true</skipITs>
     <surefire-plugin.version>3.0.0</surefire-plugin.version>
   </properties>
@@ -29,9 +29,39 @@
       <dependency>
         <groupId>io.quarkus.platform</groupId>
         <artifactId>quarkus-camel-bom</artifactId>
-        <version>2.16.5.Final</version>
+        <version>3.2.4.Final</version>
         <type>pom</type>
         <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.mvnpm</groupId>
+        <artifactId>inherits</artifactId>
+        <version>2.0.4</version>
+      </dependency>
+      <dependency>
+        <groupId>org.mvnpm</groupId>
+        <artifactId>semver</artifactId>
+        <version>6.3.1</version>
+      </dependency>
+      <dependency>
+        <groupId>org.mvnpm</groupId>
+        <artifactId>jsesc</artifactId>
+        <version>3.0.2</version>
+      </dependency>
+      <dependency>
+        <groupId>org.mvnpm</groupId>
+        <artifactId>source-map-js</artifactId>
+        <version>1.0.2</version>
+      </dependency>
+      <dependency>
+        <groupId>org.mvnpm.at.babel</groupId>
+        <artifactId>compat-data</artifactId>
+        <version>7.22.9</version>
+      </dependency>
+      <dependency>
+        <groupId>org.mvnpm.at.babel</groupId>
+        <artifactId>helper-split-export-declaration</artifactId>
+        <version>7.22.6</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -49,13 +79,18 @@
       <artifactId>camel-quarkus-core</artifactId>
     </dependency>
     <dependency>
+      <groupId>io.quarkiverse.quteserverpages</groupId>
+      <artifactId>quarkus-qute-server-pages</artifactId>
+      <version>2.0.1.Final</version>
+    </dependency>
+    <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-elytron-security-properties-file</artifactId>
     </dependency>
     <dependency>
-      <groupId>io.quarkiverse.quinoa</groupId>
-      <artifactId>quarkus-quinoa</artifactId>
-      <version>${quarkus-quinoa.version}</version>
+      <groupId>io.quarkiverse.web-bundler</groupId>
+      <artifactId>quarkus-web-bundler</artifactId>
+      <version>${quarkus-web-bundler.version}</version>
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
@@ -112,11 +147,80 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>io.quarkiverse.quinoa</groupId>
-      <artifactId>quarkus-quinoa-testing</artifactId>
-      <version>${quarkus-quinoa.version}</version>
+      <groupId>io.quarkiverse.playwright</groupId>
+      <artifactId>quarkus-playwright</artifactId>
+      <version>0.0.1</version>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.mvnpm</groupId>
+      <artifactId>react</artifactId>
+      <version>18.2.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.mvnpm</groupId>
+      <artifactId>react-dom</artifactId>
+      <version>18.2.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.mvnpm</groupId>
+      <artifactId>react-router-dom</artifactId>
+      <version>6.3.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.mvnpm</groupId>
+      <artifactId>lodash</artifactId>
+      <version>4.17.21</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.mvnpm</groupId>
+      <artifactId>styled-components</artifactId>
+      <version>6.0.7</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.mvnpm</groupId>
+          <artifactId>gensync</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+
+    <dependency>
+      <groupId>org.mvnpm</groupId>
+      <artifactId>classnames</artifactId>
+      <version>2.3.1</version>
+    </dependency>
+    <dependency>
+      <groupId>org.mvnpm.at.rooks</groupId>
+      <artifactId>use-key</artifactId>
+      <version>4.11.2</version>
+    </dependency>
+    <dependency>
+      <groupId>org.mvnpm.at.styled-icons</groupId>
+      <artifactId>bootstrap</artifactId>
+      <version>10.34.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.mvnpm.at.styled-icons</groupId>
+      <artifactId>heroicons-outline</artifactId>
+      <version>10.36.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.mvnpm.at.styled-icons</groupId>
+      <artifactId>boxicons-solid</artifactId>
+      <version>10.38.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.mvnpm.at.styled-icons</groupId>
+      <artifactId>ionicons-outline</artifactId>
+      <version>10.34.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.mvnpm.at.styled-icons</groupId>
+      <artifactId>boxicons-regular</artifactId>
+      <version>10.38.0</version>
+    </dependency>
+
   </dependencies>
   <build>
     <plugins>
@@ -175,6 +279,21 @@
       </plugin>
     </plugins>
   </build>
+  <repositories>
+    <repository>
+      <id>central</id>
+      <name>central</name>
+      <url>https://repo.maven.apache.org/maven2</url>
+    </repository>
+    <repository>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+      <id>mvnpm.org</id>
+      <name>mvnpm</name>
+      <url>https://repo.mvnpm.org/maven2</url>
+    </repository>
+  </repositories>
   <profiles>
     <profile>
       <id>native</id>

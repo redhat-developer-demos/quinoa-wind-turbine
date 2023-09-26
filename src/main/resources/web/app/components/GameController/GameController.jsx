@@ -63,7 +63,7 @@ function StatusContent(props) {
     default:
       return (
         <LoadingDiv>
-          <div><img src={`./${TEAMS_CONFIG[props.user.team - 1].car}.png`} /></div>
+          <div><img src={`/static/${TEAMS_CONFIG[props.user.team - 1].car}.png`} /></div>
           <div>Waiting for game...</div>
         </LoadingDiv>
       );
