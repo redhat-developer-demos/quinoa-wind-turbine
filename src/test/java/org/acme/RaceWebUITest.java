@@ -7,15 +7,14 @@ import com.microsoft.playwright.ElementHandle;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.Response;
-import io.quarkiverse.quinoa.testing.QuarkusPlaywrightManager;
+import io.quarkiverse.playwright.InjectPlaywright;
+import io.quarkiverse.playwright.WithPlaywright;
 import io.quarkiverse.quinoa.testing.QuinoaTestProfiles;
-import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.common.http.TestHTTPResource;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
-
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -31,14 +30,14 @@ import java.util.concurrent.Executors;
 
 @QuarkusTest
 @TestProfile(QuinoaTestProfiles.Enable.class)
-@QuarkusTestResource(QuarkusPlaywrightManager.class)
+@WithPlaywright
 @Disabled
 public class RaceWebUITest {
 
     private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
     public static final Page.WaitForSelectorOptions LONG_TIMEOUT_OPTIONS = new Page.WaitForSelectorOptions().setTimeout(200000);
 
-    @QuarkusPlaywrightManager.InjectPlaywright
+    @InjectPlaywright
     BrowserContext context;
 
     @TestHTTPResource("/dashboard")
