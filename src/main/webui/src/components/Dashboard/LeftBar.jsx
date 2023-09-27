@@ -6,7 +6,7 @@ import { Trophy, CloudOffline } from '@styled-icons/ionicons-outline';
 import { Plug, Reset } from '@styled-icons/boxicons-regular';
 import { gameApi, powerApi } from '../../api';
 import StopWatch from './StopWatch';
-import { SHOW_TOP, TEAM_COLORS } from '../../Config';
+import { SHOW_TOP, TEAM_COLORS, TEAM_NAMES } from '../../Config';
 import { sortTeams } from './DashboardUtils';
 
 const Title = styled.h1`
@@ -143,7 +143,7 @@ function Team(props) {
           {props.winner === props.id && <Trophy size={32} />}
           Team <br />
           {' '}
-          {props.id == 1 ? 'Barbie' : 'Oppenheimer'}
+          {TEAM_NAMES[props.id - 1]}
         </span>
         {props.winner < 0 && <span className="total-power">{powerApi.humanPower(props.generated)}</span>}
         {props.time && <span><StopWatch time={props.time} running={false} /></span>}

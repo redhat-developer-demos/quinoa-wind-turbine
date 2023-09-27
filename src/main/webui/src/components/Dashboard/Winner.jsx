@@ -3,7 +3,7 @@ import { Trophy } from '@styled-icons/ionicons-outline';
 import React from 'react';
 import styled from 'styled-components';
 import { powerApi } from '../../api';
-import { TEAM_COLORS } from '../../Config';
+import { TEAM_COLORS, TEAM_NAMES } from '../../Config';
 
 const WinnerDiv = styled.div`
   position: fixed;
@@ -89,7 +89,7 @@ export default function Winner(props) {
         <Trophy size={150} />
         <h1>
           Team {' '}
-          {props.rank.winner == 1 ? 'Barbie' : 'Oppenheimer' }
+          {TEAM_NAMES[props.rank.winner - 1]}
           {' '}
           won the game!
         </h1>
