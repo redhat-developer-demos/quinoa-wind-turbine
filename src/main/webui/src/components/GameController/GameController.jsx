@@ -46,7 +46,6 @@ const LoadingDiv = styled.div`
 `;
 
 function StatusContent(props) {
-  const car = TEAM_CARS[props.user.team -1];
   switch (props.status.value) {
     case 'started':
       return (
@@ -64,7 +63,7 @@ function StatusContent(props) {
     default:
       return (
         <LoadingDiv>
-          <div><img src={`./${car}.png`} /></div>
+          <div><img src={`./${TEAM_CARS[props.user.team -1]}.png`} /></div>
           <div>Waiting for game...</div>
         </LoadingDiv>
       );
