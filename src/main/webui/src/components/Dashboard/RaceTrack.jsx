@@ -1,5 +1,6 @@
 import * as React from 'react';
 import styled from 'styled-components';
+import { TEAM_CARS} from '../../Config';
 
 const RaceDiv = styled.div`
   text-align: center;
@@ -57,12 +58,12 @@ function RaceTrackSvg(props) {
 
       <g className="car" id="car1">
         <image
-          xlinkHref="car-1.png"
+          xlinkHref={TEAM_CARS[0] + ".png"}
         />
       </g>
       <g className="car" id="car2">
         <image
-          xlinkHref="car-2.png"
+          xlinkHref={TEAM_CARS[1] + ".png"}
         />
       </g>
     </svg>

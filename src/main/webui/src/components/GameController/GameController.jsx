@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { gameApi, powerApi, sensors } from '../../api';
 import Generator from './Generator';
-import { ENABLE_SHAKING, TEAM_COLORS, TEAM_NAMES } from '../../Config';
+import { ENABLE_SHAKING, TEAM_COLORS, TEAM_NAMES, TEAM_CARS } from '../../Config';
 import TopBar from './TopBar';
 import EnableShakingModal from './EnableShakingModal';
 import RankModal from './RankModal';
@@ -46,6 +46,7 @@ const LoadingDiv = styled.div`
 `;
 
 function StatusContent(props) {
+  const car = TEAM_CARS[props.user.team -1];
   switch (props.status.value) {
     case 'started':
       return (
@@ -63,7 +64,7 @@ function StatusContent(props) {
     default:
       return (
         <LoadingDiv>
-          <div><img src={`./car-${props.user.team}.png`} /></div>
+          <div><img src={`./${car}.png`} /></div>
           <div>Waiting for game...</div>
         </LoadingDiv>
       );
