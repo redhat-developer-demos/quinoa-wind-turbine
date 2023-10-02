@@ -96,8 +96,8 @@ export default function Winner(props) {
       </div>
       <div className="leaderboards">
         <Leaderboard players={props.rank.overall} title="Overall leaderboard" />
-        <Leaderboard players={props.rank.team1} title="Team 1" />
-        <Leaderboard players={props.rank.team2} title="Team 2" />
+        <Leaderboard players={props.rank.team1} title={"Team " + TEAM_NAMES[0]} />
+        <Leaderboard players={props.rank.team2} title={"Team " + TEAM_NAMES[1]} />
       </div>
     </WinnerDiv>
   );
