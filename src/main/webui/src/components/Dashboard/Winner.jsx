@@ -3,7 +3,7 @@ import { Trophy } from '@styled-icons/ionicons-outline';
 import React from 'react';
 import styled from 'styled-components';
 import { powerApi } from '../../api';
-import { TEAM_COLORS } from '../../Config';
+import { TEAM_COLORS, TEAM_NAMES } from '../../Config';
 
 const WinnerDiv = styled.div`
   position: fixed;
@@ -88,16 +88,16 @@ export default function Winner(props) {
       <div className="winner">
         <Trophy size={150} />
         <h1>
-          Team
-          {props.winner}
+          Team {' '}
+          {TEAM_NAMES[props.rank.winner - 1]}
           {' '}
           won the game!
         </h1>
       </div>
       <div className="leaderboards">
         <Leaderboard players={props.rank.overall} title="Overall leaderboard" />
-        <Leaderboard players={props.rank.team1} title="Team 1" />
-        <Leaderboard players={props.rank.team2} title="Team 2" />
+        <Leaderboard players={props.rank.team1} title={"Team " + TEAM_NAMES[0]} />
+        <Leaderboard players={props.rank.team2} title={"Team " + TEAM_NAMES[1]} />
       </div>
     </WinnerDiv>
   );

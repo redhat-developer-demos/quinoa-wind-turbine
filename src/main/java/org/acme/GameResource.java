@@ -1,5 +1,6 @@
 package org.acme;
 
+import io.micrometer.core.annotation.Counted;
 import io.quarkus.runtime.Startup;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -80,6 +81,7 @@ public class GameResource {
     }
 
     @POST
+    @Counted(value = "counted.user_assigned")
     @Path("assign")
     @Produces(MediaType.APPLICATION_JSON)
     public Uni<User> assignNameAndTeam() {

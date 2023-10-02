@@ -62,7 +62,7 @@ function TopBar(props) {
         <Plug size={32} />
         <span id="user-name">{props.user.name}</span>
       </UserDiv>
-      <TeamDiv id="user-team">{props.user.team}</TeamDiv>
+      <TeamDiv id="user-team">{props.teamname}</TeamDiv>
       <StatusDiv color={statusColor}>
         {props.status === 'started' && <Bolt size={32} />}
         {props.status === 'offline' && <CloudOffline size={32} />}
