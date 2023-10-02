@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class SimulateGame {
     private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-    public static final int USERS = 50;
+    public static final int USERS = 700;
     public static final int CLICKS = 500;
     public static final Random R = new Random();
 
