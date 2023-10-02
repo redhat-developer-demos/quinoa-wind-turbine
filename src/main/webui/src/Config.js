@@ -6,7 +6,7 @@ export const IS_TOUCH_DEVICE = (('ontouchstart' in window)
 
 export const TEAM_COLORS = ['hotpink', 'orange'];
 export const TEAM_NAMES = ['Barbie', 'Oppenheimer'];
-export const TEAM_CARS = ["car-barbie", "car-classic-black", "car-grey", "car-orange", "car-red"]; // only the first 2 are used, the other ones are there for reference
+export const TEAM_CARS = ["car-barbie", "car-red", "car-grey", "car-orange", "car-class-black"]; // only the first 2 are used, the other ones are there for reference
 
 // Dashboard
 export const TAP_POWER = 15; // in MW
