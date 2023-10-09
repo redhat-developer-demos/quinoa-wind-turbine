@@ -11,6 +11,7 @@ export default function Turbine(props) {
       id="generator"
       xmlns="http://www.w3.org/2000/svg"
       onTouchStart={props.onTap}
+      onClick={props.onClick}
     >
       <g id="g409" transform="translate(-171,-10)">
         <g transform="matrix(0.1,0,0,-0.1,0,511)" id="g407">

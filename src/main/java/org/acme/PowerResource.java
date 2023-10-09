@@ -34,7 +34,7 @@ public class PowerResource {
     @RestStreamElementType(MediaType.APPLICATION_JSON)
     @RolesAllowed("admin")
     public Multi<List<Power>> stream() {
-                return powerIn.group().intoLists().every(Duration.ofMillis(20)).onOverflow().buffer(5000);
+                return powerIn.group().intoLists().every(Duration.ofMillis(500)).onOverflow().buffer(100000);
     }
 
     @Path("")
