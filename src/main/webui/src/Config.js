@@ -10,7 +10,7 @@ export const TEAM_CARS = ["car-blue-convertible", "car-orange", "car-classic-bla
 
 // Dashboard
 export const TAP_POWER = 15; // in MW
-export const NB_TAP_NEEDED_PER_USER = DEV_MODE ? 5 : 150;
+export const NB_TAP_NEEDED_PER_USER = DEV_MODE ? 10 : 150;
 export const SHOW_TOP = 5;
 
 // Mobile app
