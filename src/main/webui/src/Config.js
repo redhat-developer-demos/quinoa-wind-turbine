@@ -20,7 +20,7 @@ export const TEAMS_CONFIG = [
 
 // Dashboard
 export const TAP_POWER = 15; // in MW
-export const NB_TAP_NEEDED_PER_USER = DEV_MODE ? 10 : 150;
+export const NB_TAP_NEEDED_PER_USER = 100;
 export const SHOW_TOP = 5;
 
 // Mobile app

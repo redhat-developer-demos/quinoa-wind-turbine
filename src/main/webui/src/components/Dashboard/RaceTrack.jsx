@@ -18,7 +18,7 @@ const RaceDiv = styled.div`
   }
   
   .car {
-    transition: offset-distance 1000ms ease;
+    transition: offset-distance 2000ms linear;
     
   }
   

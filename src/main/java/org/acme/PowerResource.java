@@ -25,19 +25,16 @@ public class PowerResource {
     @Channel("power-in") Multi<Power> powerIn;
     @Channel("power-out") Emitter<Power> powerOut;
 
-    // For statistics/leader boards to Kafka
-    @Channel("user-actions-out") Emitter<Record<String, Integer>> userActionsOut;
-
     @Path("stream")
     @GET
     @Produces(MediaType.SERVER_SENT_EVENTS)
     @RestStreamElementType(MediaType.APPLICATION_JSON)
     @RolesAllowed("admin")
     public Multi<List<Power>> stream() {
-                return powerIn.group().intoLists().every(Duration.ofMillis(500)).onOverflow().buffer(100000);
+                return powerIn.group().intoLists().every(Duration.ofMillis(250)).onOverflow().buffer(100000);
     }
 
-    @Path("")
+    @Path("/")
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     public void generate(Power power) {
@@ -48,9 +45,6 @@ public class PowerResource {
            throw new IllegalStateException("Ouch this is too much for me to handle!");
         }
         powerOut.send(power);
-        
-        // Sends action to leader board topic
-        userActionsOut.send(Record.of(power.source(), power.quantity()));
     }
 
     public static record Power(int quantity, String source, int destination) {
