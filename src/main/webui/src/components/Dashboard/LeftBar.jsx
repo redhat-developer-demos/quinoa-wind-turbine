@@ -6,7 +6,7 @@ import { Trophy, CloudOffline } from '@styled-icons/ionicons-outline';
 import { Plug, Reset } from '@styled-icons/boxicons-regular';
 import { gameApi, powerApi } from '../../api';
 import StopWatch from './StopWatch';
-import { SHOW_TOP, TEAM_COLORS, TEAM_NAMES } from '../../Config';
+import { SHOW_TOP, TEAMS_CONFIG } from '../../Config';
 import { sortTeams } from './DashboardUtils';
 
 const Title = styled.h1`
@@ -136,22 +136,25 @@ const Header = styled.div`
 function Team(props) {
   const team = _.values(props.team);
   const top = team.sort((a, b) => b.generated - a.generated).slice(0, SHOW_TOP);
+  const teamConfig = TEAMS_CONFIG[props.id - 1];
   return (
     <div className={props.className}>
-      <Header style={{ color: TEAM_COLORS[props.id - 1] }}>
+      <Header style={{ color: teamConfig.color }}>
         <span>
           {props.winner === props.id && <Trophy size={32} />}
-          Team <br />
+          Team
           {' '}
-          {TEAM_NAMES[props.id - 1]}
+          <br />
+          {' '}
+          {teamConfig.name}
         </span>
         {props.winner < 0 && <span className="total-power">{powerApi.humanPower(props.generated)}</span>}
         {props.time && <span><StopWatch time={props.time} running={false} /></span>}
         {!props.time && (
-        <span className="count-players">
-          <Plug size={20} />
-          {team.length}
-        </span>
+          <span className="count-players">
+            <Plug size={20} />
+            {team.length}
+          </span>
         )}
       </Header>
       <ol>
