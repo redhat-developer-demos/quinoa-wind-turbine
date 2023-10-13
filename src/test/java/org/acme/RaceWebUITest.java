@@ -9,10 +9,8 @@ import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.Response;
 import io.quarkiverse.playwright.InjectPlaywright;
 import io.quarkiverse.playwright.WithPlaywright;
-import io.quarkiverse.quinoa.testing.QuinoaTestProfiles;
 import io.quarkus.test.common.http.TestHTTPResource;
 import io.quarkus.test.junit.QuarkusTest;
-import io.quarkus.test.junit.TestProfile;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.Assertions;
@@ -29,7 +27,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 @QuarkusTest
-@TestProfile(QuinoaTestProfiles.Enable.class)
 @WithPlaywright
 @Disabled
 public class RaceWebUITest {
