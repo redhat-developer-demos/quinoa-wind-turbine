@@ -25,6 +25,7 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import java.util.Collections;
 import java.util.Map;
@@ -74,8 +75,8 @@ public class GameResource {
     @POST
     @Path("assign/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    public User assignNameAndTeam(@PathParam("id") Integer id) {
-        final User user = new User(id, getNameById(id), (id % 2) + 1);
+    public User assignNameAndTeam(@PathParam("id") Integer id, @QueryParam("team") int team) {
+        final User user = new User(id, getNameById(id), team);
         powerOut.send(new Power(0, user.name(), user.team()));
         return user;
     }
@@ -84,9 +85,9 @@ public class GameResource {
     @Counted(value = "counted.user_assigned")
     @Path("assign")
     @Produces(MediaType.APPLICATION_JSON)
-    public Uni<User> assignNameAndTeam() {
+    public Uni<User> assignNameAndTeam(@QueryParam("team") int team) {
         return Uni.createFrom().future(usersCounter.incrementAndGet())
-            .map(c -> assignNameAndTeam(c.intValue()));
+            .map(c -> assignNameAndTeam(c.intValue(), team));
 
     }
 
