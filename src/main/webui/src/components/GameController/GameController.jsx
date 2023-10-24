@@ -77,15 +77,10 @@ export default function GameController() {
   const [generated, setCounter] = useState(0);
   const [pingTimeout, setPingTimeout] = useState();
   const [shakingEnabled, setShakingEnabled] = useState(false);
+  const [teamChosen, setTeamChosen] = useState(false);
   
-  let teamChosen = user && user.team ? true : false;
-
   function reset() {
     setCounter(0);
-  }
-
-  function setTeamChosen(value) {
-    teamChosen = value;
   }
 
   function generatePower(quantity) {
