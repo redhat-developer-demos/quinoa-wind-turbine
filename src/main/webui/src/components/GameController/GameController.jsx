@@ -5,6 +5,7 @@ import Generator from './Generator';
 import { ENABLE_SHAKING, TEAMS_CONFIG } from '../../Config';
 import TopBar from './TopBar';
 import EnableShakingModal from './EnableShakingModal';
+import ChooseTeamModal from './ChooseTeamModal';
 import RankModal from './RankModal';
 
 const Container = styled.div`
@@ -76,7 +77,8 @@ export default function GameController() {
   const [generated, setCounter] = useState(0);
   const [pingTimeout, setPingTimeout] = useState();
   const [shakingEnabled, setShakingEnabled] = useState(false);
-
+  const [teamChosen, setTeamChosen] = useState(false);
+  
   function reset() {
     setCounter(0);
   }
@@ -98,9 +100,12 @@ export default function GameController() {
     setShakingEnabled(true);
   }
 
-  useEffect(() => {
-    gameApi.assign().then(setUser);
-  }, []);
+  function chooseTeam(team){
+    console.log("user chose team " + team);
+    setTeamChosen(true);
+    gameApi.assign(team).then(setUser);
+  }
+  
   useEffect(() => {
     if (user && !pingTimeout) {
       setPingTimeout((p) => (!p ? setTimeout(() => generatePower(0), 3000) : null));
@@ -125,9 +130,10 @@ export default function GameController() {
             shakingEnabled={shakingEnabled}
           />
           {ENABLE_SHAKING && !shakingEnabled
-                    && <EnableShakingModal onClick={enableShaking} />}
+                    && <EnableShakingModal onClick={enableShaking} />}          
         </>
       )}
+      {!teamChosen && <ChooseTeamModal onClick={chooseTeam} />}
     </Container>
   );
 }

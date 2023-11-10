@@ -73,7 +73,7 @@ class GameLoader implements Callable<Integer> {
         for (int i = 0; i < players; i++) {
             final int index = i;
             client.request(HttpMethod.POST, port, url.getHost(),
-                            "/api/game/assign")
+                            "/api/game/assign/"+i+"?team=" + (i % 2 + 1 ))
                     .ssl(ssl)
                     .expect(ResponsePredicate.SC_SUCCESS)
                     .send()
