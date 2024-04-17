@@ -24,8 +24,8 @@ export const NB_TAP_NEEDED_PER_USER = 100;
 export const SHOW_TOP = 5;
 
 // Mobile app
-export const ENABLE_TAPPING = false;
-export const ENABLE_SHAKING = true; // 'false' in v1, set to 'true' in v2
+export const ENABLE_TAPPING = true;
+export const ENABLE_SHAKING = false; // 'false' in v1, set to 'true' in v2
 export const ENABLE_BLOWING = false;
 export const ENABLE_SWIPING = false;
 
