@@ -10,3 +10,4 @@
 3. install the application according to the Readme there (way smaller and way more automated!)
 4. implement cool stuff
 5. Profit
+
