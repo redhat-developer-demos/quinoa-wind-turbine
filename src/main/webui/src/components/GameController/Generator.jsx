@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import styled from 'styled-components';
 import {
-  TAP_POWER, ENABLE_BLOWING, ENABLE_TAPPING, ENABLE_SWIPING,
+  TAP_POWER, ENABLE_BLOWING, ENABLE_TAPPING, ENABLE_SWIPING, IS_TOUCH_DEVICE,
 } from '../../Config';
 import { powerApi, sensors } from '../../api';
 import Turbine from "./Turbine";
@@ -95,10 +95,17 @@ function Generator(props) {
     }
   };
 
+  const onClick = (e) => {
+    // Clicking
+    if (!IS_TOUCH_DEVICE && ENABLE_TAPPING) {
+      props.generatePower(TAP_POWER, true);
+    }
+  };
+
   return (
     <>
       <GeneratorDiv generated={props.generated} color={props.color}>
-        <Turbine onTap={onTap} />
+        <Turbine onTap={onTap} onClick={onClick} />
       </GeneratorDiv>
       <GeneratedIndicatorDiv
         unit={powerApi.humanPowerUnit(props.generated)}

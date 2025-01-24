@@ -9,7 +9,7 @@ function convertResponse(response) {
   throw new Error(`Request error: ${response.status}`);
 }
 
-export async function assign() {
+export async function assign(team) {
   let id = storage.getItem('user-id');
   if (!id || id === 'undefined') {
     id = '';
@@ -19,7 +19,7 @@ export async function assign() {
     headers: { Accept: 'application/json' },
   };
   return fetch(
-    `/api/game/assign/${id}`,
+    `/api/game/assign/${id}?team=${team}`,
     { ...fetchOptions },
   )
     .then(convertResponse)

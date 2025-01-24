@@ -1,11 +1,14 @@
 package org.acme;
 
+import io.micrometer.core.annotation.Counted;
 import io.quarkus.runtime.Startup;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import jakarta.annotation.security.RolesAllowed;
 import org.acme.PowerResource.Power;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
+import org.infinispan.client.hotrod.RemoteCacheManager;
 import org.infinispan.counter.api.CounterConfiguration;
 import org.infinispan.counter.api.CounterManager;
 import org.infinispan.counter.api.CounterType;
@@ -15,15 +18,15 @@ import org.jboss.logging.Logger;
 import org.jboss.resteasy.reactive.ResponseHeader;
 import org.jboss.resteasy.reactive.RestStreamElementType;
 
-import javax.annotation.security.RolesAllowed;
-import javax.enterprise.context.ApplicationScoped;
-import javax.ws.rs.Consumes;
-import javax.ws.rs.GET;
-import javax.ws.rs.POST;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.Produces;
-import javax.ws.rs.core.MediaType;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.MediaType;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -50,10 +53,12 @@ public class GameResource {
         LOG.info("List of names initialized with " + NAMES.size() + " items");
     }
 
-    public GameResource(CounterManager counterManager,
+    public GameResource(RemoteCacheManager remoteCacheManager,
+                        CounterManager counterManager,
                         @Channel("game-events-in") Multi<GameEvent> gameEventsIn,
                         @Channel("game-events-out") Emitter<GameEvent> gameEventsOut,
                         @Channel("power-out") Emitter<Power> powerOut) {
+        remoteCacheManager.getCache();
         counterManager.defineCounter("users",
             CounterConfiguration.builder(CounterType.UNBOUNDED_STRONG).storage(Storage.PERSISTENT).build());
         this.usersCounter = counterManager.getStrongCounter("users");
@@ -70,18 +75,19 @@ public class GameResource {
     @POST
     @Path("assign/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    public User assignNameAndTeam(@PathParam("id") Integer id) {
-        final User user = new User(id, getNameById(id), (id % 2) + 1);
+    public User assignNameAndTeam(@PathParam("id") Integer id, @QueryParam("team") int team) {
+        final User user = new User(id, getNameById(id), team);
         powerOut.send(new Power(0, user.name(), user.team()));
         return user;
     }
 
     @POST
+    @Counted(value = "counted.user_assigned")
     @Path("assign")
     @Produces(MediaType.APPLICATION_JSON)
-    public Uni<User> assignNameAndTeam() {
+    public Uni<User> assignNameAndTeam(@QueryParam("team") int team) {
         return Uni.createFrom().future(usersCounter.incrementAndGet())
-            .map(c -> assignNameAndTeam(c.intValue()));
+            .map(c -> assignNameAndTeam(c.intValue(), team));
 
     }
 

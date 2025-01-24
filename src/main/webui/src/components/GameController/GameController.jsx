@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { gameApi, powerApi, sensors } from '../../api';
 import Generator from './Generator';
-import { ENABLE_SHAKING, TEAM_COLORS } from '../../Config';
+import { ENABLE_SHAKING, TEAMS_CONFIG } from '../../Config';
 import TopBar from './TopBar';
 import EnableShakingModal from './EnableShakingModal';
+import ChooseTeamModal from './ChooseTeamModal';
 import RankModal from './RankModal';
 
 const Container = styled.div`
@@ -63,7 +64,7 @@ function StatusContent(props) {
     default:
       return (
         <LoadingDiv>
-          <div><img src={`./car-${props.user.team}.png`} /></div>
+          <div><img src={`./${TEAMS_CONFIG[props.user.team - 1].car}.png`} /></div>
           <div>Waiting for game...</div>
         </LoadingDiv>
       );
@@ -76,7 +77,8 @@ export default function GameController() {
   const [generated, setCounter] = useState(0);
   const [pingTimeout, setPingTimeout] = useState();
   const [shakingEnabled, setShakingEnabled] = useState(false);
-
+  const [teamChosen, setTeamChosen] = useState(false);
+  
   function reset() {
     setCounter(0);
   }
@@ -98,9 +100,12 @@ export default function GameController() {
     setShakingEnabled(true);
   }
 
-  useEffect(() => {
-    gameApi.assign().then(setUser);
-  }, []);
+  function chooseTeam(team){
+    console.log("user chose team " + team);
+    setTeamChosen(true);
+    gameApi.assign(team).then(setUser);
+  }
+  
   useEffect(() => {
     if (user && !pingTimeout) {
       setPingTimeout((p) => (!p ? setTimeout(() => generatePower(0), 3000) : null));
@@ -108,25 +113,27 @@ export default function GameController() {
     return () => clearTimeout(pingTimeout);
   }, [user, pingTimeout]);
   useEffect(() => gameApi.status(setStatus, reset), []);
-
-  const color = user && TEAM_COLORS[user.team - 1];
+  const teamConfig = user && TEAMS_CONFIG[user.team - 1];
+  const teamColor = teamConfig && teamConfig.color;
+  const teamName = teamConfig && teamConfig.name;
   return (
     <Container>
       {user && (
         <>
-          <TopBar color={color} user={user} status={status.value} />
+          <TopBar color={teamColor} user={user} status={status.value} teamname={teamName} />
           <StatusContent
             user={user}
             status={status}
             generatePower={generatePower}
-            color={color}
+            color={teamColor}
             generated={generated}
             shakingEnabled={shakingEnabled}
           />
           {ENABLE_SHAKING && !shakingEnabled
-                    && <EnableShakingModal onClick={enableShaking} />}
+                    && <EnableShakingModal onClick={enableShaking} />}          
         </>
       )}
+      {!teamChosen && <ChooseTeamModal onClick={chooseTeam} />}
     </Container>
   );
 }

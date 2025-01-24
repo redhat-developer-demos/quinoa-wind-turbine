@@ -1,5 +1,6 @@
 import * as React from 'react';
 import styled from 'styled-components';
+import { TEAMS_CONFIG } from '../../Config';
 
 const RaceDiv = styled.div`
   text-align: center;
@@ -17,7 +18,7 @@ const RaceDiv = styled.div`
   }
   
   .car {
-    transition: offset-distance 300ms ease;
+    transition: offset-distance 2000ms linear;
     
   }
   
@@ -57,12 +58,12 @@ function RaceTrackSvg(props) {
 
       <g className="car" id="car1">
         <image
-          xlinkHref="car-1.png"
+          xlinkHref={`${TEAMS_CONFIG[0].car}.png`}
         />
       </g>
       <g className="car" id="car2">
         <image
-          xlinkHref="car-2.png"
+          xlinkHref={`${TEAMS_CONFIG[1].car}.png`}
         />
       </g>
     </svg>
