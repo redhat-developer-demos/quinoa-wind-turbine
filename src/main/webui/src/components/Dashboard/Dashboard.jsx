@@ -41,9 +41,13 @@ function Dashboard(props) {
     if (status === 'started' && result.team1 && result.team2) {
       setRank((prev) => {
         if (prev.winner < 0) {
-          const r = computeRank(result, team1, team2);
-          gameApi.sendEvent('finish', { overall: r.overall });
-          return r;
+          // Delay showing winner popup to allow cars to cross finish line
+          setTimeout(() => {
+            const r = computeRank(result, team1, team2);
+            gameApi.sendEvent('finish', { overall: r.overall });
+            setRank(r);
+          }, 2000); // 2 second delay to match car animation duration
+          return prev;
         }
         return prev;
       });
