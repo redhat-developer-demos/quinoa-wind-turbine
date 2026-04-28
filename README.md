@@ -1,247 +1,157 @@
-
 # Quinoa WindTurbine Racer Demo
 
 This project uses Quarkus, the Supersonic Subatomic Java Framework.
 
+The application is a small race game. Players join one of two teams, charge their turbines and send power during the race. The dashboard shows the race as it happens and the winning team at the end.
+
+## The game
+
+Before the race starts, players join and wait for the race to begin.
+
+![Race start](docs/race-start.png)
+
+During the race, both teams generate power and the cars move across the track.
+
+![Race in progress](docs/race.png)
+
+At the end of the race, the dashboard shows the winner.
+
+![Race end](docs/race-end.png)
+
+### Player view
+
+On their phone, players first choose a team.
+
+![Choose team](docs/choose-team.png)
+
+After joining, they wait for the game to start.
+
+![Waiting for game](docs/waiting-for-game.png)
+
+When the race is running, they generate "power" from the mobile screen by either tapping, shaking, blowing or swiping.
+
+![Wind turbine](docs/wind-turbine.png)
+
+## Architecture
+
+![Game Architecture](docs/architecture.png)
+
+The application has two browser entry points. The player screen is used on the phone, and the dashboard is used by the game operator. Both talk to the Quarkus backend. Game state and power events are sent through Kafka, while Infinispan is used for counters and shared state.
+
+```mermaid
+flowchart LR
+    A[Player phone UI] -->|join team| B["[`GameResource.assignNameAndTeam()`](src/main/java/org/acme/GameResource.java:78)"]
+    A -->|send power| C["[`PowerResource.generate()`](src/main/java/org/acme/PowerResource.java:40)"]
+    D[Dashboard UI] -->|start or stop race| E["[`GameResource.sendGameEvent()`](src/main/java/org/acme/GameResource.java:114)"]
+    D -->|subscribe to game events| F["[`GameResource.events()`](src/main/java/org/acme/GameResource.java:106)"]
+    D -->|subscribe to power stream| G["[`PowerResource.stream()`](src/main/java/org/acme/PowerResource.java:33)"]
+
+    B -->|emit initial power| H[(Kafka topic: power)]
+    C -->|emit power event| H
+    E -->|emit game event| I[(Kafka topic: game-events)]
+
+    H -->|consume power| G
+    I -->|consume game events| F
+    I -->|track current status| J["[`GameResource.status()`](src/main/java/org/acme/GameResource.java:97)"]
+
+    B --> K[(Infinispan counter: users)]
+```
+
+A player joins through the main UI at the root of the domain, receives a generated name and team, and an initial event is written to the Kafka `power` topic. During the race, the mobile client sends power updates to [`/api/power/`](src/main/java/org/acme/PowerResource.java:38), which publishes more messages to the same topic.
+
+The dashboard (/dashboard) listens to two backend streams. [`/api/game/events`](src/main/java/org/acme/GameResource.java:102) delivers the game lifecycle events from the Kafka `game-events` topic, and [`/api/power/stream`](src/main/java/org/acme/PowerResource.java:28) delivers grouped power events from the Kafka `power` topic. When the operator starts the race from the dashboard, the backend writes a game event to the `game-events` topic, and the connected clients react to that change.
+
 ## Running the application in dev mode
 
 Install first:
+
 - JDK 25
-- Maven
-- Quarkus CLI
 
 You can run your application in dev mode that enables live coding using:
-```shell script
+
+```bash
+./mvnw quarkus:dev
+```
+
+If you already have the Quarkus CLI installed, you can also use:
+
+```bash
 quarkus dev
 ```
 
+The application is available on `http://localhost:8080`.
 
-## Deploy on Cluster with admin rights
+The dashboard is available on `http://localhost:8080/dashboard`.
 
-### Setup
+## Testing the game in dev mode
 
-To run this demo you need **OpenShift >=4.10** with cluster-admin privileges.
+The project includes a small load script in [`scripts/GameLoader.java`](scripts/GameLoader.java:34). It assigns players, waits for the game to start and then sends power events to the backend. This is useful when you want to exercise the game locally without using real phones or browsers for every player.
 
-### Quay.io
-
-#### Account
-
-Create an account on [Quay.io](https://quay.io) if you do not already have one.
-
-#### Repositories
-
-Create two repositories with public access (pull), you will use credentials in the next step to push container images.
-
-From right-side menu, click **Create New Repository**
-
-Create a new repository:
-
-* quinoa-wind-turbine
-
-Flag it as **Public Repository** and click **Create Public Repository** 
-
-
-#### Create secret
-
-* Login to quay.io in the web user interface and click on your username in the top right corner.
-* Select **account settings**.
-* Click the blue hyperlink **Generate Encrypted Password**.
-* Re-enter your password when prompted.
-* Copy the password
-
-![Create repo](https://github.com/blues-man/vote-app-gitops/raw/main/images/quay-encrypted-key.png)
-
-### Setup OpenShift
-
-Login to OpenShift Web Console to install prerequisites.
-
-First, create a project for the demo:
-```bash
-oc new-project demo --description='wind-turbine-race'
-```
-*You can choose a different name, but then you have to update `argo/wind-turbine-app.yaml` before you deploy the app (see below in the **Flow** section).*
-
-### Install Operators
-
-
-#### OpenShift Pipelines
-
-OpenShift Pipelines is provided as an add-on on top of OpenShift that can be installed via an operator available in the OpenShift OperatorHub. Follow these instructions in order to install OpenShift Pipelines on OpenShift via the OperatorHub.
-
-
-From the left-side menu under **Administrator** perspective, go to **Operators**-> **OperatorHub**. In the search box, search for _pipelines_, then click to **OpenShift Pipelines Operator**:
-
-![OperatorHub](https://redhat-scholars.github.io/openshift-starter-guides/rhs-openshift-starter-guides/4.7/_images/prerequisites_operatorhub.png)
-
-From the description view, click *Install* to review all installation settings.
-
-![Install Pipelines](https://redhat-scholars.github.io/openshift-starter-guides/rhs-openshift-starter-guides/4.7/_images/prerequisites_operatorhub_install_pipelines.png)
-
-Ensure *Update Channel* is set to *stable* , and click *Install* to start installing the Operator.
-
-![Install Operator](https://redhat-scholars.github.io/openshift-starter-guides/rhs-openshift-starter-guides/4.7/_images/prerequisites_operatorhub_install_operator.png)
-
-After few seconds, the installation should be completed with success and you can verify it looking at *Status* column, check if the status is *Succeeded*.
-
-![Pipelines Installed](https://redhat-scholars.github.io/openshift-starter-guides/rhs-openshift-starter-guides/4.7/_images/prerequisites_operatorhub_pipelines_installed.png)
-
-#### OpenShift GitOps
-
-Log into OpenShift Web Console as a cluster admin and navigate to the **Administrator** perspective and then **Operators** &rarr; **OperatorHub**. 
-
-In the **OperatorHub**, search for *OpenShift GitOps* and follow the operator install flow to install it.
-
-![OpenShift GitOps operator](https://raw.githubusercontent.com/siamaksade/openshift-gitops-getting-started/1.1/images/gitops-01.png)
-
-![OpenShift GitOps operator](https://raw.githubusercontent.com/siamaksade/openshift-gitops-getting-started/1.1/images/gitops-02.png)
-
-![OpenShift GitOps operator](https://raw.githubusercontent.com/siamaksade/openshift-gitops-getting-started/1.1/images/gitops-03.png)
-
-##### Add permission to Argo CD service account
-
-**IMPORTANT** Give permission to the Argo CD service account to control the cluster:
-```bash
-oc adm policy add-cluster-role-to-user cluster-admin -z openshift-gitops-argocd-application-controller -n openshift-gitops
-```
-
-Once OpenShift GitOps is installed, an instance of Argo CD is automatically installed on the cluster in the `openshift-gitops` namespace and link to this instance is added to the application launcher in OpenShift Web Console.
-
-![Application Launcher](https://raw.githubusercontent.com/siamaksade/openshift-gitops-getting-started/1.1/images/gitops-04.png)
-
-##### Log into Argo CD dashboard
-
-Click on Argo CD from the OpenShift Web Console application launcher and then log into your OpenShift credentials using the OpenShift Auth option.
-
-![Argo CD](https://raw.githubusercontent.com/siamaksade/openshift-gitops-getting-started/1.1/images/gitops-05.png)
-
-![Argo CD](https://raw.githubusercontent.com/siamaksade/openshift-gitops-getting-started/1.1/images/gitops-06.png)
-
-#### AMQ Streams
-
-Install AMQ Streams from OperatorHub and create a KafkaCluster named `my-cluster`
-
-#### Infinispan
-
-1. Create an infinispan cluster from the Web Console using the "Infinispan Helm chart"
-2. Name it `infinispan`
-
-### Flow
-
-
-Create a Secret with your Quay.io credentials with the encrypted password you copied before:
+The script is written as a jbang script. If you have jbang installed, start the application in dev mode first and then run:
 
 ```bash
-oc create secret docker-registry quay-secret --docker-server=quay.io --docker-username=<QUAY_USERNAME> --docker-password=<ENCRYPTED_PASSWORD>
+jbang scripts/GameLoader.java http://localhost:8080
 ```
 
-Create a Secret with your GitHub Personal Access Token
+By default the script creates 50 players and sends 100 power events for each player.
 
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: git-user-pass
-  annotations:
-    tekton.dev/git-0: https://github.com
-type: kubernetes.io/basic-auth
-stringData:
-  username: <github user>
-  password: <github personal access token>
-```
-Save it to a file with your credentials and create the secret:
+You can change the number of players, the number of clicks and the power value:
 
 ```bash
-oc create -f git-user-pass.yaml
+jbang scripts/GameLoader.java http://localhost:8080 --players 20 --clicks 50 --power 15
 ```
 
-Link Secrets to pipeline Service Account.
+Open the dashboard while the script is running and hit the start button in the bottom left:
 
-NOTE: Pipelines Operator installs by default a `pipeline` Service Account in all projects. This service account is used to run non-privileged containers and builds across the cluster.  
+```text
+http://localhost:8080/dashboard
+```
+
+## Customizing the game
+
+The main game settings are in [`src/main/webui/src/Config.js`](src/main/webui/src/Config.js:1).
+
+Team names, colors and car images are defined in [`TEAMS_CONFIG`](src/main/webui/src/Config.js:8). Update the `name`, `color` and `car` fields for each team to change how the game looks on the dashboard and on the player screen.
+
+The available car image names are listed in the comment above [`TEAMS_CONFIG`](src/main/webui/src/Config.js:7).
+
+The dashboard game dynamics are controlled by [`TAP_POWER`](src/main/webui/src/Config.js:22), [`NB_TAP_NEEDED_PER_USER`](src/main/webui/src/Config.js:23) and [`SHOW_TOP`](src/main/webui/src/Config.js:24). These values change how much power each action produces, how many taps are needed per player and how many players are shown in the ranking.
+
+The player controls are enabled in the same file with [`ENABLE_TAPPING`](src/main/webui/src/Config.js:27), [`ENABLE_SHAKING`](src/main/webui/src/Config.js:28), [`ENABLE_BLOWING`](src/main/webui/src/Config.js:29) and [`ENABLE_SWIPING`](src/main/webui/src/Config.js:30). This lets you switch between the different interaction modes used by the game.
+
+When the application is running in dev mode, changes in [`src/main/webui/src/Config.js`](src/main/webui/src/Config.js:1) are picked up automatically.
+
+## Running with a container image
+
+Build the application first:
 
 ```bash
-oc secret link pipeline quay-secret
-oc secret link pipeline git-user-pass
+./mvnw package
 ```
 
-Fork this repo
-
-In order to enable webhooks, fork this repo
-
-
-Fork and clone GitOps [manifests repo](https://github.com/redhat-developer-demos/quinoa-wind-turbine-manifests)
-
+Then build the container image:
 
 ```bash
-git clone https://github.com/<yourgithubuser>/quinoa-wind-turbine-manifests
-cd quinoa-wind-turbine-manifests
+docker build -f src/main/docker/Dockerfile.jvm -t quarkus/quinoa-wind-turbine-jvm .
 ```
 
-Create Tekton pipeline manifests
-
-Change the GitOps repo to your fork:
-```bash
-sed -i 's/rhdevelopers/yourquayuser/g' tekton/pipeline-cached.yaml
-sed -i 's/redhat-developer-demos/yourgithubuser/g' tekton/pipeline-cached.yaml
-```
+Run the image with:
 
 ```bash
-oc apply -f tekton/app-source-pvc.yaml 
-oc apply -f tekton/build-cache-pvc.yaml 
-oc apply -f tekton/git-update-deployment.yaml
-oc apply -f tekton/maven-task-cached.yaml 
-oc apply -f tekton/pipeline-cached.yaml 
-oc apply -f tekton/triggerbinding.yaml
-oc apply -f tekton/triggertemplate-cached.yaml
-oc apply -f tekton/eventlistener.yaml
-oc apply -f tekton/el-route.yaml
-
+docker run -i --rm -p 8080:8080 quarkus/quinoa-wind-turbine-jvm
 ```
 
-Update all references to quay.io with your repos for quinoa-wind-turbine references:
+## Deploy on OpenShift
 
-```bash
-sed -i 's/rhdevelopers/yourquayuser/g' k8s/deployment.yaml
-sed -i 's/redhat-developer-demos/yourgithubuser/g' argo/wind-turbine-app.yaml
-git add .
-git commit  -m "update reference to quay and github"
-git push
-```
+There are two ways to deploy this demo on OpenShift.
 
-Create Argo CD Application to deploy the game
-```bash
-oc apply -f argo/wind-turbine-app.yaml
-```
+If you want to deploy the application directly from Quarkus, see the section below.
 
-Start the Pipeline or edit `Config.js` to switch to V2:
-
-```js
-export const ENABLE_SHAKING = true;
-```
-
-
-### SSL (if the cluster doesn't have a signed certificate):
-
-Let'encrypt (if the cluster doesn't have a signed certificate):
-```bash
-oc apply -fhttps://raw.githubusercontent.com/tnozicka/openshift-acme/master/deploy/single-namespace/{role,serviceaccount,issuer-letsencrypt-live,deployment}.yaml
-oc create rolebinding openshift-acme --role=openshift-acme --serviceaccount="$( oc project -q ):openshift-acme" --dry-run -o yaml | oc apply -f -
-```
-
-If the cluster has a signed certificate, create a route with an "edge" tls termination.
-
-### Install Kafka
-
-- From the operator hub, install Strimzi operator.
-- Create a Kafka instance named `my-cluster`
-
-### Infinispan server
-
-1. Create an infinispan cluster in the console using the "Infinispan Helm chart"
-2. Name it `infinispan`
+If you want the full demo setup with GitOps, pipelines, Kafka and Infinispan, see [OpenShift installation](docs/openshift-install.md) and [GitOps and pipeline setup](docs/gitops-pipeline.md).
 
 ## When deploying from Quarkus
 
-### Copy sandbox openshift resource file
+### Copy sandbox OpenShift resource file
 
 ```bash
 cp src/main/kubernetes/openshift.cluster.yml src/main/kubernetes/openshift.yml
@@ -250,16 +160,16 @@ cp src/main/kubernetes/openshift.cluster.yml src/main/kubernetes/openshift.yml
 ### Deploy
 
 ```bash
-quarkus build  -Dquarkus.kubernetes.deploy=true -Dquarkus.profile=openshift-cluster -Dquarkus.container-image.group=[project name]
+quarkus build -Dquarkus.kubernetes.deploy=true -Dquarkus.profile=openshift-cluster -Dquarkus.container-image.group=[project name]
 ```
 
-### Update:
+### Update
 
 ```bash
-quarkus build -Dquarkus.container-image.build=true -Dquarkus.profile=openshift-cluster  -Dquarkus.container-image.group=[project name]
+quarkus build -Dquarkus.container-image.build=true -Dquarkus.profile=openshift-cluster -Dquarkus.container-image.group=[project name]
 ```
 
-### Delete deployed  app
+### Delete deployed app
+
 ```bash
 oc delete all -l app.kubernetes.io/name=quinoa-wind-turbine
-```
