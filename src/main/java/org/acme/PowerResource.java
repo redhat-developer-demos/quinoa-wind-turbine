@@ -19,7 +19,7 @@ import java.time.Duration;
 import java.util.List;
 
 @ApplicationScoped
-@Path("power")
+@Path("/power")
 public class PowerResource {
 
     @Channel("power-in") Multi<Power> powerIn;

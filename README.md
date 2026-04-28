@@ -6,7 +6,7 @@ This project uses Quarkus, the Supersonic Subatomic Java Framework.
 ## Running the application in dev mode
 
 Install first:
-- JDK 17
+- JDK 25
 - Maven
 - Quarkus CLI
 
