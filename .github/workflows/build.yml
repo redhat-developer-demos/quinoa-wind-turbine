@@ -64,8 +64,11 @@ jobs:
         run: |
           ./mvnw -B package \
             -Dquarkus.container-image.build=true \
+            -Dquarkus.container-image.builder=podman \
             -Dquarkus.container-image.push=true \
             -Dquarkus.container-image.registry=${{ env.REGISTRY }} \
+            -Dquarkus.container-image.username=${{ github.actor }} \
+            -Dquarkus.container-image.password=${{ secrets.GITHUB_TOKEN }} \
             -Dquarkus.container-image.group=${{ github.repository_owner }} \
             -Dquarkus.container-image.name=quinoa-wind-turbine \
             -Dquarkus.container-image.tag=${{ steps.meta.outputs.version }} \
@@ -76,5 +79,6 @@ jobs:
         run: |
           ./mvnw -B package \
             -Dquarkus.container-image.build=true \
+            -Dquarkus.container-image.builder=podman \
             -Dquarkus.container-image.push=false \
             -DskipTests

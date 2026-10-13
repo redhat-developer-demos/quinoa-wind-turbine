@@ -36,30 +36,42 @@ When the race is running, they generate "power" from the mobile screen by either
 
 ![Game Architecture](docs/architecture.png)
 
-The application has two browser entry points. The player screen is used on the phone, and the dashboard is used by the game operator. Both talk to the Quarkus backend. Game state and power events are sent through Kafka, while Infinispan is used for counters and shared state.
+The application has two browser entry points. The player screen is used on the phone, and the dashboard is used by the game operator. Both talk to the Quarkus backend. Power and game events go through Kafka, a Kafka Streams topology computes the race from them, and Infinispan holds the counters for player and race IDs.
 
 ```mermaid
 flowchart LR
-    A[Player phone UI] -->|join team| B["[`GameResource.assignNameAndTeam()`](src/main/java/org/acme/GameResource.java:78)"]
-    A -->|send power| C["[`PowerResource.generate()`](src/main/java/org/acme/PowerResource.java:40)"]
-    D[Dashboard UI] -->|start or stop race| E["[`GameResource.sendGameEvent()`](src/main/java/org/acme/GameResource.java:114)"]
-    D -->|subscribe to game events| F["[`GameResource.events()`](src/main/java/org/acme/GameResource.java:106)"]
-    D -->|subscribe to power stream| G["[`PowerResource.stream()`](src/main/java/org/acme/PowerResource.java:33)"]
+    A[Player phone UI] -->|join team| B[GameResource]
+    A -->|send power| C[PowerResource]
+    D[Dashboard UI] -->|start, pause or reset| B
+    D -->|subscribe to race state| R[RaceResource]
 
-    B -->|emit initial power| H[(Kafka topic: power)]
-    C -->|emit power event| H
-    E -->|emit game event| I[(Kafka topic: game-events)]
+    B -->|registration| H[(Kafka topic: power)]
+    C -->|power event| H
+    B -->|game event| I[(Kafka topic: game-events)]
 
-    H -->|consume power| G
-    I -->|consume game events| F
-    I -->|track current status| J["[`GameResource.status()`](src/main/java/org/acme/GameResource.java:97)"]
+    H --> T[RaceTopology]
+    I --> T
+    T -->|race snapshots| P[(Kafka topic: race-progress)]
+    T -->|finish event| I
+    P -->|local copy on every replica| R
+    I -->|current status| B
 
-    B --> K[(Infinispan counter: users)]
+    B --> K[(Infinispan counters: users, races)]
 ```
 
-A player joins through the main UI at the root of the domain, receives a generated name and team, and an initial event is written to the Kafka `power` topic. During the race, the mobile client sends power updates to [`/api/power/`](src/main/java/org/acme/PowerResource.java:38), which publishes more messages to the same topic.
+A player joins through the main UI at the root of the domain, receives a generated name and team, and an initial event is written to the Kafka `power` topic. During the race, the phone sends power updates to `/api/power`, which publishes them to the same topic. Each power event is stamped with the current race ID, so power sent for a race that has since been reset doesn't count.
 
-The dashboard (/dashboard) listens to two backend streams. [`/api/game/events`](src/main/java/org/acme/GameResource.java:102) delivers the game lifecycle events from the Kafka `game-events` topic, and [`/api/power/stream`](src/main/java/org/acme/PowerResource.java:28) delivers grouped power events from the Kafka `power` topic. When the operator starts the race from the dashboard, the backend writes a game event to the `game-events` topic, and the connected clients react to that change.
+The race runs on the server. [`RaceTopology`](src/main/java/org/acme/RaceTopology.java) reads the `power` and `game-events` topics and keeps per-player scores and per-team totals in Kafka Streams state stores. It computes each team's distance, records the finish time when a team crosses the line, and writes the `finish` event once every team with players has finished. All race messages use the same key and partition, so one Streams task owns the race and only that task can decide the finish, even with several replicas.
+
+The topology writes a snapshot of the race to the compacted `race-progress` topic at most every 250 ms, and only when the race changed. Every replica reads that topic from the start and keeps the latest snapshot, so any replica can answer race queries without calling the others. Because the dashboard only renders these snapshots, you can close the dashboard tab during a race, open it again, and the race continues from the same position.
+
+The backend exposes the race over REST:
+
+- `GET /api/race/state` returns the current race: status, race time, teams in race order and players sorted by power.
+- `GET /api/race/leaderboard` returns the players with their rank. Add `?team=2` for one team.
+- `GET /api/race/stream` is the server-sent events stream the dashboard uses.
+
+The operator starts, pauses and resets the race from the dashboard, which posts a game event to `/api/game/event`. A reset creates a new race ID and clears the players, and phones register again within a few seconds because they send an empty power event every 3 seconds.
 
 ## Running the application in dev mode
 
@@ -81,7 +93,19 @@ quarkus dev
 
 The application is available on `http://localhost:8080`.
 
-The dashboard is available on `http://localhost:8080/dashboard`.
+The dashboard is available on `http://localhost:8080/dashboard`. In dev mode, log in with `developer` / `developer`.
+
+### Dashboard login
+
+The dashboard has one admin user, set with `game.admin.username` and `game.admin.password`, or with the `GAME_ADMIN_USERNAME` and `GAME_ADMIN_PASSWORD` environment variables. The username defaults to `developer`, and in dev and test mode the password is `developer`.
+
+Outside dev and test, if no password is set, the app checks the login against `game.admin.password-digest`, a SHA-1 of `username:Quarkus:password`. The default digest is the existing workshop password, so deployments from the software template keep the login they already had. Setting a password replaces the digest:
+
+```bash
+GAME_ADMIN_USERNAME=admin GAME_ADMIN_PASSWORD=change-me java -jar target/quarkus-app/quarkus-run.jar
+```
+
+The digest includes the username, so if you change only the username, also set a password or a new digest. To compute one, run `printf 'admin:Quarkus:change-me' | shasum`.
 
 ## Testing the game in dev mode
 
@@ -115,7 +139,7 @@ Team names, colors and car images are defined in [`TEAMS_CONFIG`](src/main/webui
 
 The available car image names are listed in the comment above [`TEAMS_CONFIG`](src/main/webui/src/Config.js:7).
 
-The dashboard game dynamics are controlled by [`TAP_POWER`](src/main/webui/src/Config.js:22), [`NB_TAP_NEEDED_PER_USER`](src/main/webui/src/Config.js:23) and [`SHOW_TOP`](src/main/webui/src/Config.js:24). These values change how much power each action produces, how many taps are needed per player and how many players are shown in the ranking.
+The race rules are set on the server in `application.properties`. `game.tap-power` is the power of one tap and `game.taps-needed-per-player` is how many taps each player needs for their team to finish. A team's distance is its power × 100 / (tap power × taps needed × players in the team). [`TAP_POWER`](src/main/webui/src/Config.js:22) in `Config.js` sets the power each tap sends from the phone, so keep it equal to `game.tap-power`. [`SHOW_TOP`](src/main/webui/src/Config.js:24) sets how many players the dashboard shows per team.
 
 The player controls are enabled in the same file with [`ENABLE_TAPPING`](src/main/webui/src/Config.js:27), [`ENABLE_SHAKING`](src/main/webui/src/Config.js:28), [`ENABLE_BLOWING`](src/main/webui/src/Config.js:29) and [`ENABLE_SWIPING`](src/main/webui/src/Config.js:30). This lets you switch between the different interaction modes used by the game.
 

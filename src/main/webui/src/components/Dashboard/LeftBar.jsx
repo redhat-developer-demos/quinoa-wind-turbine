@@ -183,14 +183,7 @@ const StyledTeam = styled(Team)`
 
 export default function LeftBar(props) {
   const { winner } = props.rank;
-  const teamDef = [
-    {
-      id: 1, team: props.team1, generated: props.power[0], time: props.result.team1,
-    },
-    {
-      id: 2, team: props.team2, generated: props.power[1], time: props.result.team2,
-    },
-  ];
+  const teamDef = [...props.teams];
   sortTeams(teamDef);
   return (
     <LeftBarDiv>

@@ -43,64 +43,6 @@ export async function sendEvent(type, data) {
   ).catch((e) => console.error(e));
 }
 
-export function events(setStatus, reset) {
-  const onEvent = (e) => {
-    console.log(`=> Received game event: ${e.type}`);
-    switch (e.type) {
-      case 'start':
-        setStatus('started');
-        break;
-      case 'reset':
-        reset();
-        setStatus('initial');
-        break;
-      case 'finish':
-        setStatus('finished');
-        break;
-      case 'pause':
-        setStatus('paused');
-        break;
-      default:
-        break;
-    }
-  };
-  let stream;
-  let i = 0;
-  function connect() {
-    console.log('Connecting to game event stream');
-    stream = new EventSource('/api/game/events/');
-    stream.onopen = () => {
-      i = 0;
-      console.log('Connected to game event stream');
-      setStatus((p) => {
-        if (p === 'offline') {
-          return 'initial';
-        }
-        return p;
-      });
-    };
-    stream.onmessage = (m) => onEvent(JSON.parse(m.data));
-    stream.onerror = (e) => {
-      console.error('Disconnecting from game event stream on error', e);
-      stream.close();
-      if (i > 0) {
-        setStatus('offline');
-      }
-      if (i++ < 300) {
-        setTimeout(connect, 2000);
-      }
-    };
-  }
-  connect();
-  sendEvent('reset');
-  return () => {
-    if (stream) {
-      console.log('Disconnecting from game event stream');
-      stream.close();
-    }
-  };
-}
-
 class StatusHandler {
   constructor(setStatus, reset) {
     this.setStatus = setStatus;
