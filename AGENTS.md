@@ -7,7 +7,7 @@ This guide contains project context, architecture, operational workflows, and te
 ## 1. Project Overview
 
 **Quinoa WindTurbine Racer** is a real-time multiplayer racing game demo combining:
-* **Backend:** Quarkus (Java 25) with Reactive Messaging (Kafka), Infinispan (Clustered counters/state), REST endpoints, and Server-Sent Events (SSE).
+* **Backend:** Quarkus (Java 25) with Reactive Messaging (Kafka), Infinispan (Clustered counters/state), REST endpoints, WebSockets Next for the phones and the dashboard, and Server-Sent Events (SSE).
 * **Frontend:** React + Vite integrated seamlessly via the **Quarkus Quinoa** extension (`src/main/webui/`).
 * **Simulation & Testing:** JBang load simulation (`scripts/GameLoader.java`) and Playwright E2E browser tests (`src/test/java/org/acme/RaceWebUITest.java`).
 
@@ -18,13 +18,18 @@ This guide contains project context, architecture, operational workflows, and te
 ```mermaid
 flowchart LR
     A[Player UI: /] -->|POST /api/game/assign| B[GameResource]
-    A -->|POST /api/power| C[PowerResource]
+    A <-->|WS /ws/player/id?team=N| W[PlayerSocket]
     D[Dashboard UI: /dashboard] -->|POST /api/game/event| B
-    D -->|GET /api/game/events - SSE| B
-    D -->|GET /api/race/stream - SSE| R[RaceResource]
+    D <-->|WS /ws/dashboard| S[DashboardSocket]
+    G[GameLoader] -->|POST /api/power, or the player WS with --ws| C[PowerResource]
 
     B -->|Kafka topic: game-events| T[RaceTopology - Kafka Streams]
     C -->|Kafka topic: power| T
+    W -->|Kafka topic: power| T
+    R[RaceResource] -->|race snapshots| W
+    R -->|race snapshots| S
+    B -->|game events| W
+    B -->|game events| S
     T -->|Kafka topic: race-progress| R
     T -->|finish event on game-events| B
     B -->|User and race ID counters| E[(Infinispan Cache/Counter)]
@@ -42,9 +47,13 @@ flowchart LR
 * **Race computation:** [`RaceTopology.java`](src/main/java/org/acme/RaceTopology.java) is a Kafka Streams topology that computes per-player and per-team power, distance and finish order, publishes snapshots to the compacted `race-progress` topic and emits the `finish` game event. All race messages use key `race` on partition 0 so one Streams task owns the race. Rules come from `game.*` config ([`GameConfig.java`](src/main/java/org/acme/GameConfig.java)).
 * **Race queries:** [`RaceResource.java`](src/main/java/org/acme/RaceResource.java) keeps a local copy of `race-progress` on every replica.
   * `GET /api/race/state`, `GET /api/race/leaderboard?team={team}`, `GET /api/race/stream` (SSE).
+* **WebSockets:** [`PlayerSocket.java`](src/main/java/org/acme/PlayerSocket.java) and [`DashboardSocket.java`](src/main/java/org/acme/DashboardSocket.java) (WebSockets Next).
+  * `/ws/player/{id}?team={team}`: the phone sends `{"quantity": N}` with the taps of the last 200 ms. The server sends `status` (game event), `standing` (team position and rank in team) and `notification` messages. An `HttpUpgradeCheck` rejects unknown IDs and teams with 400. Opening the connection registers the player, and each replica registers its connected players again after a reset.
+  * `/ws/dashboard`: requires the `admin` role and a same-origin `Origin` header. Sends `race` snapshots and `game` events.
+  * WebSockets Next doesn't cancel the `Multi` returned by `@OnOpen` when the connection closes, so every per-connection stream goes through `PlayerSocket.whileOpen`.
 * **Frontend Single Page App:** [`src/main/webui/`](src/main/webui/)
   * `src/main/webui/src/components/Dashboard/`: Main operator race screen with live track, leaderboard, and play/reset controls. It renders the server's race state and doesn't compute the race itself.
-  * `src/main/webui/src/components/GameController/`: Mobile player controller with team selection modal, wind turbine SVG, and tap/shake/swipe listeners.
+  * `src/main/webui/src/components/GameController/`: Mobile player controller with team selection modal, wind turbine SVG, and tap/shake/swipe listeners. It talks to the server over the player WebSocket (`src/main/webui/src/api/PlayerSocket.js`).
 
 ---
 
@@ -70,6 +79,7 @@ To run load tests and analyze system behavior:
    jbang scripts/GameLoader.java http://localhost:8080 --players 50 --clicks 100 --power 15
    ```
    * The script registers simulated players across both teams and polls `/api/game/status` until the game starts.
+   * Add `--ws` to send the clicks over the player WebSocket instead of `POST /api/power`. Each player then waits for the `start` status on its socket.
 3. **Start the game:**
    * Open `http://localhost:8080/dashboard` in a browser (dev mode login: `developer` / `developer`, configured by `game.admin.*` in [`GameConfig.java`](src/main/java/org/acme/GameConfig.java) and checked by [`AdminIdentityProvider.java`](src/main/java/org/acme/AdminIdentityProvider.java)), and click the **Play** button.
    * Alternatively, send a POST event using an authenticated admin session to `/api/game/event` with `{"type":"start"}`.

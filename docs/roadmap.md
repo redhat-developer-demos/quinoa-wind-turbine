@@ -4,11 +4,19 @@ This plan splits the new features into stages, and each feature in a stage is a 
 ships on its own. The order follows dependencies. Most later features need the race state to live
 on the server, so the first PR moves it there.
 
-The race currently runs in the dashboard browser. `Dashboard.jsx` adds up the power events it
-receives over SSE, computes each team's distance in `DashboardUtils.js`, detects the finish, and
-then posts the `finish` event back to the server. The server never knows who is winning. An MCP
-tool, an AI commentator or a hall of fame can't answer "who's in the lead?" until the server
-computes it, so feature 1.1 comes first.
+Before 1.1, the race ran in the dashboard browser. `Dashboard.jsx` added up the power events it
+received over SSE, computed each team's distance in `DashboardUtils.js`, detected the finish, and
+then posted the `finish` event back to the server, so the server never knew who was winning. An
+MCP tool, an AI commentator or a hall of fame can't answer "who's in the lead?" until the server
+computes it, which is why feature 1.1 came first.
+
+## Status
+
+Feature 1.1 is merged into `main` with PR #98, together with the configurable dashboard login and
+the GitHub Actions image build fix described under [Done outside the plan](#done-outside-the-plan).
+Feature 1.2 is implemented on the `websockets` branch and not merged yet. That branch also fixes the
+frontend build after the Vite 8 update on `main`. The [open follow-ups](#open-follow-ups) list the
+work that came out of both features. Features 1.3 onwards haven't started.
 
 ## Ground rules
 
@@ -58,6 +66,15 @@ resource under `src/main/kubernetes/` and the matching Confluent CLI commands in
 `docs/openshift-install.md`. Kafka Streams also needs `replication.factor=3` for its internal
 topics on Confluent Cloud, and an API key with permission to create them.
 
+A third deployment target is the Backstage software template in `WindTurbineInc/software-templates`.
+Its pending PR #19 makes `fetch:template` read this repository's `main` branch, so every change
+merged here reaches the next generated project without a template release. The template deploys
+with its own Helm chart in `manifests/helm/app`, which runs the app with
+`QUARKUS_PROFILE=openshift-cluster` and creates its own Strimzi cluster. A feature that adds a
+topic therefore also adds it to the chart's `templates/kafka-topics.yaml`. A feature that needs a
+new secret or environment variable must either default to something that works without it, or
+ship together with a matching chart change.
+
 These rules also apply:
 
 - Each PR keeps `./mvnw quarkus:dev` with Dev Services as the only setup step.
@@ -103,6 +120,50 @@ endpoints.
 Demo moment: kill the dashboard tab mid-race and reopen it. The race continues from the same
 position because the browser no longer owns the state.
 
+#### What was built
+
+Status: merged into `main` with PR #98.
+
+`RaceTopology` reads `power` and `game-events` and keeps the race in two state stores, one with
+per-player scores keyed by player name and one with the team totals and race status. It publishes
+a `RaceState` snapshot to `race-progress` at most every 250 ms (`game.race.snapshot-interval`),
+and only when the race changed, because phones send many power events per second. A snapshot also
+goes out right after each reset, start and pause. The finish snapshot is followed by one `finish`
+event on `game-events`. `RaceResource` keeps the latest snapshot on every replica and serves
+`GET /api/race/state`, `GET /api/race/leaderboard?team=N` and a `GET /api/race/stream` SSE stream,
+which the dashboard now renders instead of the raw power stream. Race IDs (`race-N`) come from a
+new `races` Infinispan counter that `reset` increments. The race rules are typed config in
+`GameConfig` (`game.tap-power`, `game.taps-needed-per-player`).
+
+The Strimzi topics are in `src/main/kubernetes/openshift.cluster.yml`, and in
+`manifests/helm/app/templates/kafka-topics.yaml` on the template's `wind-turbine-remote` branch
+(not committed yet). The Confluent CLI commands are in `docs/openshift-install.md`, and the
+`confluent` profile has the Kafka Streams SASL settings and `replication.factor=3`.
+
+The implementation differs from the plan above in these places:
+
+- Every power and game event uses the same Kafka key, `race`, and goes to partition 0, instead of
+  being keyed by race ID. With a race ID key, a new race could hash to a different partition and
+  task than the previous one, and that task wouldn't see the players who were already
+  registered. Writing to a fixed partition also keeps the topology correct when `power` and
+  `game-events` have different partition counts on an existing cluster. The race ID is still
+  stamped on every power event and used to ignore power sent for an old race.
+- A reset removes all players instead of keeping them at zero. Phones send an empty power event
+  every 3 seconds, so active players register again within a few seconds, and players who left
+  no longer slow their team down.
+- `POST /api/game/event` rejects `finish` with a 400, since only the topology decides the finish.
+- The dashboard no longer sends `reset` when it opens. The demo moment depends on this.
+- Kafka Streams runs with its default at-least-once guarantee. A crash right at the finish could
+  emit `finish` twice. See the follow-ups.
+
+Tests: `RaceTopologyTest` has eight `TopologyTestDriver` tests covering totals and distance, power
+outside the running race, finish order and a single finish event, a reset mid-race, pause, four
+teams, snapshots only on change, and ignoring `finish` events from outside. `RaceResourceTest` runs
+a reset, start and power events through the REST endpoints against Dev Services Kafka.
+
+The demo moment, a `GameLoader` run against the topology and the Playwright `RaceWebUITest` were
+checked later, while building 1.2.
+
 ### 1.2 Push to players and the dashboard with WebSockets Next
 
 This feature adds `quarkus-websockets-next` with two endpoints. On `/ws/player`, the phone sends
@@ -120,6 +181,52 @@ transport while keeping it at its current low player count.
 
 Demo moment: the same `GameLoader` run over REST and over WebSockets, with the Prometheus numbers
 side by side.
+
+#### What was built
+
+Status: implemented on the `websockets` branch, not merged.
+
+`PlayerSocket` serves `/ws/player/{id}?team={team}`. The phone gets its ID from
+`POST /api/game/assign` as before and then opens the socket. An `HttpUpgradeCheck` rejects unknown
+IDs and teams with a 400 before the upgrade. The phone sums its taps and sends one
+`{"quantity": N}` message every 200 ms at most, and the server applies the same 200 limit per
+message as the REST endpoint. The server sends `status` messages with the game events, `standing`
+messages with the team's position and the player's rank in the team, and `notification` messages
+when the player's team takes the lead or the player becomes the team's top generator. The phone no
+longer polls `/api/game/status` or posts to `/api/power`.
+
+`DashboardSocket` serves `/ws/dashboard`. It requires the `admin` role and sends the current race on
+connect, then every `race-progress` snapshot and game event. The dashboard renders from it instead
+of the `/api/race/stream` SSE endpoint, which stays available like the other REST endpoints.
+
+`GameLoader --ws` opens one player socket per simulated player and sends each click as a message.
+`quarkus.websockets-next.server.metrics.enabled` adds the `quarkus_websockets_server_*` metrics for
+the comparison with `http_server_requests_seconds`.
+
+The implementation differs from the plan above in these places:
+
+- The phone no longer sends an empty power event every 3 seconds. Opening the socket registers the
+  player, and after a reset every replica registers the players connected to it again, so they
+  appear in the new race without tapping.
+- The dashboard socket also checks the `Origin` header. Browsers send the login cookie with a
+  WebSocket handshake from any site, so without the check another page could open the dashboard
+  connection with the operator's session.
+- WebSockets Next doesn't cancel the stream returned by `@OnOpen` when the connection closes. Each
+  per-connection stream ends at its first item after the close, otherwise closed phones kept being
+  registered again after every reset.
+- `quarkus.websockets-next.server.auto-ping-interval=10s` keeps quiet sockets open, because
+  `quarkus.http.idle-timeout` closes idle connections after 30 seconds.
+
+Tests: `PlayerSocketTest` plays a race over two player sockets, checks that oversized batches are
+ignored, that invalid teams and IDs are rejected, and that a closed player doesn't come back after a
+reset. `DashboardSocketTest` checks that an admin receives the race, and that anonymous and
+cross-site connections are rejected. `PlayerStandingTest` covers the rank calculation and when the
+notifications fire. `RaceWebUITest` now logs in to the dashboard and checks that the race finishes
+with 10 browser players. It hadn't run since the dashboard got a login, because the `e2e` profile
+included and excluded the same tag.
+
+Verified in a browser in dev mode: a 20-player `GameLoader --ws` race to the finish, a phone tab's
+taps, standing and lead notification, and reloading the dashboard mid-race.
 
 ### 1.3 Expose race control as an MCP server
 
@@ -143,8 +250,10 @@ flow against it.
 
 The dashboard keeps form login in this PR. The read-only tools can stay anonymous, like the
 `/api/game/status` endpoint is today. Moving the dashboard to OIDC as well, so the admin uses one
-login for both, is a small follow-up PR. It also removes the SHA digest of the `developer` password
-from `application.properties`.
+login for both, is a small follow-up PR. That PR can also remove the `game.admin.password-digest`
+default from `application.properties`, but only once deployments from the software template get
+their own password or an OIDC login, because they still log in with the password behind that
+digest.
 
 Tests: the MCP server's test utilities for tool listing and calls, including a check that admin
 tools reject anonymous callers and accept a token with the `admin` role.
@@ -222,14 +331,21 @@ otherwise. Bob reads `AGENTS.md` and the skills in `.agents/skills/`, uses the Q
 Agent MCP from `.mcp.json` to run dev mode and tests, and can call the game's own MCP server to
 check its change against a running race.
 
+`AGENTS.md` is the only agent instruction file in the repository, and 1.1 already added the race
+topology and its endpoints to it. The Quarkus Agent MCP writes a `CLAUDE.md` that only
+links to `AGENTS.md` whenever `quarkus_start` runs, and in Claude Code that file hides `AGENTS.md`
+instead of loading it. A project hook in `.claude/settings.json` deletes the generated file after
+`quarkus_start` and `quarkus_create`, and stops Claude Code from writing a `CLAUDE.md` itself. The
+hook is a workaround until the MCP is changed (see the follow-ups).
+
 ## Stage 3: race lifecycle as a workflow
 
 ### 3.1 Model the race lifecycle with Quarkus Flow
 
-Today the lifecycle is a string `type` on `GameEvent`, and the dashboard browser decides when to
-send `finish`. This feature moves the lifecycle into a Quarkus Flow (CNCF Serverless Workflow)
-definition: lobby, countdown, race, podium, reset. The workflow consumes the events from 1.1 and
-the start command from the dashboard or MCP. It can also have agentic steps when the flag is on,
+Today the lifecycle is a string `type` on `GameEvent`. Since 1.1, the race topology decides when
+to send `finish`, but nothing models the states in between. This feature moves the lifecycle into
+a Quarkus Flow (CNCF Serverless Workflow) definition: lobby, countdown, race, podium, reset. The
+workflow consumes the events from 1.1 and the start command from the dashboard or MCP. It can also have agentic steps when the flag is on,
 such as choosing a mid-race event, which connects to 4.1.
 
 Tests: workflow tests that drive each transition with events, including a pause and a reset
@@ -277,8 +393,9 @@ from `Config.js` to a `game.teams` config served by `GET /api/game/config`, remo
 `destination() > 2` check in favor of the configured count, and updates the UI where it assumes
 two teams:
 
-- `Dashboard.jsx` keeps one state hook per team (`team1`, `team2`).
-- `LeftBar.jsx` builds `teamDef` with two fixed entries.
+- `toDashboardModel()` in `DashboardUtils.js` builds the team list from `TEAMS_CONFIG`, but still
+  returns fixed `team1` and `team2` leaderboards for `Winner.jsx`. Since 1.1, `Dashboard.jsx` and
+  `LeftBar.jsx` work from a list of teams.
 - `RaceTrack.jsx` has one hardcoded `offset-path` per car.
 - `ChooseTeamModal.jsx` has two fixed buttons.
 
@@ -320,3 +437,70 @@ both profiles.
 Apicurio Registry is the equivalent for Strimzi, and its Dev Service can run locally. Supporting
 both registries means two sets of serdes, so start with Confluent only and add Apicurio if you need
 it.
+
+## Done outside the plan
+
+These changes shipped with 1.1 in PR #98, because 1.1 couldn't be tested or built without them.
+
+The dashboard login is now configurable. The embedded properties realm put the username inside a
+property key and needed a pre-hashed password, so it couldn't be changed from the environment.
+`AdminIdentityProvider` replaces it and checks `game.admin.username` and `game.admin.password`,
+which `GAME_ADMIN_USERNAME` and `GAME_ADMIN_PASSWORD` can set. Without a password, it checks the
+login against `game.admin.password-digest`, which defaults to the digest that was already in
+`application.properties`. Deployments from the software template therefore keep the workshop
+password they had. Dev and test mode use `developer` / `developer`. The
+`quarkus-elytron-security-properties-file` dependency is gone. `AdminLoginTest` goes through the
+real form login, and `AdminConfigTest` checks that the digest format matches what the old realm
+accepted.
+
+The GitHub Actions image build works again. `quarkus-openshift` made the OpenShift in-cluster build
+the default image builder, and the runner has no cluster, so the workflow's image build failed.
+The project now has the podman builder extension as well. `application.properties` keeps
+`quarkus.container-image.builder=openshift` so local and cluster deploys behave as before, and the
+workflow selects podman with `-Dquarkus.container-image.builder=podman`. The push step also passes
+the registry login to Quarkus directly. The pull request build has run locally with podman, but the
+push to `ghcr.io` only runs on GitHub and hasn't been tested yet.
+
+The `websockets` branch fixes the frontend build that broke when the Dependabot updates were merged
+into `main`. Vite 8 and `@vitejs/plugin-react` 6 need Node 20.19 or later, so Quinoa now installs
+Node 22.12.0. `eslint-plugin-react-hooks` 7 conflicted with `eslint-config-airbnb`, which made
+`npm install` fail. Nothing ran ESLint, so the branch removes it with its configuration.
+
+The same branch raises `quarkus.http.idle-timeout` to an hour in dev mode only. The Vite live
+reload socket that Quinoa proxies has no pings, and when the 30-second timeout closed it, Vite
+reloaded every open page and sent the phones back to the team choice.
+
+The dashboard no longer goes blank when the operator resets a finished race. The winner popup stays
+on for one render after the reset snapshot clears the winner, and it crashed looking up the team for
+winner -1. This bug came with 1.1.
+
+`GameLoader` retries a failed assignment instead of waiting forever. When dev mode reloads the app
+on the first request after a code change, the reload closes the open connections, and the script
+used to hang because the failed players never counted down. It also no longer sleeps 5 seconds
+after the assignments.
+
+## Open follow-ups
+
+- Give each template deployment its own dashboard password. `docs/openshift-install.md` describes
+  the approach: a Vault `RandomSecret` per namespace, the same way the template's build chart
+  already creates the webhook secret, and `GAME_ADMIN_PASSWORD` read from it in the chart's
+  `deployment.yaml`. After that, the digest default can go.
+- Set `quarkus.http.auth.session.encryption-key` from a secret. Without it, each pod encrypts the
+  login cookie with its own key, so with 5 replicas a dashboard session only works on the pod
+  that created it. This was already the case before 1.1.
+- Turn on `processing.guarantee=exactly_once_v2` for the cluster profiles, so a Streams crash at
+  the finish can't emit `finish` twice. Dev Services Kafka stays at-least-once.
+- Change the Quarkus Agent MCP (`~/workspace/kdubois/quarkus-agent-mcp`, `ProjectFiles`) to stop
+  generating `CLAUDE.md`, or to write `@AGENTS.md` so the file imports the instructions instead of
+  linking to them. The project hook can then go.
+- Fix `.agents/skills/wind-turbine-load-test/SKILL.md`, which starts the race with
+  `curl -u developer:developer`. The app only has form login turned on, so that command never
+  authenticated.
+- Commit `templates/kafka-topics.yaml` on the template's `wind-turbine-remote` branch, so it ships
+  with PR #19.
+- Make `GameLoader` use player IDs that real phones don't get. It assigns IDs from 0, and the
+  users counter hands out the same IDs to phones, so a phone and a bot can end up as one player.
+- Find out why the socket tests hang in the dev-mode test runner (`devui-testing_runTest`). They
+  pass under `./mvnw test` in a few seconds.
+- The session cookie follow-up above also applies to `/ws/dashboard`. With 5 replicas, the
+  dashboard socket only authenticates on the pod that created the session.

@@ -65,7 +65,14 @@ public class RaceResource {
     public Multi<RaceState> stream() {
         return Multi.createBy().merging().streams(
             Multi.createFrom().item(this::state),
-            updates.onOverflow().buffer(100),
+            updates(),
             Multi.createFrom().ticks().every(Duration.ofSeconds(5)).onOverflow().drop().map(tick -> state()));
+    }
+
+    /**
+     * Every race snapshot received from now on.
+     */
+    public Multi<RaceState> updates() {
+        return updates.onOverflow().buffer(100);
     }
 }

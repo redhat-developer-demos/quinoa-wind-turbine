@@ -3,6 +3,7 @@ package org.acme;
 import io.quarkus.runtime.annotations.RegisterForReflection;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.IntStream;
 
 /**
@@ -31,6 +32,14 @@ public record RaceState(String raceId, Status status, long elapsedMs, long updat
     public record LeaderboardEntry(int rank, String name, int team, long generated) {
     }
 
+    /**
+     * Where one player stands: their team's position among the teams, and their rank inside the team.
+     */
+    @RegisterForReflection
+    public record PlayerStanding(String raceId, Status status, int teamPosition, int teams, int rankInTeam,
+                                 int teamPlayers, long generated) {
+    }
+
     static RaceState waiting(String raceId) {
         return new RaceState(raceId, Status.WAITING, 0, 0, null, List.of(), List.of());
     }
@@ -45,5 +54,23 @@ public record RaceState(String raceId, Status status, long elapsedMs, long updat
                 return new LeaderboardEntry(i + 1, p.name(), p.team(), p.generated());
             })
             .toList();
+    }
+
+    /**
+     * @return the player's standing, or empty if the player hasn't registered in this race yet
+     */
+    Optional<PlayerStanding> standing(String name) {
+        Optional<PlayerState> player = players.stream().filter(p -> p.name().equals(name)).findFirst();
+        Optional<TeamState> team = player.flatMap(p -> teams.stream().filter(t -> t.id() == p.team()).findFirst());
+        if (player.isEmpty() || team.isEmpty()) {
+            return Optional.empty();
+        }
+        // Players are sorted by generated power, so the rank is one more than the teammates listed before
+        int rankInTeam = 1 + (int) players.stream()
+            .takeWhile(p -> !p.name().equals(name))
+            .filter(p -> p.team() == player.get().team())
+            .count();
+        return Optional.of(new PlayerStanding(raceId, status, team.get().position(), teams.size(), rankInTeam,
+            team.get().players(), player.get().generated()));
     }
 }

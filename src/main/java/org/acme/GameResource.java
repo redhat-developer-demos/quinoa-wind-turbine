@@ -4,6 +4,7 @@ import io.micrometer.core.annotation.Counted;
 import io.quarkus.runtime.Startup;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.operators.multi.processors.BroadcastProcessor;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.ws.rs.BadRequestException;
 import org.acme.PowerResource.Power;
@@ -48,6 +49,7 @@ public class GameResource {
 
     private final AtomicReference<GameEvent> lastGameEvent = new AtomicReference<>();
     private final AtomicReference<String> raceId = new AtomicReference<>();
+    private final BroadcastProcessor<GameEvent> updates = BroadcastProcessor.create();
     private final Emitter<GameEvent> gameEventsOut;
     private final Multi<GameEvent> gameEventsIn;
     private final StrongCounter usersCounter;
@@ -82,7 +84,15 @@ public class GameResource {
                 raceId.set(s.raceId());
             }
             LOG.infof("Set last game event: %s", s.type());
+            updates.onNext(s);
         });
+    }
+
+    /**
+     * Every game event received from now on.
+     */
+    public Multi<GameEvent> updates() {
+        return updates.onOverflow().buffer(5000);
     }
 
     @POST
@@ -124,7 +134,7 @@ public class GameResource {
     @RestStreamElementType(MediaType.APPLICATION_JSON)
     @ResponseHeader(name = "Connection", value = "keep-alive")
     public Multi<GameEvent> events() {
-        return withPing(gameEventsIn.onOverflow().buffer(5000), GameEvent.PING, 30);
+        return withPing(updates(), GameEvent.PING, 30);
     }
 
     @POST

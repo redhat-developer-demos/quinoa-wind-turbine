@@ -1,19 +1,28 @@
+import { socketUrl } from './PlayerSocket';
+
+/**
+ * Renders the race from the dashboard connection, which sends the current race on connect and every snapshot after.
+ */
 export function consume(setRace, setOffline) {
-  let stream;
+  let socket;
   let i = 0;
   let closed = false;
   function connect() {
-    console.log('Connecting to race stream');
-    stream = new EventSource('/api/race/stream');
-    stream.onopen = () => {
+    console.log('Connecting to dashboard socket');
+    socket = new WebSocket(socketUrl('/ws/dashboard'));
+    socket.onopen = () => {
       i = 0;
-      console.log('Connected to race stream');
+      console.log('Connected to dashboard socket');
       setOffline(false);
     };
-    stream.onmessage = (m) => setRace(JSON.parse(m.data));
-    stream.onerror = (e) => {
-      console.error('Disconnecting from race stream on error', e);
-      stream.close();
+    socket.onmessage = (m) => {
+      const message = JSON.parse(m.data);
+      if (message.type === 'race') {
+        setRace(message.race);
+      }
+    };
+    socket.onclose = (e) => {
+      console.error('Dashboard socket closed', e.code);
       if (i > 0) {
         setOffline(true);
       }
@@ -25,8 +34,8 @@ export function consume(setRace, setOffline) {
   }
   connect();
   return () => {
-    console.log('Disconnecting from race stream');
+    console.log('Disconnecting from dashboard socket');
     closed = true;
-    stream.close();
+    socket.close();
   };
 }

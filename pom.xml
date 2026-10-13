@@ -59,6 +59,10 @@
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-websockets-next</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
       <artifactId>quarkus-messaging-kafka</artifactId>
     </dependency>
     <dependency>
@@ -196,7 +200,7 @@
           <plugin>
             <artifactId>maven-surefire-plugin</artifactId>
             <configuration>
-              <excludedGroups></excludedGroups>
+              <excludedGroups combine.self="override"/>
               <groups>e2e</groups>
             </configuration>
           </plugin>
