@@ -21,11 +21,13 @@ flowchart LR
     A -->|POST /api/power| C[PowerResource]
     D[Dashboard UI: /dashboard] -->|POST /api/game/event| B
     D -->|GET /api/game/events - SSE| B
-    D -->|GET /api/power/stream - SSE| C
+    D -->|GET /api/race/stream - SSE| R[RaceResource]
 
-    B -->|Kafka topic: game-events| D
-    C -->|Kafka topic: power| D
-    B -->|User ID counter| E[(Infinispan Cache/Counter)]
+    B -->|Kafka topic: game-events| T[RaceTopology - Kafka Streams]
+    C -->|Kafka topic: power| T
+    T -->|Kafka topic: race-progress| R
+    T -->|finish event on game-events| B
+    B -->|User and race ID counters| E[(Infinispan Cache/Counter)]
 ```
 
 ### Key Source Files & Endpoints
@@ -36,9 +38,12 @@ flowchart LR
   * `POST /api/game/event`: Protected admin endpoint (role: `admin`) to broadcast game events.
 * **Power & Racing Generation:** [`PowerResource.java`](src/main/java/org/acme/PowerResource.java:23)
   * `POST /api/power`: Receives player click/motion events.
-  * `GET /api/power/stream`: SSE stream broadcasting aggregated power and car positions to the dashboard.
+  * `GET /api/power/stream`: SSE stream of raw power events. The dashboard no longer uses it.
+* **Race computation:** [`RaceTopology.java`](src/main/java/org/acme/RaceTopology.java) is a Kafka Streams topology that computes per-player and per-team power, distance and finish order, publishes snapshots to the compacted `race-progress` topic and emits the `finish` game event. All race messages use key `race` on partition 0 so one Streams task owns the race. Rules come from `game.*` config ([`GameConfig.java`](src/main/java/org/acme/GameConfig.java)).
+* **Race queries:** [`RaceResource.java`](src/main/java/org/acme/RaceResource.java) keeps a local copy of `race-progress` on every replica.
+  * `GET /api/race/state`, `GET /api/race/leaderboard?team={team}`, `GET /api/race/stream` (SSE).
 * **Frontend Single Page App:** [`src/main/webui/`](src/main/webui/)
-  * `src/main/webui/src/components/Dashboard/`: Main operator race screen with live track, leaderboard, and play/reset controls.
+  * `src/main/webui/src/components/Dashboard/`: Main operator race screen with live track, leaderboard, and play/reset controls. It renders the server's race state and doesn't compute the race itself.
   * `src/main/webui/src/components/GameController/`: Mobile player controller with team selection modal, wind turbine SVG, and tap/shake/swipe listeners.
 
 ---
@@ -66,7 +71,7 @@ To run load tests and analyze system behavior:
    ```
    * The script registers simulated players across both teams and polls `/api/game/status` until the game starts.
 3. **Start the game:**
-   * Open `http://localhost:8080/dashboard` in a browser (login: `developer` / `developer`), and click the **Play** button.
+   * Open `http://localhost:8080/dashboard` in a browser (dev mode login: `developer` / `developer`, configured by `game.admin.*` in [`GameConfig.java`](src/main/java/org/acme/GameConfig.java) and checked by [`AdminIdentityProvider.java`](src/main/java/org/acme/AdminIdentityProvider.java)), and click the **Play** button.
    * Alternatively, send a POST event using an authenticated admin session to `/api/game/event` with `{"type":"start"}`.
 4. **Collect and analyze performance metrics:**
    * **Prometheus metrics:** `GET http://localhost:8080/metrics` (includes HTTP request latency, Kafka producer/consumer throughput, and Infinispan counter stats).
@@ -78,7 +83,7 @@ To run load tests and analyze system behavior:
 ## 4. Testing & Playwright Safety Rules
 
 ### Test Structure
-1. **Unit / API Tests:** [`PowerResourceTest.java`](src/test/java/org/acme/PowerResourceTest.java:13) tests REST endpoints with RestAssured. Fast and lightweight.
+1. **Unit / API Tests:** [`PowerResourceTest.java`](src/test/java/org/acme/PowerResourceTest.java:13) and [`RaceResourceTest.java`](src/test/java/org/acme/RaceResourceTest.java) test REST endpoints with RestAssured against Dev Services. [`RaceTopologyTest.java`](src/test/java/org/acme/RaceTopologyTest.java) tests the Kafka Streams topology with `TopologyTestDriver`, without a broker.
 2. **Browser E2E Tests:** [`RaceWebUITest.java`](src/test/java/org/acme/RaceWebUITest.java:34) tests full browser interactions (Playwright + Quinoa).
 3. **Load Simulation:** [`scripts/GameLoader.java`](scripts/GameLoader.java:36) uses non-blocking Vert.x WebClient for traffic generation.
 

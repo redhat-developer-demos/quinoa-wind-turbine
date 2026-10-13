@@ -5,6 +5,7 @@ import io.quarkus.runtime.Startup;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
+import jakarta.ws.rs.BadRequestException;
 import org.acme.PowerResource.Power;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
@@ -28,10 +29,12 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.acme.RaceTopology.raceMessage;
 import static org.acme.Utils.NAMES;
 import static org.acme.Utils.getNameById;
 import static org.acme.Utils.withPing;
@@ -44,9 +47,11 @@ public class GameResource {
     private static final Logger LOG = Logger.getLogger(GameResource.class);
 
     private final AtomicReference<GameEvent> lastGameEvent = new AtomicReference<>();
+    private final AtomicReference<String> raceId = new AtomicReference<>();
     private final Emitter<GameEvent> gameEventsOut;
     private final Multi<GameEvent> gameEventsIn;
     private final StrongCounter usersCounter;
+    private final StrongCounter racesCounter;
     private final Emitter<Power> powerOut;
 
     static {
@@ -62,13 +67,21 @@ public class GameResource {
         counterManager.defineCounter("users",
             CounterConfiguration.builder(CounterType.UNBOUNDED_STRONG).storage(Storage.PERSISTENT).build());
         this.usersCounter = counterManager.getStrongCounter("users");
+        // Every replica stamps power events with the same race ID, taken from this shared counter
+        counterManager.defineCounter("races",
+            CounterConfiguration.builder(CounterType.UNBOUNDED_STRONG).storage(Storage.PERSISTENT).build());
+        this.racesCounter = counterManager.getStrongCounter("races");
+        this.raceId.set(raceIdFor(racesCounter.getValue().join()));
         // Thanks to this, we can join a party after the start
         this.gameEventsIn = gameEventsIn;
         this.gameEventsOut = gameEventsOut;
         this.powerOut = powerOut;
         this.gameEventsIn.subscribe().with(s -> {
             lastGameEvent.set(s);
-            System.out.println("Set last game event: " + s.type);
+            if (GameEvent.RESET.equals(s.type()) && s.raceId() != null) {
+                raceId.set(s.raceId());
+            }
+            LOG.infof("Set last game event: %s", s.type());
         });
     }
 
@@ -77,7 +90,7 @@ public class GameResource {
     @Produces(MediaType.APPLICATION_JSON)
     public User assignNameAndTeam(@PathParam("id") Integer id, @QueryParam("team") int team) {
         final User user = new User(id, getNameById(id), team);
-        powerOut.send(new Power(0, user.name(), user.team()));
+        powerOut.send(raceMessage(new Power(0, user.name(), user.team(), currentRaceId())));
         return user;
     }
 
@@ -89,6 +102,13 @@ public class GameResource {
         return Uni.createFrom().future(usersCounter.incrementAndGet())
             .map(c -> assignNameAndTeam(c.intValue(), team));
 
+    }
+
+    /**
+     * The race that power events count for. It changes on every reset.
+     */
+    public String currentRaceId() {
+        return raceId.get();
     }
 
     @GET
@@ -111,9 +131,24 @@ public class GameResource {
     @Path("event")
     @Consumes(MediaType.APPLICATION_JSON)
     @RolesAllowed("admin")
-    public void sendGameEvent(GameEvent gameEvent) {
-        System.out.println("sending: " + gameEvent);
-        gameEventsOut.send(gameEvent);
+    public Uni<Void> sendGameEvent(GameEvent gameEvent) {
+        if (GameEvent.FINISH.equals(gameEvent.type())) {
+            throw new BadRequestException("The race topology decides when a race finishes");
+        }
+        Uni<String> race = GameEvent.RESET.equals(gameEvent.type())
+            ? Uni.createFrom().completionStage(racesCounter.incrementAndGet()).map(GameResource::raceIdFor)
+                .invoke(raceId::set)
+            : Uni.createFrom().item(raceId::get);
+        return race.map(gameEvent::withRaceId)
+            .invoke(event -> {
+                LOG.infof("Sending game event: %s", event);
+                gameEventsOut.send(raceMessage(event));
+            })
+            .replaceWithVoid();
+    }
+
+    private static String raceIdFor(long counter) {
+        return "race-" + counter;
     }
 
     public static record User(int id, String name, int team) {
@@ -123,10 +158,33 @@ public class GameResource {
     }
 
     static record GameEvent(String type, Map<String, Object> data) {
+        static final String RESET = "reset";
+        static final String START = "start";
+        static final String PAUSE = "pause";
+        static final String FINISH = "finish";
+        static final GameEvent PING = new GameEvent("ping");
+
         public GameEvent(String type) {
             this(type, Collections.emptyMap());
         }
-        static final GameEvent PING = new GameEvent("ping");
+
+        static GameEvent finish(RaceState race) {
+            return new GameEvent(FINISH, Map.of(
+                "raceId", race.raceId(),
+                "winner", race.winner(),
+                "teams", race.teams(),
+                "overall", race.players()));
+        }
+
+        String raceId() {
+            return data != null && data.get("raceId") instanceof String id ? id : null;
+        }
+
+        GameEvent withRaceId(String raceId) {
+            Map<String, Object> withRace = new HashMap<>(data == null ? Map.of() : data);
+            withRace.put("raceId", raceId);
+            return new GameEvent(type, withRace);
+        }
     }
 
     static record InstanceMsg(String type, Integer id) {
