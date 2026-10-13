@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { gameApi, powerApi, sensors } from '../../api';
+import { gameApi, playerSocket, sensors } from '../../api';
 import Generator from './Generator';
 import { ENABLE_SHAKING, TEAMS_CONFIG } from '../../Config';
 import TopBar from './TopBar';
@@ -46,6 +46,32 @@ const LoadingDiv = styled.div`
   }
 `;
 
+const StandingDiv = styled.div`
+  margin-top: 20px;
+  font-size: 1.2rem;
+`;
+
+const NotificationDiv = styled.div`
+  position: fixed;
+  top: 80px;
+  left: 10px;
+  right: 10px;
+  padding: 10px;
+  border-radius: 5px;
+  background-color: rgba(0, 0, 0, 0.8);
+  font-size: 1.5rem;
+  font-weight: bold;
+`;
+
+function Standing({ standing }) {
+  return (
+    <StandingDiv id="standing">
+      {standing.teams > 1 && <div>Team position: {standing.teamPosition}/{standing.teams}</div>}
+      <div>Your rank in the team: {standing.rankInTeam}/{standing.teamPlayers}</div>
+    </StandingDiv>
+  );
+}
+
 function StatusContent(props) {
   switch (props.status.value) {
     case 'started':
@@ -75,22 +101,21 @@ export default function GameController() {
   const [user, setUser] = useState();
   const [status, setStatus] = useState({ value: 'offline' });
   const [generated, setCounter] = useState(0);
-  const [pingTimeout, setPingTimeout] = useState();
+  const [standing, setStanding] = useState();
+  const [notification, setNotification] = useState();
   const [shakingEnabled, setShakingEnabled] = useState(false);
   const [teamChosen, setTeamChosen] = useState(false);
-  
+  const socket = useRef();
+
   function reset() {
     setCounter(0);
+    setStanding(null);
   }
 
   function generatePower(quantity) {
-    if (user && (quantity === 0 || status.value === 'started')) {
-      console.log(`Generate: ${quantity}`);
-      clearTimeout(pingTimeout);
-      setPingTimeout(null);
+    if (user && socket.current && status.value === 'started') {
       setCounter((c) => c + quantity);
-      powerApi.generate(user, quantity).then(() => {
-      });
+      socket.current.generate(quantity);
     }
   }
 
@@ -106,13 +131,29 @@ export default function GameController() {
     gameApi.assign(team).then(setUser);
   }
   
+  // The server registers the player when the connection opens, and again after each reset
   useEffect(() => {
-    if (user && !pingTimeout) {
-      setPingTimeout((p) => (!p ? setTimeout(() => generatePower(0), 3000) : null));
+    if (!user) {
+      return undefined;
     }
-    return () => clearTimeout(pingTimeout);
-  }, [user, pingTimeout]);
-  useEffect(() => gameApi.status(setStatus, reset), []);
+    socket.current = playerSocket.connect(user, {
+      onEvent: (e) => gameApi.applyGameEvent(e, setStatus, reset),
+      onStanding: setStanding,
+      onNotification: setNotification,
+      onOffline: () => setStatus({ value: 'offline' }),
+    });
+    return () => {
+      socket.current.close();
+      socket.current = null;
+    };
+  }, [user]);
+  useEffect(() => {
+    if (!notification) {
+      return undefined;
+    }
+    const timeout = setTimeout(() => setNotification(null), 3000);
+    return () => clearTimeout(timeout);
+  }, [notification]);
   const teamConfig = user && TEAMS_CONFIG[user.team - 1];
   const teamColor = teamConfig && teamConfig.color;
   const teamName = teamConfig && teamConfig.name;
@@ -129,6 +170,8 @@ export default function GameController() {
             generated={generated}
             shakingEnabled={shakingEnabled}
           />
+          {status.value === 'started' && standing && <Standing standing={standing} />}
+          {notification && <NotificationDiv id="notification">{notification}</NotificationDiv>}
           {ENABLE_SHAKING && !shakingEnabled
                     && <EnableShakingModal onClick={enableShaking} />}          
         </>

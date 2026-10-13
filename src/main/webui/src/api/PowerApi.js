@@ -1,16 +1,3 @@
-export async function generate(user, quantity) {
-  const fetchOptions = {
-    method: 'POST',
-    body: JSON.stringify({ quantity, source: user.name, destination: user.team }),
-    headers: { 'Content-Type': 'application/json' },
-  };
-  fetch(
-    '/api/power',
-    { ...fetchOptions },
-  )
-    .catch((e) => console.error(e));
-}
-
 const POWER_UNITS = ['W', 'KW', 'MW', 'TW'];
 
 function resolveUnit(watts) {

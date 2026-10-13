@@ -43,65 +43,29 @@ export async function sendEvent(type, data) {
   ).catch((e) => console.error(e));
 }
 
-class StatusHandler {
-  constructor(setStatus, reset) {
-    this.setStatus = setStatus;
-    this.reset = reset;
-  }
-
-  fetchStatus = () => {
-    fetch('/api/game/status')
-      .then(convertResponse)
-      .then(this.onEvent)
-      .catch((e) => {
-        console.error(e);
-        this.setStatus('offline');
-        this.onEvent();
-      });
-  };
-
-  onEvent = (e) => {
-    if (e) {
-      console.log(`=> Received game event: ${e.type} ${JSON.stringify(e.data)}`);
-      switch (e.type) {
-        case 'start':
-          this.setStatus({ value: 'started' });
-          break;
-        case 'reset':
-          if (this.reset) {
-            this.reset();
-          }
-          this.setStatus({ value: 'paused' });
-          break;
-        case 'finish':
-          this.setStatus({ value: 'finished', data: e.data });
-          break;
-        case 'pause':
-          this.setStatus({ value: 'paused' });
-          break;
-        case 'finish':
-          this.setStatus({ value: 'finished', data: e.data });
-          break;
-        case 'empty':
-          this.setStatus((s) => (s !== 'started' ? { value: 'paused' } : { value: 'started' }));
-          break;
-        default:
-          console.error(`invalid event type: ${e.type}`);
+/**
+ * Updates the player's status from a game event sent over the player connection.
+ */
+export function applyGameEvent(e, setStatus, reset) {
+  console.log(`=> Received game event: ${e.type} ${JSON.stringify(e.data)}`);
+  switch (e.type) {
+    case 'start':
+      setStatus({ value: 'started' });
+      break;
+    case 'reset':
+      if (reset) {
+        reset();
       }
-    }
-    this.timeout = setTimeout(this.fetchStatus, 1000);
-  };
-
-  clear = () => {
-    if (this.timeout) {
-      clearTimeout(this.timeout);
-      this.timeout = null;
-    }
-  };
-}
-
-export function status(setStatus, reset) {
-  const statusHandler = new StatusHandler(setStatus, reset);
-  statusHandler.fetchStatus();
-  return statusHandler.clear;
+      setStatus({ value: 'paused' });
+      break;
+    case 'finish':
+      setStatus({ value: 'finished', data: e.data });
+      break;
+    case 'pause':
+    case 'empty':
+      setStatus({ value: 'paused' });
+      break;
+    default:
+      console.error(`invalid event type: ${e.type}`);
+  }
 }

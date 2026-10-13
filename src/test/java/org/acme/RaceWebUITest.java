@@ -6,6 +6,7 @@ import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.ElementHandle;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.Response;
 import io.quarkiverse.playwright.InjectPlaywright;
 import io.quarkiverse.playwright.WithPlaywright;
@@ -19,12 +20,16 @@ import org.junit.jupiter.api.Test;
 
 import java.net.URL;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import static io.restassured.RestAssured.given;
+import static org.awaitility.Awaitility.await;
 
 @QuarkusTest
 @TestProfile(QuinoaTestProfiles.Enable.class)
@@ -50,6 +55,12 @@ public class RaceWebUITest {
         Response response = page.navigate(dashboard.toString());
         Assertions.assertEquals("OK", response.statusText());
 
+        // The dashboard redirects to the login page first
+        page.fill("input[name=j_username]", "developer");
+        page.fill("input[name=j_password]", "developer");
+        page.click("button[type=submit]");
+        page.waitForLoadState();
+        page.navigate(dashboard.toString());
         page.waitForLoadState();
 
         String title = page.title();
@@ -79,6 +90,12 @@ public class RaceWebUITest {
         System.out.println("Middle");
         page.screenshot(new Page.ScreenshotOptions().setPath(Paths.get("target/test-screenshots/race-ui-test-4.png")));
         latchDone2.await();
+        // The phones send their taps over the player WebSocket, and the server decides the finish
+        RaceState race = await().atMost(Duration.ofSeconds(30))
+            .until(() -> given().get("/api/race/state").then().statusCode(200).extract().as(RaceState.class),
+                s -> s.status() == RaceState.Status.FINISHED);
+        Assertions.assertEquals(TEAM_PLAYERS_COUNT * 2, race.players().size());
+        page.waitForSelector("text=won the game", LONG_TIMEOUT_OPTIONS);
         page.screenshot(new Page.ScreenshotOptions().setPath(Paths.get("target/test-screenshots/race-ui-test-5.png")));
         System.out.println("End");
     }
@@ -122,13 +139,20 @@ public class RaceWebUITest {
                 playwright.close();
                 return;
             }
-            final ElementHandle generatorEl = controllerPage.waitForSelector("#generator", LONG_TIMEOUT_OPTIONS);
-            System.out.println("Generator open for " + userName);
-            for (int j = 0; j < 150; j++) {
-                generatorEl.click();
+            try {
+                final ElementHandle generatorEl = controllerPage.waitForSelector("#generator", LONG_TIMEOUT_OPTIONS);
+                System.out.println("Generator open for " + userName);
+                for (int j = 0; j < 150; j++) {
+                    generatorEl.click();
+                }
+            } catch (PlaywrightException e) {
+                // The generator goes away when the race finishes before this player is done clicking
+                System.out.println(userName + " stopped clicking: " + e.getMessage().lines()
+                    .filter(l -> l.contains("message=")).findFirst().orElse(e.getMessage()).trim());
+            } finally {
+                playwright.close();
+                latchDone.countDown();
             }
-            playwright.close();
-            latchDone.countDown();
         }
     }
 }

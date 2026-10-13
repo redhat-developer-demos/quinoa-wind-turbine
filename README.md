@@ -41,25 +41,31 @@ The application has two browser entry points. The player screen is used on the p
 ```mermaid
 flowchart LR
     A[Player phone UI] -->|join team| B[GameResource]
-    A -->|send power| C[PowerResource]
+    A <-->|taps, status and standing| W[PlayerSocket /ws/player]
     D[Dashboard UI] -->|start, pause or reset| B
-    D -->|subscribe to race state| R[RaceResource]
+    D <-->|race snapshots and game events| S[DashboardSocket /ws/dashboard]
 
-    B -->|registration| H[(Kafka topic: power)]
-    C -->|power event| H
+    W -->|registration and power| H[(Kafka topic: power)]
+    C[PowerResource] -->|power event| H
     B -->|game event| I[(Kafka topic: game-events)]
 
     H --> T[RaceTopology]
     I --> T
     T -->|race snapshots| P[(Kafka topic: race-progress)]
     T -->|finish event| I
-    P -->|local copy on every replica| R
+    P -->|local copy on every replica| R[RaceResource]
     I -->|current status| B
+    R --> W
+    R --> S
+    B --> W
+    B --> S
 
     B --> K[(Infinispan counters: users, races)]
 ```
 
-A player joins through the main UI at the root of the domain, receives a generated name and team, and an initial event is written to the Kafka `power` topic. During the race, the phone sends power updates to `/api/power`, which publishes them to the same topic. Each power event is stamped with the current race ID, so power sent for a race that has since been reset doesn't count.
+A player joins through the main UI at the root of the domain and receives a generated name and team from `POST /api/game/assign`. The phone then opens a WebSocket to `/ws/player/{id}?team={team}`, and opening it registers the player with an empty event on the Kafka `power` topic. During the race, the phone adds up its taps and sends them over the socket at most every 200 ms, and the server publishes each batch to the same topic. Each power event is stamped with the current race ID, so power sent for a race that has since been reset doesn't count. `POST /api/power` still accepts one power event per request, which is what `GameLoader` uses by default.
+
+Over the same socket, the phone receives the game status, its team's position, its own rank inside the team, and short notifications such as "Your team took the lead!". The server sends these from its local copy of the race, so the phone doesn't poll.
 
 The race runs on the server. [`RaceTopology`](src/main/java/org/acme/RaceTopology.java) reads the `power` and `game-events` topics and keeps per-player scores and per-team totals in Kafka Streams state stores. It computes each team's distance, records the finish time when a team crosses the line, and writes the `finish` event once every team with players has finished. All race messages use the same key and partition, so one Streams task owns the race and only that task can decide the finish, even with several replicas.
 
@@ -69,9 +75,11 @@ The backend exposes the race over REST:
 
 - `GET /api/race/state` returns the current race: status, race time, teams in race order and players sorted by power.
 - `GET /api/race/leaderboard` returns the players with their rank. Add `?team=2` for one team.
-- `GET /api/race/stream` is the server-sent events stream the dashboard uses.
+- `GET /api/race/stream` is a server-sent events stream of the same snapshots.
 
-The operator starts, pauses and resets the race from the dashboard, which posts a game event to `/api/game/event`. A reset creates a new race ID and clears the players, and phones register again within a few seconds because they send an empty power event every 3 seconds.
+The dashboard renders the race from the `/ws/dashboard` WebSocket, which sends the current race when it connects and then every snapshot and game event. It needs the dashboard login, and it only accepts connections from pages served by the app itself, because browsers send the login cookie with WebSocket handshakes from any site.
+
+The operator starts, pauses and resets the race from the dashboard, which posts a game event to `/api/game/event`. A reset creates a new race ID and clears the players. Each replica then registers the players connected to it again, so they show up in the new race without tapping.
 
 ## Running the application in dev mode
 
@@ -124,6 +132,14 @@ You can change the number of players, the number of clicks and the power value:
 ```bash
 jbang scripts/GameLoader.java http://localhost:8080 --players 20 --clicks 50 --power 15
 ```
+
+With `--ws`, each simulated player opens the player WebSocket and sends its clicks as messages, the way the phones do, instead of one `POST /api/power` per click:
+
+```bash
+jbang scripts/GameLoader.java http://localhost:8080 --players 20 --clicks 50 --power 15 --ws
+```
+
+To compare the two transports, run the script once in each mode and look at `http_server_requests_seconds` and the `quarkus_websockets_server_*` metrics on `http://localhost:8080/metrics`.
 
 Open the dashboard while the script is running and hit the start button in the bottom left:
 

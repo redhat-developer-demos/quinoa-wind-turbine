@@ -35,12 +35,14 @@ function Dashboard(props) {
     return () => clearTimeout(timeout);
   }, [rank.winner]);
 
-  const shownRank = showWinner ? rank : NO_WINNER;
+  // showWinner turns off in an effect, after the render that follows a reset, so check the winner as well
+  const winnerShown = showWinner && rank.winner > 0;
+  const shownRank = winnerShown ? rank : NO_WINNER;
   return (
     <div className={props.className}>
       <LeftBar teams={teams} time={time} setTime={setTime} status={offline ? 'offline' : status} rank={shownRank} />
       <RaceTrack distances={teams.map((t) => t.distance)} />
-      {showWinner && <Winner rank={rank} />}
+      {winnerShown && <Winner rank={rank} />}
     </div>
   );
 }

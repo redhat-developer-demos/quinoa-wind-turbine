@@ -24,6 +24,9 @@ import static org.acme.RaceTopology.raceMessage;
 @Path("/power")
 public class PowerResource {
 
+    static final int TEAMS = 2;
+    static final int MAX_QUANTITY = 200;
+
     @Channel("power-in") Multi<Power> powerIn;
     @Channel("power-out") Emitter<Power> powerOut;
     @Inject GameResource gameResource;
@@ -41,10 +44,10 @@ public class PowerResource {
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     public void generate(Power power) {
-        if (power.destination() > 2) {
+        if (power.destination() > TEAMS) {
             throw new IllegalArgumentException("We only have 2 teams for now");
         }
-        if (power.quantity > 200) {
+        if (power.quantity > MAX_QUANTITY) {
            throw new IllegalStateException("Ouch this is too much for me to handle!");
         }
         powerOut.send(raceMessage(power.forRace(gameResource.currentRaceId())));
