@@ -14,9 +14,10 @@ computes it, which is why feature 1.1 came first.
 
 Feature 1.1 is merged into `main` with PR #98, together with the configurable dashboard login and
 the GitHub Actions image build fix described under [Done outside the plan](#done-outside-the-plan).
-Feature 1.2 is implemented on the `websockets` branch and not merged yet. That branch also fixes the
-frontend build after the Vite 8 update on `main`. The [open follow-ups](#open-follow-ups) list the
-work that came out of both features. Features 1.3 onwards haven't started.
+Feature 1.2 is merged with PR #99, which also fixes the frontend build after the Vite 8 update on
+`main`. The [open follow-ups](#open-follow-ups) list the work that came out of both features.
+Feature 1.3 is planned in [`docs/plans/1.3-mcp-server.md`](plans/1.3-mcp-server.md) and implemented
+on the `mcp-server` branch, not merged yet. Features 1.4 onwards haven't started.
 
 ## Ground rules
 
@@ -136,8 +137,7 @@ new `races` Infinispan counter that `reset` increments. The race rules are typed
 `GameConfig` (`game.tap-power`, `game.taps-needed-per-player`).
 
 The Strimzi topics are in `src/main/kubernetes/openshift.cluster.yml`, and in
-`manifests/helm/app/templates/kafka-topics.yaml` on the template's `wind-turbine-remote` branch
-(not committed yet). The Confluent CLI commands are in `docs/openshift-install.md`, and the
+`manifests/helm/app/templates/kafka-topics.yaml` on the template's `wind-turbine-remote` branch. The Confluent CLI commands are in `docs/openshift-install.md`, and the
 `confluent` profile has the Kafka Streams SASL settings and `replication.factor=3`.
 
 The implementation differs from the plan above in these places:
@@ -184,7 +184,7 @@ side by side.
 
 #### What was built
 
-Status: implemented on the `websockets` branch, not merged.
+Status: merged into `main` with PR #99.
 
 `PlayerSocket` serves `/ws/player/{id}?team={team}`. The phone gets its ID from
 `POST /api/game/assign` as before and then opens the socket. An `HttpUpgradeCheck` rejects unknown
@@ -230,6 +230,9 @@ taps, standing and lead notification, and reloading the dashboard mid-race.
 
 ### 1.3 Expose race control as an MCP server
 
+The implementation plan, including the endpoint layout and the Keycloak setup, is in
+[`docs/plans/1.3-mcp-server.md`](plans/1.3-mcp-server.md).
+
 This feature adds the Quarkiverse `quarkus-mcp-server-http` extension with these tools:
 
 - `get_race_state` and `get_leaderboard`, which read the local `race-progress` copy from 1.1
@@ -261,6 +264,47 @@ tools reject anonymous callers and accept a token with the `admin` role.
 Demo moment: in Claude Code or goose, ask "start the race and tell me when one team passes 50%".
 You can also mention that the repo's own `.mcp.json` points at the Quarkus Agent MCP, so an MCP
 server helped build the app and the app now runs one itself.
+
+#### What was built
+
+Status: implemented on the `mcp-server` branch, not merged. The template chart change is commit
+`6b6fad5` on the template's `wind-turbine-remote` branch, not pushed.
+
+`RaceTools` defines two MCP servers. `/mcp` needs no login and has `get_race_state`,
+`get_leaderboard`, `get_player` and the resource `race://current`, which sends an update
+notification for every race snapshot. `/admin/mcp` has the same tools plus `start_race`,
+`pause_race` and `reset_race`, and an HTTP permission requires a bearer token with the `admin`
+role. An anonymous request gets a 401 that points to `/.well-known/oauth-protected-resource/admin/mcp`,
+and that metadata names the `wind-turbine` realm, so MCP clients can start their login. Keycloak
+Dev Services imports the dev realm from `src/main/resources/keycloak/wind-turbine-realm.json`.
+
+The implementation differs from the plan in these places:
+
+- The metadata needs `quarkus.oidc.resource-metadata.resource=admin/mcp`. Without it, the resource
+  is the bare host. Dev and test advertise `http`, because the metadata defaults to `https`.
+- With OIDC on the classpath, the bearer 401 became the default challenge and the dashboard stopped
+  redirecting to the login page. The dashboard paths, `/ws/dashboard`, `/api/game/event` and
+  `/api/power/stream` now name the form mechanism explicitly.
+- The cluster profiles replace `prod` instead of inheriting from it, so the OIDC defaults are set
+  for `prod`, `openshift-cluster`, `openshift-sandbox` and `confluent`. Without that, the app failed
+  to start on the cluster with no OIDC server URL.
+- Without Keycloak, `/admin/mcp` redirects to the login page instead of answering 401. It's still
+  rejected, but MCP clients only report an error.
+- Keycloak on the cluster runs with a small PostgreSQL database. The realm is imported once, so
+  Keycloak's file database would lose it on a restart.
+- Tests log in through the form and get tokens with a password grant, instead of `@TestSecurity`.
+- Quinoa's SPA routing answered `/.well-known/*` with `index.html`, so Claude Code's OAuth discovery
+  for `/mcp` failed to parse the response. `/.well-known` is now in
+  `quarkus.quinoa.ignored-path-prefixes` and answers 404, except for the admin metadata. The default
+  tests run without Quinoa, so only a browser or `curl` check against dev mode shows this.
+
+Tests: `RaceToolsTest` checks the anonymous read tools, the 401 with `resource_metadata`, the
+metadata itself, a 403 for a user without the admin role, and an admin token that starts and resets
+the race. `PlayerStandingTest` covers the `get_player` ranking.
+
+Verified in dev mode with the dashboard open in a browser: a `developer` token from Keycloak called
+`start_race` over `/admin/mcp`, and the dashboard showed the race running. The browser login from
+Claude Code and goose, and the Keycloak resources on a cluster, aren't verified yet.
 
 ### 1.4 Add a race commentator, with or without an LLM
 
@@ -461,12 +505,12 @@ workflow selects podman with `-Dquarkus.container-image.builder=podman`. The pus
 the registry login to Quarkus directly. The pull request build has run locally with podman, but the
 push to `ghcr.io` only runs on GitHub and hasn't been tested yet.
 
-The `websockets` branch fixes the frontend build that broke when the Dependabot updates were merged
+PR #99 fixes the frontend build that broke when the Dependabot updates were merged
 into `main`. Vite 8 and `@vitejs/plugin-react` 6 need Node 20.19 or later, so Quinoa now installs
 Node 22.12.0. `eslint-plugin-react-hooks` 7 conflicted with `eslint-config-airbnb`, which made
 `npm install` fail. Nothing ran ESLint, so the branch removes it with its configuration.
 
-The same branch raises `quarkus.http.idle-timeout` to an hour in dev mode only. The Vite live
+The same PR raises `quarkus.http.idle-timeout` to an hour in dev mode only. The Vite live
 reload socket that Quinoa proxies has no pings, and when the 30-second timeout closed it, Vite
 reloaded every open page and sent the phones back to the team choice.
 
@@ -481,7 +525,9 @@ after the assignments.
 
 ## Open follow-ups
 
-- Give each template deployment its own dashboard password. `docs/openshift-install.md` describes
+- Give each template deployment its own dashboard password. Done for template deployments by the
+  1.3 chart change, which generates `game-admin` in every namespace; deployments made with
+  `docs/openshift-install.md` still need the manual secret. `docs/openshift-install.md` describes
   the approach: a Vault `RandomSecret` per namespace, the same way the template's build chart
   already creates the webhook secret, and `GAME_ADMIN_PASSWORD` read from it in the chart's
   `deployment.yaml`. After that, the digest default can go.
@@ -493,14 +539,16 @@ after the assignments.
 - Change the Quarkus Agent MCP (`~/workspace/kdubois/quarkus-agent-mcp`, `ProjectFiles`) to stop
   generating `CLAUDE.md`, or to write `@AGENTS.md` so the file imports the instructions instead of
   linking to them. The project hook can then go.
-- Fix `.agents/skills/wind-turbine-load-test/SKILL.md`, which starts the race with
-  `curl -u developer:developer`. The app only has form login turned on, so that command never
-  authenticated.
-- Commit `templates/kafka-topics.yaml` on the template's `wind-turbine-remote` branch, so it ships
-  with PR #19.
 - Make `GameLoader` use player IDs that real phones don't get. It assigns IDs from 0, and the
   users counter hands out the same IDs to phones, so a phone and a bot can end up as one player.
 - Find out why the socket tests hang in the dev-mode test runner (`devui-testing_runTest`). They
   pass under `./mvnw test` in a few seconds.
 - The session cookie follow-up above also applies to `/ws/dashboard`. With 5 replicas, the
   dashboard socket only authenticates on the pod that created the session.
+- Add goose's OAuth callback to the `mcp-agent` redirect URIs, and check the browser login with
+  Claude Code and goose against `/admin/mcp`.
+- Check the Keycloak resources on a cluster with the RHBK operator: the edge route, the password
+  placeholder in the realm import, and whether the app trusts the router's certificate when it
+  calls Keycloak through the external host.
+- New pods read `game-events` from the latest offset, so a pod that starts during a race reports
+  the status `empty` until the next game event. Tests read from the start to avoid this.

@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "wind-turbine-race": {
+      "url": "http://localhost:8080/mcp",
+      "alwaysAllow": [
+        "get_leaderboard",
+        "get_player",
+        "get_race_state"
+      ]
+    },
+    "wind-turbine-admin": {
+      "url": "http://localhost:8080/admin/mcp",
+      "disabled": false,
+      "alwaysAllow": [
+        "get_leaderboard",
+        "get_player",
+        "get_race_state",
+        "pause_race",
+        "reset_race",
+        "start_race"
+      ]
+    }
+  }
+}

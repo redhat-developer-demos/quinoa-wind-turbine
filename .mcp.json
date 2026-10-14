@@ -5,6 +5,18 @@
       "args": [
         "quarkus-agent-mcp@quarkusio"
       ]
+    },
+    "wind-turbine-race": {
+      "type": "http",
+      "url": "http://localhost:8080/mcp"
+    },
+    "wind-turbine-admin": {
+      "type": "http",
+      "url": "http://localhost:8080/admin/mcp",
+      "oauth": {
+        "clientId": "mcp-agent",
+        "callbackPort": 33418
+      }
     }
   }
 }

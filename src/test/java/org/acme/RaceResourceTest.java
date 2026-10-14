@@ -1,7 +1,6 @@
 package org.acme;
 
 import io.quarkus.test.junit.QuarkusTest;
-import io.quarkus.test.security.TestSecurity;
 import org.acme.PowerResource.Power;
 import org.acme.RaceState.Status;
 import org.junit.jupiter.api.Test;
@@ -17,7 +16,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 @QuarkusTest
-@TestSecurity(user = "developer", roles = "admin")
 class RaceResourceTest {
 
     @Test
@@ -49,7 +47,7 @@ class RaceResourceTest {
 
     @Test
     void rejectsFinishFromClients() {
-        given().contentType(JSON).body(event("finish"))
+        given().cookie(AdminSession.login()).contentType(JSON).body(event("finish"))
             .post("/api/game/event")
             .then().statusCode(400);
     }
@@ -63,7 +61,7 @@ class RaceResourceTest {
     }
 
     private static void sendEvent(Map<String, Object> event) {
-        given().contentType(JSON).body(event).post("/api/game/event").then().statusCode(204);
+        given().cookie(AdminSession.login()).contentType(JSON).body(event).post("/api/game/event").then().statusCode(204);
     }
 
     private static void sendPower(Power power) {

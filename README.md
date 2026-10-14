@@ -147,6 +147,28 @@ Open the dashboard while the script is running and hit the start button in the b
 http://localhost:8080/dashboard
 ```
 
+## Controlling the race from an MCP client
+
+The app is also an MCP server, so an agent such as Claude Code or goose can read the race and, with an admin login, run it. There are two endpoints, because MCP clients only start their login when the server answers with a 401.
+
+`/mcp` needs no login. It has the tools `get_race_state`, `get_leaderboard` and `get_player`, and the resource `race://current`, which sends an update notification to subscribers every time the race changes.
+
+`/admin/mcp` has the same tools and resource, plus `start_race`, `pause_race` and `reset_race`. It needs a bearer token with the `admin` role from the `wind-turbine` Keycloak realm. In dev mode, Keycloak Dev Services starts that realm from [`src/main/resources/keycloak/wind-turbine-realm.json`](src/main/resources/keycloak/wind-turbine-realm.json), with the user `developer` / `developer`. A request without a token gets a 401 that points to `/.well-known/oauth-protected-resource/admin/mcp`, where the client finds the realm and runs the login in a browser.
+
+The project's [`.mcp.json`](.mcp.json) lists both endpoints as `wind-turbine-race` and `wind-turbine-admin`, next to the Quarkus Agent MCP, so Claude Code offers them when you open the repository and asks you to approve them once. They only connect while dev mode runs. The admin entry uses the realm's public client `mcp-agent`, whose redirect URI is `http://localhost:33418/callback`, so keep its callback port if you add the server to another client. For another URL, such as a deployment on OpenShift, add a server yourself with the same client:
+
+```bash
+claude mcp add --transport http --client-id mcp-agent --callback-port 33418 wind-turbine-admin https://<your route>/admin/mcp
+```
+
+To log in, run `/mcp` in Claude Code, pick `wind-turbine-admin`, choose Authenticate and log in as `developer`. You can then ask it, for example, to start the race and tell you when one team passes 50%.
+
+With the project's URL-only [`.bob/mcp.json`](.bob/mcp.json), Bob uses OAuth dynamic client registration instead of `mcp-agent`. The dev realm accepts anonymous registration and applies the `wind-turbine-audience` client scope to new clients. Keycloak asks the operator to consent during browser login. Dev Services uses port 8181 so its authorization server URL stays the same across restarts. Restart dev mode after changing the realm file so Keycloak imports the new policy; an already running container keeps its old realm configuration.
+
+If Bob returns to `Needs auth` after browser login and Quarkus logs `The JWT is no longer valid`, compare `date -u` with `podman machine ssh date -u`. A Podman VM clock behind the host makes new Keycloak tokens appear expired to Quarkus. Run `podman machine ssh sudo chronyc -a burst 4/4`, check the clocks again, then use `Reset auth` and `Authenticate` in Bob.
+
+Outside dev and test, OIDC is off unless `GAME_OIDC_ENABLED=true` and `GAME_OIDC_URL` points at the realm, for example `https://keycloak.example.com/realms/wind-turbine`. Without them, `/mcp` works and `/admin/mcp` rejects every request.
+
 ## Customizing the game
 
 The main game settings are in [`src/main/webui/src/Config.js`](src/main/webui/src/Config.js:1).

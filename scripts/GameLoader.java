@@ -52,8 +52,11 @@ class GameLoader implements Callable<Integer> {
     @Option(names = {"-c", "--clicks"}, description = "How many click each player will trigger", defaultValue = "100")
     private int clicks;
 
-    @Option(names = {"--power"}, description = "Click power", defaultValue = "15")
+    @Option(names = {"--power"}, description = "Click power (maximum, actual is random 1..power)", defaultValue = "15")
     private int power;
+
+    @Option(names = {"--interval"}, description = "Milliseconds between click batches", defaultValue = "200")
+    private int interval;
 
     @Option(names = {"--ws"}, description = "Send power over the player WebSocket instead of one POST per click")
     private boolean ws;
@@ -118,7 +121,7 @@ class GameLoader implements Callable<Integer> {
                                 "/api/power")
                         .expect(ResponsePredicate.SC_SUCCESS)
                         .ssl(ssl)
-                        .sendJsonObject(new JsonObject().put("quantity", power).put("source", user.getString("name"))
+                        .sendJsonObject(new JsonObject().put("quantity", R.nextInt(power) + 1).put("source", user.getString("name"))
                                 .put("destination", user.getInteger("team")))
                         .onComplete((r) -> {
                             if (r.failed()) {
@@ -127,7 +130,7 @@ class GameLoader implements Callable<Integer> {
                             latchClick.countDown();
                         });
             }
-            Thread.sleep(200);
+            Thread.sleep(interval);
         }
         latchClick.await();
     }
@@ -202,10 +205,10 @@ class GameLoader implements Callable<Integer> {
         }
         System.out.println("game started");
 
-        final String click = new JsonObject().put("quantity", power).encode();
         final CountDownLatch latchClick = new CountDownLatch(sockets.size() * clicks);
         for (int i = 0; i < clicks; i++) {
             for (WebSocket socket : sockets) {
+                final String click = new JsonObject().put("quantity", R.nextInt(power) + 1).encode();
                 socket.writeTextMessage(click).onComplete(r -> {
                     if (r.failed()) {
                         r.cause().printStackTrace();
@@ -213,7 +216,7 @@ class GameLoader implements Callable<Integer> {
                     latchClick.countDown();
                 });
             }
-            Thread.sleep(200);
+            Thread.sleep(interval);
         }
         latchClick.await();
         sockets.forEach(WebSocket::close);

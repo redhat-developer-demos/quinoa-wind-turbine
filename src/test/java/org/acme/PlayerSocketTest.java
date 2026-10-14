@@ -2,7 +2,6 @@ package org.acme;
 
 import io.quarkus.test.common.http.TestHTTPResource;
 import io.quarkus.test.junit.QuarkusTest;
-import io.quarkus.test.security.TestSecurity;
 import io.quarkus.websockets.next.BasicWebSocketConnector;
 import io.quarkus.websockets.next.WebSocketClientConnection;
 import io.vertx.core.json.JsonObject;
@@ -24,7 +23,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @QuarkusTest
-@TestSecurity(user = "developer", roles = "admin")
 class PlayerSocketTest {
 
     @TestHTTPResource("/")
@@ -126,7 +124,7 @@ class PlayerSocketTest {
     }
 
     private static void sendEvent(String type) {
-        given().contentType(JSON).body(Map.of("type", type, "data", Map.of()))
+        given().cookie(AdminSession.login()).contentType(JSON).body(Map.of("type", type, "data", Map.of()))
             .post("/api/game/event").then().statusCode(204);
     }
 }
