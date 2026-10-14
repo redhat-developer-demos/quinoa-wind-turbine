@@ -23,6 +23,7 @@ Install the following operators from OperatorHub:
 - OpenShift Pipelines
 - OpenShift GitOps
 - AMQ Streams
+- Red Hat build of Keycloak, if you want the admin MCP tools (see [Keycloak for the admin MCP tools](#keycloak-for-the-admin-mcp-tools))
 
 For Infinispan, create an infinispan cluster from the Web Console using the "Infinispan Helm chart" and name it `infinispan`.
 
@@ -69,7 +70,7 @@ oc set env deployment/quinoa-wind-turbine --from=secret/game-admin --prefix=GAME
 
 `--prefix` turns the secret's `password` key into the `GAME_ADMIN_PASSWORD` variable.
 
-For projects created from the software template, the Helm chart in `manifests/helm/app` owns the deployment, so the secret and the variable belong in the chart. Don't put the password in the chart values, because the template publishes the gitops repository as public. Instead, generate one per namespace with the Vault `RandomSecret` and `VaultSecret` resources that the build chart already uses for the webhook secret, and add the variable to `deployment.yaml`:
+For projects created from the software template, the Helm chart in `manifests/helm/app` owns the deployment, so it creates the secret and sets the variable. The template publishes the gitops repository as public, so the password isn't in the chart values. The chart generates one per namespace with a Vault `RandomSecret` and `VaultSecret`, the same way the build chart creates the webhook secret, and `deployment.yaml` reads it:
 
 ```yaml
             - name: GAME_ADMIN_PASSWORD
@@ -79,7 +80,51 @@ For projects created from the software template, the Helm chart in `manifests/he
                   name: game-admin
 ```
 
-Presenters then read the password from the `game-admin` secret in their namespace. Until the chart does this, template deployments use the digest default.
+Presenters read the password from the `game-admin` secret in their namespace:
+
+```bash
+oc get secret game-admin -o jsonpath='{.data.password}' | base64 -d
+```
+
+## Keycloak for the admin MCP tools
+
+The read-only MCP tools at `/mcp` need no login. The admin tools at `/admin/mcp` start, pause and reset the race, and they need a bearer token with the `admin` role from Keycloak. Without Keycloak the app still starts, and `/admin/mcp` rejects every call. These steps set up the Red Hat build of Keycloak in the demo namespace, with the same `wind-turbine` realm that Keycloak Dev Services uses in dev mode.
+
+Install the Red Hat build of Keycloak operator from OperatorHub into the demo namespace.
+
+Keycloak keeps its data in a small PostgreSQL database with a 1 GiB volume. It needs a database because the realm import runs only once: with the file-based dev database in the Keycloak pod, a restart would lose the realm and nothing would import it again. Create the database credentials:
+
+```bash
+oc create secret generic keycloak-db --from-literal=username=keycloak --from-literal=password=<choose a password>
+```
+
+The realm's `developer` user gets its password from the `game-admin` secret described in [Dashboard login](#dashboard-login), so the dashboard and the MCP login use the same password. Create that secret first if you haven't.
+
+Then create PostgreSQL, Keycloak and the realm import. The file is an OpenShift template that takes Keycloak's external host name, which must be reachable from the laptops that run the MCP clients:
+
+```bash
+oc process -f src/main/kubernetes/keycloak/keycloak.yaml \
+  -p KEYCLOAK_HOSTNAME=keycloak-demo.apps.<cluster domain> | oc apply -f -
+```
+
+The operator creates a route for that host name with edge TLS. Wait until the import has finished:
+
+```bash
+oc get keycloakrealmimports wind-turbine -o jsonpath='{.status.conditions}'
+```
+
+The Keycloak admin console login is in the `keycloak-initial-admin` secret.
+
+Finally, point the app at the realm:
+
+```bash
+oc set env deployment/quinoa-wind-turbine GAME_OIDC_ENABLED=true \
+  GAME_OIDC_URL=https://keycloak-demo.apps.<cluster domain>/realms/wind-turbine
+```
+
+The app validates the issuer of every token, so `GAME_OIDC_URL` must use the same external host name that the MCP clients get their tokens from. The app reaches it through the cluster router, which needs a certificate the app trusts. Redeploying the app with the Quarkus OpenShift extension replaces the deployment and drops variables set with `oc set env`, so either set them again or add them to the build, for example with `-Dquarkus.openshift.env.vars.game-oidc-enabled=true`.
+
+For projects created from the software template, the Helm chart does all of this when `keycloak.enabled` is `true` in `manifests/helm/app/values.yaml`. Turn it on only on clusters where the operator is installed, because Argo CD can't sync the Keycloak resources without it.
 
 ## SSL
 

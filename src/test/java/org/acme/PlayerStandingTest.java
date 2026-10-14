@@ -1,5 +1,6 @@
 package org.acme;
 
+import io.quarkiverse.mcp.server.ToolCallException;
 import org.acme.PlayerSocket.PlayerMessage;
 import org.acme.RaceState.PlayerStanding;
 import org.acme.RaceState.PlayerState;
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class PlayerStandingTest {
 
@@ -24,6 +26,12 @@ class PlayerStandingTest {
         assertEquals(Optional.of(new PlayerStanding("race-1", Status.STARTED, 2, 2, 2, 2, 50)), RACE.standing("bob"));
         assertEquals(Optional.of(new PlayerStanding("race-1", Status.STARTED, 1, 2, 1, 1, 200)), RACE.standing("cy"));
         assertEquals(Optional.empty(), RACE.standing("dee"));
+    }
+
+    @Test
+    void findsAPlayerWithTheirOverallRank() {
+        assertEquals(new RaceState.LeaderboardEntry(2, "ada", 1, 100), RaceTools.player(RACE, "Ada"));
+        assertThrows(ToolCallException.class, () -> RaceTools.player(RACE, "dee"));
     }
 
     @Test
