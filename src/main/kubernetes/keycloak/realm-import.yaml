@@ -1,0 +1,88 @@
+# Imports the wind-turbine realm into a Keycloak instance, for the admin MCP tools. This is separate
+# from instance creation (keycloak.yaml) so it can run against an existing Keycloak without replacing
+# it:
+#
+#   # Against an existing instance (reuse), e.g. the shared "keycloak" CR in its own namespace:
+#   oc process -f src/main/kubernetes/keycloak/realm-import.yaml -p KEYCLOAK_CR_NAME=keycloak \
+#     | oc apply -n <keycloak-namespace> -f -
+#
+#   # After a fresh instance from keycloak.yaml, apply this into the same namespace with the default name.
+#
+# The developer user's password comes from the game-admin secret in the realm import's namespace, the
+# same secret the dashboard login uses, so both logins share one password. Create game-admin first
+# (src/main/kubernetes/secrets.yaml). A realm import is per-realm, so it adds wind-turbine without
+# touching other realms on the instance. Quarkus doesn't read this directory.
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: wind-turbine-realm-import
+parameters:
+  - name: KEYCLOAK_CR_NAME
+    description: Name of the Keycloak CR to import the realm into. Use the existing instance's name when reusing one.
+    value: keycloak
+objects:
+  - apiVersion: k8s.keycloak.org/v2alpha1
+    kind: KeycloakRealmImport
+    metadata:
+      name: wind-turbine
+    spec:
+      keycloakCRName: ${KEYCLOAK_CR_NAME}
+      # Replace the ${GAME_ADMIN_PASSWORD} placeholder in the realm below with the game-admin secret.
+      placeholders:
+        GAME_ADMIN_PASSWORD:
+          secret:
+            name: game-admin
+            key: password
+      realm:
+        realm: wind-turbine
+        enabled: true
+        sslRequired: external
+        roles:
+          realm:
+            - name: admin
+              description: Can start, pause and reset the race
+        users:
+          - username: developer
+            enabled: true
+            email: developer@example.com
+            emailVerified: true
+            firstName: Race
+            lastName: Operator
+            credentials:
+              - type: password
+                value: ${GAME_ADMIN_PASSWORD}
+                temporary: false
+            realmRoles:
+              - admin
+        clients:
+          - clientId: wind-turbine
+            name: Wind turbine race
+            enabled: true
+            publicClient: false
+            standardFlowEnabled: false
+            directAccessGrantsEnabled: false
+            serviceAccountsEnabled: false
+          - clientId: mcp-agent
+            name: MCP agents
+            description: Public client for MCP clients such as Claude Code and goose
+            enabled: true
+            publicClient: true
+            standardFlowEnabled: true
+            directAccessGrantsEnabled: false
+            redirectUris:
+              - http://localhost:33418/callback
+              - http://127.0.0.1:33418/callback
+            webOrigins:
+              - "+"
+            attributes:
+              pkce.code.challenge.method: S256
+            protocolMappers:
+              - name: wind-turbine-audience
+                protocol: openid-connect
+                protocolMapper: oidc-audience-mapper
+                consentRequired: false
+                config:
+                  included.client.audience: wind-turbine
+                  id.token.claim: "false"
+                  access.token.claim: "true"
+                  introspection.token.claim: "true"
