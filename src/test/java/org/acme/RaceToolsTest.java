@@ -3,6 +3,8 @@ package org.acme;
 import io.quarkiverse.mcp.server.test.McpAssured;
 import io.quarkiverse.mcp.server.test.McpAssured.McpStreamableTestClient;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.junit.QuarkusTestProfile;
+import io.quarkus.test.junit.TestProfile;
 import io.vertx.core.MultiMap;
 import io.vertx.core.json.JsonObject;
 import org.acme.RaceState.Status;
@@ -23,7 +25,15 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @QuarkusTest
+@TestProfile(RaceToolsTest.OidcEnabled.class)
 class RaceToolsTest {
+
+    public static class OidcEnabled implements QuarkusTestProfile {
+        @Override
+        public Map<String, String> getConfigOverrides() {
+            return Map.of("quarkus.oidc.tenant-enabled", "true");
+        }
+    }
 
     private static final List<String> READ_TOOLS = List.of("get_race_state", "get_leaderboard", "get_player");
     private static final List<String> ADMIN_TOOLS = List.of("start_race", "pause_race", "reset_race");
@@ -69,6 +79,12 @@ class RaceToolsTest {
         given().auth().oauth2(token("player", "player")).contentType(JSON).body(initialize().encode())
             .post("/admin/mcp")
             .then().statusCode(403);
+    }
+
+    @Test
+    void dashboardSessionCannotReplaceABearerToken() {
+        given().cookie(AdminSession.login()).contentType(JSON).body(initialize().encode())
+            .post("/admin/mcp").then().statusCode(401);
     }
 
     @Test

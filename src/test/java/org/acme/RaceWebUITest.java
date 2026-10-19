@@ -39,6 +39,10 @@ public class RaceWebUITest {
 
     @Test
     void fourPlayersFinishWithCommentaryAndReset() {
+        var config = org.eclipse.microprofile.config.ConfigProvider.getConfig();
+        Assertions.assertFalse(config.getValue("quarkus.oidc.tenant-enabled", Boolean.class));
+        Assertions.assertFalse(config.getValue("quarkus.keycloak.devservices.enabled", Boolean.class));
+        Assertions.assertFalse(config.getValue("game.ai.enabled", Boolean.class));
         List<BrowserContext> players = new ArrayList<>();
         Page page = context.newPage();
         page.onPageError(error -> System.err.println("Browser error: " + error));

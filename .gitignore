@@ -37,6 +37,14 @@ nb-configuration.xml
 
 # Local environment
 .env
+.env.*
+!.env.example
+
+# Local tool settings and worktrees
+.codex/
+.claude/settings.json
+.claude/settings.local.json
+.claude/worktrees/
 
 # Quinoa
 node_modules/

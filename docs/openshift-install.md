@@ -2,6 +2,10 @@
 
 This section covers the full cluster setup for the demo.
 
+The game requires Kafka and Infinispan. Keycloak is optional for admin MCP, and OpenAI is
+optional for AI commentary. With the default flags, the dashboard's form login, player controls,
+read-only MCP and template commentary work without either optional service.
+
 To run this demo you need **OpenShift >=4.10** with cluster-admin privileges.
 
 ## Setup OpenShift

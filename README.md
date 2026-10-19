@@ -136,6 +136,14 @@ You can run your application in dev mode that enables live coding using:
 ./mvnw quarkus:dev
 ```
 
+The default game needs Kafka and Infinispan, which Dev Services starts locally. Keycloak and
+OpenAI are optional and disabled by default. Players, dashboard login and race controls,
+read-only MCP and template commentary work without either service or any model credentials.
+
+Keep `src/main/webui/package-lock.json` in Git so local builds and CI install the same frontend
+dependencies. Generated directories such as `node_modules`, `target` and `.quinoa`, local
+environment files and machine-specific tool settings are ignored.
+
 If you already have the Quarkus CLI installed, you can also use:
 
 ```bash
@@ -196,7 +204,20 @@ The app is also an MCP server, so an agent such as Claude Code or goose can read
 
 `/mcp` needs no login. It has the tools `get_race_state`, `get_leaderboard` and `get_player`, and the resource `race://current`, which sends an update notification to subscribers every time the race changes.
 
-`/admin/mcp` has the same tools and resource, plus `start_race`, `pause_race` and `reset_race`. It needs a bearer token with the `admin` role from the `wind-turbine` Keycloak realm. In dev mode, Keycloak Dev Services starts that realm from [`src/main/resources/keycloak/wind-turbine-realm.json`](src/main/resources/keycloak/wind-turbine-realm.json), with the user `developer` / `developer`. A request without a token gets a 401 that points to `/.well-known/oauth-protected-resource/admin/mcp`, where the client finds the realm and runs the login in a browser.
+`/admin/mcp` has the same tools and resource, plus `start_race`, `pause_race` and `reset_race`. It
+needs a bearer token with the `admin` role from the `wind-turbine` Keycloak realm. Enable OIDC
+explicitly to use it. For local development:
+
+```bash
+GAME_OIDC_ENABLED=true ./mvnw quarkus:dev
+```
+
+Keycloak Dev Services then imports [`wind-turbine-realm.json`](src/main/resources/keycloak/wind-turbine-realm.json),
+with the user `developer` / `developer`. With OIDC enabled, a request without a token gets a 401
+that points to `/.well-known/oauth-protected-resource/admin/mcp`, where the client finds the realm
+and runs the login in a browser. With OIDC disabled, admin MCP rejects every request with 403,
+including requests with a dashboard login cookie.
+The dashboard uses its separate form login and keeps working in either mode.
 
 The project's [`.mcp.json`](.mcp.json) lists both endpoints as `wind-turbine-race` and `wind-turbine-admin`, next to the Quarkus Agent MCP, so Claude Code offers them when you open the repository and asks you to approve them once. They only connect while dev mode runs. The admin entry uses the realm's public client `mcp-agent`, whose redirect URI is `http://localhost:33418/callback`, so keep its callback port if you add the server to another client. For another URL, such as a deployment on OpenShift, add a server yourself with the same client:
 
@@ -210,7 +231,9 @@ With the project's URL-only [`.bob/mcp.json`](.bob/mcp.json), Bob uses OAuth dyn
 
 If Bob returns to `Needs auth` after browser login and Quarkus logs `The JWT is no longer valid`, compare `date -u` with `podman machine ssh date -u`. A Podman VM clock behind the host makes new Keycloak tokens appear expired to Quarkus. Run `podman machine ssh sudo chronyc -a burst 4/4`, check the clocks again, then use `Reset auth` and `Authenticate` in Bob.
 
-Outside dev and test, OIDC is off unless `GAME_OIDC_ENABLED=true` and `GAME_OIDC_URL` points at the realm, for example `https://keycloak.example.com/realms/wind-turbine`. Without them, `/mcp` works and `/admin/mcp` rejects every request.
+OIDC is off by default in every mode. Outside dev and test, enabling it also needs
+`GAME_OIDC_URL` pointing at the realm, for example `https://keycloak.example.com/realms/wind-turbine`.
+Tests that exercise token authentication enable OIDC in their own test profile.
 
 ## Customizing the game
 
