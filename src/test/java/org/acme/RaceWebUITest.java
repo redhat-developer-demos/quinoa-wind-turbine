@@ -1,13 +1,8 @@
 package org.acme;
 
-import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
-import com.microsoft.playwright.BrowserType;
-import com.microsoft.playwright.ElementHandle;
 import com.microsoft.playwright.Page;
-import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.PlaywrightException;
-import com.microsoft.playwright.Response;
 import io.quarkiverse.playwright.InjectPlaywright;
 import io.quarkiverse.playwright.WithPlaywright;
 import io.quarkiverse.quinoa.testing.QuinoaTestProfiles;
@@ -22,12 +17,9 @@ import java.net.URL;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 import static io.restassured.RestAssured.given;
 import static org.awaitility.Awaitility.await;
 
@@ -36,10 +28,6 @@ import static org.awaitility.Awaitility.await;
 @WithPlaywright
 @Tag("e2e")
 public class RaceWebUITest {
-
-    private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-    public static final Page.WaitForSelectorOptions LONG_TIMEOUT_OPTIONS = new Page.WaitForSelectorOptions().setTimeout(200000);
-
     @InjectPlaywright
     BrowserContext context;
 
@@ -50,109 +38,93 @@ public class RaceWebUITest {
     URL gameController;
 
     @Test
-    void testWith10Players() throws InterruptedException {
-        final Page page = context.newPage();
-        Response response = page.navigate(dashboard.toString());
-        Assertions.assertEquals("OK", response.statusText());
+    void fourPlayersFinishWithCommentaryAndReset() {
+        List<BrowserContext> players = new ArrayList<>();
+        Page page = context.newPage();
+        page.onPageError(error -> System.err.println("Browser error: " + error));
+        try {
+            Assertions.assertEquals(200, page.navigate(dashboard.toString()).status());
+            page.fill("input[name=j_username]", "developer");
+            page.fill("input[name=j_password]", "developer");
+            page.click("button[type=submit]");
+            page.waitForURL(dashboard.toString());
+            page.navigate(dashboard.toString());
+            page.waitForSelector("[aria-label='Race commentary']", new Page.WaitForSelectorOptions()
+                .setState(com.microsoft.playwright.options.WaitForSelectorState.ATTACHED));
+            Assertions.assertEquals("Quarkus Race Demo", page.title());
+            page.evaluate("async () => { const r = await fetch('/api/game/event', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({type:'reset'})}); if (!r.ok) throw new Error('reset failed'); }");
+            await().atMost(Duration.ofSeconds(15)).until(() -> race().status() == RaceState.Status.WAITING);
 
-        // The dashboard redirects to the login page first
-        page.fill("input[name=j_username]", "developer");
-        page.fill("input[name=j_password]", "developer");
-        page.click("button[type=submit]");
-        page.waitForLoadState();
-        page.navigate(dashboard.toString());
-        page.waitForLoadState();
-
-        String title = page.title();
-        Assertions.assertEquals("Quarkus Race Demo", title);
-
-        final int TEAM_PLAYERS_COUNT = 10 / 2;
-        final CountDownLatch latch1 = new CountDownLatch(TEAM_PLAYERS_COUNT);
-        final CountDownLatch latch2 = new CountDownLatch(TEAM_PLAYERS_COUNT);
-        final CountDownLatch latchDone1 = new CountDownLatch(TEAM_PLAYERS_COUNT);
-        final CountDownLatch latchDone2 = new CountDownLatch(TEAM_PLAYERS_COUNT);
-        final List<GameResource.User> users = Collections.synchronizedList(new ArrayList<>());
-        for (int i = 0; i < TEAM_PLAYERS_COUNT; i++) {
-            EXECUTOR.execute(new Player(latch1, users, latchDone1, true, 1));
+            List<Page> phones = new ArrayList<>();
+            for (int i = 0; i < 4; i++) {
+                BrowserContext player = context.browser().newContext();
+                players.add(player);
+                Page phone = player.newPage();
+                phones.add(phone);
+                Assertions.assertEquals(200, phone.navigate(gameController.toString()).status());
+                phone.locator(".button" + (i % 2 + 1)).click();
+                assertThat(phone.locator("#user-name")).isVisible();
+            }
+            await().atMost(Duration.ofSeconds(15)).until(() -> race().players().size() == 4);
+            page.evaluate("""
+                () => {
+                  const ticker = document.querySelector('[aria-label="Race commentary"]');
+                  window.finishObservations = [];
+                  window.finishObserver = new MutationObserver(() => {
+                    if (ticker.textContent.includes('wins')) {
+                      window.finishObservations.push([1, 2].map(id =>
+                        parseFloat(getComputedStyle(document.querySelector('#car' + id)).offsetDistance)));
+                    }
+                  });
+                  window.finishObserver.observe(ticker, {childList:true, characterData:true, subtree:true});
+                }
+                """);
+            page.locator("#play").click();
+            for (Page phone : phones) {
+                assertThat(phone.locator("#generator")).isVisible();
+            }
+            for (int taps = 0; taps < 150 && race().status() != RaceState.Status.FINISHED; taps++) {
+                for (Page phone : phones) {
+                    if (race().status() == RaceState.Status.FINISHED) break;
+                    try {
+                        phone.locator("#generator").click(new com.microsoft.playwright.Locator.ClickOptions().setTimeout(2000));
+                    } catch (PlaywrightException failure) {
+                        if (race().status() != RaceState.Status.FINISHED) throw failure;
+                    }
+                }
+            }
+            RaceState finished = await().atMost(Duration.ofSeconds(30))
+                .until(RaceWebUITest::race, s -> s.status() == RaceState.Status.FINISHED);
+            Assertions.assertEquals(4, finished.players().size());
+            assertThat(page.getByText("won the game", new Page.GetByTextOptions().setExact(false))).isVisible();
+            var ticker = page.locator("[aria-label='Race commentary']");
+            assertThat(ticker).containsText("wins");
+            String winnerName = given().get("/api/config").then().extract()
+                .path("teams[" + (finished.winner() - 1) + "].name");
+            assertThat(ticker).hasText(winnerName + " wins the race!");
+            Number visibleDistance = (Number) page.evaluate("team => window.finishObservations[0][team - 1]", finished.winner());
+            Assertions.assertTrue(visibleDistance.doubleValue() >= 99.99,
+                "Winning car must cross the finish line before the win announcement: " + visibleDistance);
+            String finishLine = ticker.innerText();
+            page.screenshot(new Page.ScreenshotOptions().setPath(Paths.get("target/test-screenshots/commentary-finish.png")));
+            page.reload();
+            assertThat(ticker).hasText(finishLine);
+            page.locator("#reset").click();
+            await().atMost(Duration.ofSeconds(15)).until(() -> !race().raceId().equals(finished.raceId()));
+            assertThat(ticker).isEmpty();
+            assertThat(page.getByText("won the game", new Page.GetByTextOptions().setExact(false))).hasCount(0);
+            page.screenshot(new Page.ScreenshotOptions().setPath(Paths.get("target/test-screenshots/commentary-reset.png")));
+        } catch (RuntimeException | AssertionError failure) {
+            System.err.println("Dashboard URL: " + page.url() + "; content: " + page.locator("body").innerText());
+            page.screenshot(new Page.ScreenshotOptions().setPath(Paths.get("target/test-screenshots/commentary-failure.png")));
+            throw failure;
+        } finally {
+            players.forEach(BrowserContext::close);
+            page.close();
         }
-        for (int i = 0; i < TEAM_PLAYERS_COUNT; i++) {
-            EXECUTOR.execute(new Player(latch2, users, latchDone2, true, 2));
-        }
-        latch1.await();
-        latch2.await();
-        page.screenshot(new Page.ScreenshotOptions().setPath(Paths.get("target/test-screenshots/race-ui-test-1.png")));
-        System.out.println("Clicking on 'play'");
-        final ElementHandle playEl = page.waitForSelector("#play");
-        playEl.click();
-        System.out.println("Clicking on 'play' done");
-        page.screenshot(new Page.ScreenshotOptions().setPath(Paths.get("target/test-screenshots/race-ui-test-2.png")));
-        latchDone1.await();
-        System.out.println("Middle");
-        page.screenshot(new Page.ScreenshotOptions().setPath(Paths.get("target/test-screenshots/race-ui-test-4.png")));
-        latchDone2.await();
-        // The phones send their taps over the player WebSocket, and the server decides the finish
-        RaceState race = await().atMost(Duration.ofSeconds(30))
-            .until(() -> given().get("/api/race/state").then().statusCode(200).extract().as(RaceState.class),
-                s -> s.status() == RaceState.Status.FINISHED);
-        Assertions.assertEquals(TEAM_PLAYERS_COUNT * 2, race.players().size());
-        page.waitForSelector("text=won the game", LONG_TIMEOUT_OPTIONS);
-        page.screenshot(new Page.ScreenshotOptions().setPath(Paths.get("target/test-screenshots/race-ui-test-5.png")));
-        System.out.println("End");
     }
 
-    private class Player implements Runnable {
-
-        private CountDownLatch latchAssign;
-        private final List<GameResource.User> users;
-        private CountDownLatch latchDone;
-        private boolean playInBrowser;
-        private int team;
-
-        public Player(CountDownLatch latchAssign, List<GameResource.User> users, CountDownLatch latchDone,
-                boolean playInBrowser, int team) {
-            this.latchAssign = latchAssign;
-            this.users = users;
-            this.latchDone = latchDone;
-            this.playInBrowser = playInBrowser;
-            this.team = team;
-        }
-
-        @Override public void run() {
-            final Playwright playwright = Playwright.create();
-            Browser browser = playwright.chromium().launch((new BrowserType.LaunchOptions()).setArgs(
-                    List.of("--headless", "--disable-gpu", "--no-sandbox")));
-            BrowserContext gameControllerContext = browser.newContext();
-            final Page controllerPage = gameControllerContext.newPage();
-            Response controllerResponse = controllerPage.navigate(gameController.toString());
-            Assertions.assertEquals("OK", controllerResponse.statusText());
-            controllerPage.waitForLoadState();
-
-            final ElementHandle teamBtn = controllerPage.waitForSelector(".button" + team, LONG_TIMEOUT_OPTIONS);
-            teamBtn.click();
-
-            final ElementHandle userNameEl = controllerPage.waitForSelector("#user-name", LONG_TIMEOUT_OPTIONS);
-            final String userName = userNameEl.innerText();
-            users.add(new GameResource.User(-1, userName, team));
-            System.out.println(userName + " joined team " + team);
-            latchAssign.countDown();
-            if(!playInBrowser) {
-                playwright.close();
-                return;
-            }
-            try {
-                final ElementHandle generatorEl = controllerPage.waitForSelector("#generator", LONG_TIMEOUT_OPTIONS);
-                System.out.println("Generator open for " + userName);
-                for (int j = 0; j < 150; j++) {
-                    generatorEl.click();
-                }
-            } catch (PlaywrightException e) {
-                // The generator goes away when the race finishes before this player is done clicking
-                System.out.println(userName + " stopped clicking: " + e.getMessage().lines()
-                    .filter(l -> l.contains("message=")).findFirst().orElse(e.getMessage()).trim());
-            } finally {
-                playwright.close();
-                latchDone.countDown();
-            }
-        }
+    private static RaceState race() {
+        return given().get("/api/race/state").then().statusCode(200).extract().as(RaceState.class);
     }
 }

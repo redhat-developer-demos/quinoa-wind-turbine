@@ -130,6 +130,45 @@ class RaceTopologyTest {
     }
 
     @Test
+    void delayedFinishingPowerPublishesAfterANewerWallClockSnapshot() {
+        reset("race-1", 0);
+        power("ada", 1, 0, "race-1", 10);
+        start(1_000);
+        power("ada", 1, 30, "race-1", 2_000);
+        driver.advanceWallClockTime(Duration.ofSeconds(10));
+        RaceState running = lastProgress();
+        assertEquals(Status.STARTED, running.status());
+        assertTrue(running.updatedAt() >= T0.plusSeconds(10).toEpochMilli());
+
+        power("ada", 1, 120, "race-1", 2_500);
+        RaceState finished = lastProgress();
+        assertEquals(Status.FINISHED, finished.status());
+        assertTrue(finished.updatedAt() > running.updatedAt());
+        assertEquals(1_500L, finished.elapsedMs());
+        assertEquals(1_500L, finished.teams().getFirst().finishTimeMs());
+        assertEquals(GameEvent.FINISH, finishEvents.readValue().type());
+        assertTrue(finishEvents.isEmpty());
+    }
+
+    @Test
+    void publicationOrderUsesTheTimestampRestoredInTheRaceStore() {
+        reset("race-1", 0);
+        power("ada", 1, 0, "race-1", 10);
+        start(1_000);
+        lastProgress();
+        var races = driver.<String, RaceTopology.Race>getKeyValueStore(RaceTopology.RACE_STORE);
+        long restoredTimestamp = T0.plusSeconds(60).toEpochMilli();
+        races.put(RACE_KEY, races.get(RACE_KEY).publishedAt(restoredTimestamp));
+
+        power("ada", 1, 150, "race-1", 2_000);
+        RaceState finished = lastProgress();
+        assertEquals(restoredTimestamp + 1, finished.updatedAt());
+        assertEquals(finished.updatedAt(), races.get(RACE_KEY).lastSnapshotAt());
+        assertEquals(1_000L, finished.elapsedMs());
+        assertEquals(GameEvent.FINISH, finishEvents.readValue().type());
+    }
+
+    @Test
     void resetInTheMiddleOfARaceStartsANewRace() {
         reset("race-1", 0);
         power("ada", 1, 0, "race-1", 10);

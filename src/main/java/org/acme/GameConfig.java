@@ -9,6 +9,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.HexFormat;
 import java.util.Optional;
+import java.util.Map;
 
 @ConfigMapping(prefix = "game")
 public interface GameConfig {
@@ -28,6 +29,48 @@ public interface GameConfig {
     Race race();
 
     Admin admin();
+
+    Ai ai();
+
+    Commentary commentary();
+
+    Map<Integer, Team> teams();
+
+    interface Team {
+        String name();
+        String color();
+        String car();
+    }
+
+    default String teamName(int team) {
+        Team configured = teams().get(team);
+        return configured == null ? "Team " + team : configured.name();
+    }
+
+    interface Ai {
+        @WithDefault("false")
+        boolean enabled();
+    }
+
+    interface Commentary {
+        @WithDefault("3s")
+        Duration interval();
+
+        @WithDefault("2s")
+        Duration timeout();
+
+        @WithDefault("180")
+        int maxLength();
+
+        @WithDefault("5s")
+        Duration surgeWindow();
+
+        @WithDefault("2")
+        double surgeMultiplier();
+
+        @WithDefault("10")
+        int surgeMinTaps();
+    }
 
     interface Race {
         /**

@@ -43,7 +43,12 @@ Log into Argo CD using the OpenShift Auth option.
 
 Install AMQ Streams from OperatorHub and create a KafkaCluster named `my-cluster`.
 
-The game needs the `power`, `game-events` and `race-progress` topics before it starts, because the Kafka Streams topology waits for its input topics. With the `openshift-cluster` profile, the `KafkaTopic` resources in [`openshift.cluster.yml`](../src/main/kubernetes/openshift.cluster.yml) create them when you deploy. `race-progress` is compacted, since each replica only needs the latest race snapshot.
+Create `power`, `game-events`, `race-progress` and `race-commentary` before the game starts.
+With the `openshift-cluster` profile, the `KafkaTopic` resources in
+[`openshift.cluster.yml`](../src/main/kubernetes/openshift.cluster.yml) create them when you deploy.
+`race-progress` is compacted, since each replica only needs the latest race snapshot.
+`race-commentary` retains lines for one hour so replicas can recover the latest commentary after
+a restart. Its single partition preserves line order.
 
 With the `confluent` profile, Confluent Cloud doesn't create topics on first use, so create them with the Confluent CLI:
 
@@ -51,11 +56,28 @@ With the `confluent` profile, Confluent Cloud doesn't create topics on first use
 confluent kafka topic create power --partitions 1
 confluent kafka topic create game-events --partitions 1
 confluent kafka topic create race-progress --partitions 1 --config cleanup.policy=compact
+confluent kafka topic create race-commentary --partitions 1 --config retention.ms=3600000
 ```
 
 Kafka Streams also creates changelog topics for its state stores. The `confluent` profile sets their replication factor to 3, which Confluent Cloud requires, and the API key needs permission to create topics with the `quinoa-wind-turbine-` prefix.
 
 Create an infinispan cluster from the Web Console using the "Infinispan Helm chart" and name it `infinispan`.
+
+### Optional AI commentary
+
+Template commentary works with the default configuration. To enable the OpenAI-compatible
+provider, create a secret and set the startup configuration:
+
+```bash
+oc create secret generic commentary-openai --from-literal=OPENAI_API_KEY='<your API key>'
+oc set env deployment/quinoa-wind-turbine --from=secret/commentary-openai
+oc set env deployment/quinoa-wind-turbine GAME_AI_ENABLED=true OPENAI_MODEL=gpt-6-luna
+```
+
+Set `OPENAI_BASE_URL` and `OPENAI_MODEL` for a compatible endpoint reachable from the pods.
+For a server without reasoning parameters, set `OPENAI_REASONING_EFFORT` to an empty value.
+When Helm owns the deployment, set the same environment variables and secret reference in its
+chart. Never put the API key in chart values or source control.
 
 ## Dashboard login
 

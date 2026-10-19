@@ -113,10 +113,11 @@ public class RaceTopology {
      * Race totals kept in the state store. Player scores live in their own store, keyed by player name.
      */
     @RegisterForReflection
-    record Race(String raceId, Status status, long elapsedMs, long runningSince, Map<Integer, TeamProgress> teams) {
+    record Race(String raceId, Status status, long elapsedMs, long runningSince, Map<Integer, TeamProgress> teams,
+                long lastSnapshotAt) {
 
         static Race waiting(String raceId) {
-            return new Race(raceId, Status.WAITING, 0, 0, Map.of());
+            return new Race(raceId, Status.WAITING, 0, 0, Map.of(), 0);
         }
 
         long elapsedAt(long timestamp) {
@@ -124,15 +125,19 @@ public class RaceTopology {
         }
 
         Race withTeams(Map<Integer, TeamProgress> teams) {
-            return new Race(raceId, status, elapsedMs, runningSince, teams);
+            return new Race(raceId, status, elapsedMs, runningSince, teams, lastSnapshotAt);
         }
 
         Race started(long timestamp) {
-            return new Race(raceId, Status.STARTED, elapsedMs, timestamp, teams);
+            return new Race(raceId, Status.STARTED, elapsedMs, timestamp, teams, lastSnapshotAt);
         }
 
         Race stopped(Status status, long timestamp) {
-            return new Race(raceId, status, elapsedAt(timestamp), 0, teams);
+            return new Race(raceId, status, elapsedAt(timestamp), 0, teams, lastSnapshotAt);
+        }
+
+        Race publishedAt(long timestamp) {
+            return new Race(raceId, status, elapsedMs, runningSince, teams, timestamp);
         }
     }
 
@@ -282,15 +287,20 @@ public class RaceTopology {
             }
             // Players register again with their next power event, phones send one every few seconds
             names.forEach(players::delete);
-            return Race.waiting(raceId);
+            Race previous = races.get(RACE_KEY);
+            return Race.waiting(raceId).publishedAt(previous == null ? 0 : previous.lastSnapshotAt());
         }
 
         private void publish(Race race, long timestamp, boolean finished) {
-            context.forward(new Record<>(RACE_KEY, new RaceUpdate(snapshot(race, timestamp), finished), timestamp));
+            // A delayed record can follow a newer wall-clock tick. Keep publication order separate from race time.
+            long publishedAt = Math.max(Math.max(context.currentSystemTimeMs(), timestamp), race.lastSnapshotAt() + 1);
+            races.put(RACE_KEY, race.publishedAt(publishedAt));
+            context.forward(new Record<>(RACE_KEY,
+                new RaceUpdate(snapshot(race, timestamp, publishedAt), finished), publishedAt));
             changed = false;
         }
 
-        private RaceState snapshot(Race race, long timestamp) {
+        private RaceState snapshot(Race race, long timestamp, long publishedAt) {
             List<PlayerState> ranked = new ArrayList<>();
             try (KeyValueIterator<String, PlayerState> all = players.all()) {
                 all.forEachRemaining(kv -> ranked.add(kv.value));
@@ -310,7 +320,7 @@ public class RaceTopology {
                     rules.distance(t.value.power(), t.value.players()), t.value.finishTimeMs()));
             }
             Integer winner = race.status() == Status.FINISHED && !positions.isEmpty() ? positions.getFirst().id() : null;
-            return new RaceState(race.raceId(), race.status(), race.elapsedAt(timestamp), timestamp, winner,
+            return new RaceState(race.raceId(), race.status(), race.elapsedAt(timestamp), publishedAt, winner,
                 positions, ranked);
         }
     }

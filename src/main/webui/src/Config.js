@@ -5,18 +5,19 @@ export const IS_TOUCH_DEVICE = (('ontouchstart' in window)
     || (navigator.msMaxTouchPoints > 0));
 
 // available cars images: 'car-classic-black', 'car-barbie', 'car-grey', 'car-red', 'car-blue-convertible', 'car-orange'
-export const TEAMS_CONFIG = [
-  {
-    name: 'Mountains',
-    color: 'grey',
-    car: 'car-orange',
-  },
-  {
-    name: 'Beach',
-    color: 'skyblue',
-    car: 'car-blue-convertible',
-  },
-];
+// Loaded before rendering; application.properties is shared with server commentary.
+export let TEAMS_CONFIG = [];
+
+export async function loadConfig() {
+  const response = await fetch('/api/config');
+  if (!response.ok) throw new Error('Cannot load race configuration');
+  const config = await response.json();
+  if (!Array.isArray(config.teams) || config.teams.length !== 2
+      || config.teams.some((team, i) => team.id !== i + 1 || !team.name || !team.color || !team.car)) {
+    throw new Error('Invalid race team configuration');
+  }
+  TEAMS_CONFIG = config.teams;
+}
 
 // Dashboard
 export const TAP_POWER = 15; // in MW

@@ -14,6 +14,7 @@
     <quarkus.platform.version>3.40.1</quarkus.platform.version>
     <quarkus-quinoa.version>2.9.2</quarkus-quinoa.version>
     <quarkus-mcp-server.version>2.0.3</quarkus-mcp-server.version>
+    <quarkus-langchain4j.version>1.14.1</quarkus-langchain4j.version>
     <skipITs>true</skipITs>
     <surefire-plugin.version>3.6.0</surefire-plugin.version>
   </properties>
@@ -29,6 +30,11 @@
     </dependencies>
   </dependencyManagement>
   <dependencies>
+    <dependency>
+      <groupId>io.quarkiverse.langchain4j</groupId>
+      <artifactId>quarkus-langchain4j-openai</artifactId>
+      <version>${quarkus-langchain4j.version}</version>
+    </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-rest-jackson</artifactId>
