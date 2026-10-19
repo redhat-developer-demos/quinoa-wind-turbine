@@ -13,6 +13,52 @@ spec:
     targetPort: 8080
 
 ---
+# Strimzi KRaft Kafka cluster. The app connects to my-cluster-kafka-bootstrap:9092 over the plain
+# internal listener; the openshift-cluster profile uses no SASL or TLS on this internal network. The
+# manifest works with either the Red Hat AMQ Streams operator or the community Strimzi operator.
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaNodePool
+metadata:
+  name: kafka
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  replicas: 3
+  # Dual-role nodes give three brokers and a three-member controller quorum.
+  roles:
+    - controller
+    - broker
+  storage:
+    type: persistent-claim
+    size: 10Gi
+    deleteClaim: false
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
+metadata:
+  name: my-cluster
+  annotations:
+    strimzi.io/node-pools: enabled
+    strimzi.io/kraft: enabled
+spec:
+  kafka:
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+    config:
+      # Three replicas for the internal topics, matching the game topics and Kafka Streams.
+      offsets.topic.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 2
+      default.replication.factor: 3
+      min.insync.replicas: 2
+  # The topic operator reconciles the KafkaTopic resources below.
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}
+---
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
