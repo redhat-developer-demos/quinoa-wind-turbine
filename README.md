@@ -282,33 +282,29 @@ docker run -i --rm -p 8080:8080 quarkus/quinoa-wind-turbine-jvm
 
 ## Deploy on OpenShift
 
-There are two ways to deploy this demo on OpenShift.
+The game runs against either Strimzi (Kafka on the cluster) or Confluent Cloud, chosen by the
+`openshift-cluster` or `confluent` profile. Both use the same image and JSON messages, so switching
+providers only changes configuration.
 
-If you want to deploy the application directly from Quarkus, see the section below.
+[OpenShift installation](docs/openshift-install.md) has the full setup: the operators, the generated
+secrets, Infinispan, Kafka, the optional Keycloak for admin MCP, the app deploy and a race to verify
+it. [GitOps and pipeline setup](docs/gitops-pipeline.md) covers the optional GitOps and Tekton flow.
 
-If you want the full demo setup with GitOps, pipelines, Kafka and Infinispan, see [OpenShift installation](docs/openshift-install.md) and [GitOps and pipeline setup](docs/gitops-pipeline.md).
-
-## When deploying from Quarkus
-
-### Copy sandbox OpenShift resource file
-
-```bash
-cp src/main/kubernetes/openshift.cluster.yml src/main/kubernetes/openshift.yml
-```
-
-### Deploy
+The short version, once the operators, secrets, Infinispan and Kafka from that guide are in place:
 
 ```bash
-quarkus build -Dquarkus.kubernetes.deploy=true -Dquarkus.profile=openshift-cluster -Dquarkus.container-image.group=[project name]
+# Build the image in CI and deploy it (the GitHub Action pushes to ghcr.io on main):
+oc new-app --image=ghcr.io/<owner>/quinoa-wind-turbine:latest --name=quinoa-wind-turbine
+
+# Or build from source on the cluster, pushing to the internal registry:
+./mvnw clean package -Dquarkus.profile=openshift-cluster -Dquarkus.kubernetes.deploy=true -DskipTests \
+  -Dquarkus.container-image.registry=image-registry.openshift-image-registry.svc:5000 \
+  -Dquarkus.container-image.group=$(oc project -q)
 ```
 
-### Update
-
-```bash
-quarkus build -Dquarkus.container-image.build=true -Dquarkus.profile=openshift-cluster -Dquarkus.container-image.group=[project name]
-```
-
-### Delete deployed app
+Use `-Dquarkus.profile=confluent` instead for a Confluent Cloud deployment. The profile sets the
+Java 25 base image, five replicas, resource limits and the probes. Delete the app with:
 
 ```bash
 oc delete all -l app.kubernetes.io/name=quinoa-wind-turbine
+```

@@ -1,60 +1,272 @@
 # OpenShift installation
 
-This section covers the full cluster setup for the demo.
+This guide deploys the game and its dependencies on OpenShift. The game needs Kafka and Infinispan.
+Keycloak is optional and only gates the admin MCP tools, and OpenAI is optional for AI commentary.
+With the default settings, the dashboard login, player controls, read-only MCP and template
+commentary all work without either optional service.
 
-The game requires Kafka and Infinispan. Keycloak is optional for admin MCP, and OpenAI is
-optional for AI commentary. With the default flags, the dashboard's form login, player controls,
-read-only MCP and template commentary work without either optional service.
+The game runs against either Strimzi (Kafka on the cluster) or Confluent Cloud (Kafka off the
+cluster), chosen by config profile. This guide covers the Strimzi path end to end; the Confluent
+differences are called out under [Confluent Cloud](#confluent-cloud). Both paths use the same image
+and the same JSON messages, so switching providers only changes configuration.
 
-To run this demo you need **OpenShift >=4.10** with cluster-admin privileges.
+You need OpenShift 4.14 or later with cluster-admin, and the `oc` CLI logged in. The commands below
+deploy into a namespace called `wind-turbine`; change it to suit.
 
-## Setup OpenShift
+## Install the operators
 
-Login to OpenShift Web Console to install prerequisites.
+Install these from OperatorHub. The Kafka and Infinispan operators own cluster-scoped CRDs, so
+install them once per cluster:
 
-First, create a project for the demo:
+- Red Hat AMQ Streams (or the community Strimzi operator) for Kafka. Both serve the same
+  `kafka.strimzi.io` API, so the manifests here work with either.
+- The community Infinispan operator for the counters cache.
+- The Red Hat build of Keycloak operator, only if you want the admin MCP tools.
 
-```bash
-oc new-project demo --description='wind-turbine-race'
-```
-
-You can choose a different name, but then you have to update the Argo CD application manifest before you deploy the app.
-
-## Install Operators
-
-Install the following operators from OperatorHub:
-
-- OpenShift Pipelines
-- OpenShift GitOps
-- AMQ Streams
-- Red Hat build of Keycloak, if you want the admin MCP tools (see [Keycloak for the admin MCP tools](#keycloak-for-the-admin-mcp-tools))
-
-For Infinispan, create an infinispan cluster from the Web Console using the "Infinispan Helm chart" and name it `infinispan`.
-
-### OpenShift GitOps
-
-Once OpenShift GitOps is installed, give permission to the Argo CD service account to control the cluster:
+Install AMQ Streams and Infinispan cluster-wide, for example with a subscription in
+`openshift-operators`:
 
 ```bash
-oc adm policy add-cluster-role-to-user cluster-admin -z openshift-gitops-argocd-application-controller -n openshift-gitops
+oc apply -f - <<'EOF'
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: amq-streams
+  namespace: openshift-operators
+spec:
+  channel: stable
+  name: amq-streams
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: infinispan
+  namespace: openshift-operators
+spec:
+  channel: stable
+  name: infinispan
+  source: community-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic
+EOF
 ```
 
-After the operator is installed, an instance of Argo CD is created in the `openshift-gitops` namespace and can be opened from the application launcher in the OpenShift Web Console.
+Wait until both reach `Succeeded`:
 
-Log into Argo CD using the OpenShift Auth option.
+```bash
+oc get csv -n openshift-operators | grep -E 'amqstreams|infinispan'
+```
 
-## Kafka and Infinispan
+Create the namespace for the game:
 
-Install AMQ Streams from OperatorHub and create a KafkaCluster named `my-cluster`.
+```bash
+oc new-project wind-turbine
+```
 
-Create `power`, `game-events`, `race-progress` and `race-commentary` before the game starts.
-With the `openshift-cluster` profile, the `KafkaTopic` resources in
-[`openshift.cluster.yml`](../src/main/kubernetes/openshift.cluster.yml) create them when you deploy.
-`race-progress` is compacted, since each replica only needs the latest race snapshot.
-`race-commentary` retains lines for one hour so replicas can recover the latest commentary after
-a restart. Its single partition preserves line order.
+## Create the secrets
 
-With the `confluent` profile, Confluent Cloud doesn't create topics on first use, so create them with the Confluent CLI:
+[`secrets.yaml`](../src/main/kubernetes/secrets.yaml) is an OpenShift template that generates the
+dashboard password and the shared session key, so neither value is committed. Apply it first, because
+the app's deployment reads both as required secret references and won't start without them:
+
+```bash
+oc process -f src/main/kubernetes/secrets.yaml | oc apply -f -
+```
+
+`game-admin` holds the dashboard password and replaces the digest in `application.properties`.
+`game-session` holds `quarkus.http.auth.session.encryption-key`. Without a shared key each replica
+encrypts the login cookie with its own, so a dashboard session would only work on the pod that
+created it; the shared key also covers the `/ws/dashboard` handshake. Read the generated password
+when you need it:
+
+```bash
+oc get secret game-admin -o jsonpath='{.data.password}' | base64 -d
+```
+
+## Deploy Infinispan
+
+[`infinispan/infinispan.yaml`](../src/main/kubernetes/infinispan/infinispan.yaml) creates a
+single-node Infinispan with persistent storage and its own credentials secret, so the deployment
+doesn't depend on the operator-generated secret:
+
+```bash
+oc process -f src/main/kubernetes/infinispan/infinispan.yaml | oc apply -f -
+oc wait --for=condition=wellFormed --timeout=240s infinispan/infinispan
+```
+
+The app defines its `users` and `races` counters at startup, so the template needs no server-side
+counter config. The counters are persistent, so the race and user IDs survive a restart. To reuse an
+existing Infinispan service instead, skip this file and override `infinispan-host`,
+`infinispan-username` and the `infinispan-credentials` secret to match it. Each namespace gets its
+own instance and counters, so two deployments keep independent game state.
+
+## Deploy Kafka
+
+[`openshift.cluster.yml`](../src/main/kubernetes/openshift.cluster.yml) holds a KRaft Kafka cluster
+and the four topics. The cluster is one dual-role node pool of three nodes, giving three brokers and
+a three-member controller quorum with persistent volumes, and the plain internal listener on 9092
+that the `openshift-cluster` profile points at:
+
+```bash
+oc apply -f src/main/kubernetes/openshift.cluster.yml
+oc wait --for=condition=Ready --timeout=360s kafka/my-cluster
+```
+
+The topic operator creates `power`, `game-events`, `race-progress` (compacted) and `race-commentary`
+(one-hour retention), each with one partition and three replicas. The race inputs stay on partition 0
+so one Streams task owns the race. The `openshift-cluster` profile sets the Kafka Streams internal
+topics to three replicas as well.
+
+## Deploy the application
+
+Build with Java 25 and deploy with the `openshift-cluster` profile. There are two ways to get the
+image onto the cluster.
+
+### Use the CI image
+
+The [GitHub Actions workflow](../.github/workflows/build.yml) builds the image with Java 25 and
+pushes it to `ghcr.io/<owner>/quinoa-wind-turbine` on every push to `main`. Point the deployment at
+that image and deploy without an in-cluster build:
+
+```bash
+oc new-app --image=ghcr.io/<owner>/quinoa-wind-turbine:latest --name=quinoa-wind-turbine -n wind-turbine
+```
+
+Make sure the cluster can pull the image (a public package, or an image pull secret for a private
+one).
+
+### Build on the cluster
+
+For a branch that isn't on `main`, build from source with the OpenShift s2i builder, which runs the
+Maven and Quinoa build locally and then packages the jar into the Java 25 base image on the cluster.
+Point the image at the internal registry so no external credentials are needed:
+
+```bash
+oc project wind-turbine
+./mvnw clean package -Dquarkus.profile=openshift-cluster -Dquarkus.kubernetes.deploy=true -DskipTests \
+  -Dquarkus.container-image.registry=image-registry.openshift-image-registry.svc:5000 \
+  -Dquarkus.container-image.group=wind-turbine
+```
+
+The committed `quarkus.container-image.registry` stays `quay.io` for the CI build above; the override
+here sends the s2i build to the internal registry instead. The profile already sets the Java 25 base
+image, five replicas, resource requests and limits, a termination grace period that lets WebSocket
+connections drain, and a longer startup probe.
+
+Wait for the rollout and check the app:
+
+```bash
+oc rollout status deployment/quinoa-wind-turbine
+HOST=$(oc get route quinoa-wind-turbine -o jsonpath='{.spec.host}')
+curl -s "https://$HOST/q/health/ready"
+curl -s "https://$HOST/api/config"
+```
+
+## Keycloak for the admin MCP tools
+
+The read-only MCP tools at `/mcp` need no login. The admin tools at `/admin/mcp` start, pause and
+reset the race, and they need a bearer token with the `admin` role from the `wind-turbine` Keycloak
+realm. Without Keycloak the app still starts and `/admin/mcp` rejects every call.
+
+Instance creation is separate from the realm import, so you can reuse an existing Keycloak or create
+a fresh one.
+
+### Reuse an existing Keycloak
+
+The Keycloak operator reconciles only the namespaces it watches, so the realm import and its password
+secret go in that namespace. Copy the dashboard password into it and import the realm, naming the
+existing Keycloak CR:
+
+```bash
+KC_NS=keycloak   # the namespace of the existing Keycloak
+oc create secret generic game-admin \
+  --from-literal=password="$(oc get secret game-admin -n wind-turbine -o jsonpath='{.data.password}' | base64 -d)" \
+  -n "$KC_NS"
+oc process -f src/main/kubernetes/keycloak/realm-import.yaml -p KEYCLOAK_CR_NAME=<existing-cr-name> \
+  | oc apply -n "$KC_NS" -f -
+oc wait --for=jsonpath='{.status.conditions[?(@.type=="Done")].status}'=True \
+  --timeout=240s keycloakrealmimport/wind-turbine -n "$KC_NS"
+```
+
+A realm import is per-realm, so it adds `wind-turbine` without touching other realms on the instance.
+The developer user's password comes from the `game-admin` secret, so the dashboard and the MCP login
+share one password.
+
+### Create a fresh Keycloak
+
+On a cluster with no Keycloak, install the operator into the namespace, create the database secret,
+and apply the instance then the realm import:
+
+```bash
+oc create secret generic keycloak-db --from-literal=username=keycloak --from-literal=password=<choose>
+oc process -f src/main/kubernetes/keycloak/keycloak.yaml \
+  -p KEYCLOAK_HOSTNAME=keycloak-wind-turbine.apps.<cluster domain> | oc apply -f -
+oc process -f src/main/kubernetes/keycloak/realm-import.yaml | oc apply -f -
+```
+
+Keycloak keeps its data in PostgreSQL with a 1 GiB volume, because the realm import runs once and a
+file database in the pod would lose it on a restart.
+
+### Point the app at Keycloak
+
+Enable OIDC on the app and give it the realm's external URL:
+
+```bash
+oc set env deployment/quinoa-wind-turbine -n wind-turbine \
+  GAME_OIDC_ENABLED=true \
+  GAME_OIDC_URL=https://<keycloak-host>/realms/wind-turbine
+```
+
+The app validates the issuer of every token, so `GAME_OIDC_URL` must use the same external host that
+MCP clients get their tokens from, and the app reaches it through the router. An in-cluster build with
+the Quarkus OpenShift extension replaces the deployment and drops variables set with `oc set env`, so
+set them again after a redeploy or bake them into the build with
+`-Dquarkus.openshift.env.vars.game-oidc-enabled=true`.
+
+With OIDC on, an unauthenticated call to `/admin/mcp` returns 401 with a `WWW-Authenticate` header
+that points to `/.well-known/oauth-protected-resource/admin/mcp`, which names the realm so MCP clients
+can start their OAuth login.
+
+## Optional AI commentary
+
+Template commentary works with the default configuration. To enable the OpenAI-compatible provider,
+create a secret and set the startup configuration:
+
+```bash
+oc create secret generic commentary-openai --from-literal=OPENAI_API_KEY='<your API key>'
+oc set env deployment/quinoa-wind-turbine --from=secret/commentary-openai
+oc set env deployment/quinoa-wind-turbine GAME_AI_ENABLED=true OPENAI_MODEL=gpt-6-luna
+```
+
+Set `OPENAI_BASE_URL` and `OPENAI_MODEL` for a compatible endpoint reachable from the pods. For a
+server without reasoning parameters, set `OPENAI_REASONING_EFFORT` to an empty value. Keep the API
+key out of source control.
+
+## Verify the deployment
+
+Run a race against the route. Log in as the dashboard admin, start the game, and drive simulated
+players over WebSockets:
+
+```bash
+HOST=$(oc get route quinoa-wind-turbine -o jsonpath='{.spec.host}')
+PW=$(oc get secret game-admin -o jsonpath='{.data.password}' | base64 -d)
+curl -s -c /tmp/cj "https://$HOST/j_security_check" \
+  --data-urlencode "j_username=developer" --data-urlencode "j_password=$PW" -o /dev/null
+curl -s -b /tmp/cj -X POST -H 'Content-Type: application/json' -d '{"type":"start"}' "https://$HOST/api/game/event"
+jbang scripts/GameLoader.java "https://$HOST" --players 12 --clicks 600 --power 10 --interval 75 --ws
+curl -s "https://$HOST/api/race/state"
+```
+
+The race state reaches `FINISHED`, and `GET /api/race/leaderboard?team=1` returns the ranked players.
+A read-only MCP `initialize` against `https://$HOST/mcp` returns the server info without a login.
+
+## Confluent Cloud
+
+The Confluent path keeps Strimzi operators and Kafka custom resources out of the deployment. Create
+the four topics in Confluent Cloud, since it doesn't create topics on first use:
 
 ```bash
 confluent kafka topic create power --partitions 1
@@ -63,102 +275,29 @@ confluent kafka topic create race-progress --partitions 1 --config cleanup.polic
 confluent kafka topic create race-commentary --partitions 1 --config retention.ms=3600000
 ```
 
-Kafka Streams also creates changelog topics for its state stores. The `confluent` profile sets their replication factor to 3, which Confluent Cloud requires, and the API key needs permission to create topics with the `quinoa-wind-turbine-` prefix.
+Kafka Streams also creates changelog topics with replication factor three, which Confluent Cloud
+requires, so the API key needs permission to create topics with the `quinoa-wind-turbine-` prefix.
+Deploy with `QUARKUS_PROFILE=confluent` and supply `CONFLUENT_BOOTSTRAP_SERVERS`, `CONFLUENT_API_KEY`
+and `CONFLUENT_API_SECRET`. The full Confluent deployment is tracked in the
+[1.5 plan](plans/1.5-cluster-deployment.md).
 
-Create an infinispan cluster from the Web Console using the "Infinispan Helm chart" and name it `infinispan`.
+## Clean up
 
-### Optional AI commentary
-
-Template commentary works with the default configuration. To enable the OpenAI-compatible
-provider, create a secret and set the startup configuration:
-
-```bash
-oc create secret generic commentary-openai --from-literal=OPENAI_API_KEY='<your API key>'
-oc set env deployment/quinoa-wind-turbine --from=secret/commentary-openai
-oc set env deployment/quinoa-wind-turbine GAME_AI_ENABLED=true OPENAI_MODEL=gpt-6-luna
-```
-
-Set `OPENAI_BASE_URL` and `OPENAI_MODEL` for a compatible endpoint reachable from the pods.
-For a server without reasoning parameters, set `OPENAI_REASONING_EFFORT` to an empty value.
-When Helm owns the deployment, set the same environment variables and secret reference in its
-chart. Never put the API key in chart values or source control.
-
-## Dashboard login
-
-Without any configuration, the dashboard user is `developer` with the existing workshop password, which the app checks against the digest in `application.properties`. Because that digest is in a public repository and the password is shared across every deployment, give each deployment its own password when you can.
-
-To do that, store the password in a secret and pass it to the app as `GAME_ADMIN_PASSWORD`, which replaces the digest:
+Deleting the app leaves the data behind, so remove the stateful resources explicitly when you want a
+clean slate:
 
 ```bash
-oc create secret generic game-admin --from-literal=password=<choose a password>
-oc set env deployment/quinoa-wind-turbine --from=secret/game-admin --prefix=GAME_ADMIN_
+oc delete deployment,svc,route,imagestream,buildconfig -l app.kubernetes.io/name=quinoa-wind-turbine -n wind-turbine
+oc delete -f src/main/kubernetes/openshift.cluster.yml -n wind-turbine   # Kafka and topics
+oc process -f src/main/kubernetes/infinispan/infinispan.yaml | oc delete -f -
+oc delete secret game-admin game-session infinispan-credentials -n wind-turbine
 ```
 
-`--prefix` turns the secret's `password` key into the `GAME_ADMIN_PASSWORD` variable.
+Deleting Kafka and Infinispan removes their persistent volumes and the game state with them. Reusing
+Keycloak leaves the `wind-turbine` realm in place; delete the `KeycloakRealmImport` and the realm in
+the Keycloak admin console if you want it gone.
 
-For projects created from the software template, the Helm chart in `manifests/helm/app` owns the deployment, so it creates the secret and sets the variable. The template publishes the gitops repository as public, so the password isn't in the chart values. The chart generates one per namespace with a Vault `RandomSecret` and `VaultSecret`, the same way the build chart creates the webhook secret, and `deployment.yaml` reads it:
+## GitOps and pipelines
 
-```yaml
-            - name: GAME_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  key: password
-                  name: game-admin
-```
-
-Presenters read the password from the `game-admin` secret in their namespace:
-
-```bash
-oc get secret game-admin -o jsonpath='{.data.password}' | base64 -d
-```
-
-## Keycloak for the admin MCP tools
-
-The read-only MCP tools at `/mcp` need no login. The admin tools at `/admin/mcp` start, pause and reset the race, and they need a bearer token with the `admin` role from Keycloak. Without Keycloak the app still starts, and `/admin/mcp` rejects every call. These steps set up the Red Hat build of Keycloak in the demo namespace, with the same `wind-turbine` realm that Keycloak Dev Services uses in dev mode.
-
-Install the Red Hat build of Keycloak operator from OperatorHub into the demo namespace.
-
-Keycloak keeps its data in a small PostgreSQL database with a 1 GiB volume. It needs a database because the realm import runs only once: with the file-based dev database in the Keycloak pod, a restart would lose the realm and nothing would import it again. Create the database credentials:
-
-```bash
-oc create secret generic keycloak-db --from-literal=username=keycloak --from-literal=password=<choose a password>
-```
-
-The realm's `developer` user gets its password from the `game-admin` secret described in [Dashboard login](#dashboard-login), so the dashboard and the MCP login use the same password. Create that secret first if you haven't.
-
-Then create PostgreSQL, Keycloak and the realm import. The file is an OpenShift template that takes Keycloak's external host name, which must be reachable from the laptops that run the MCP clients:
-
-```bash
-oc process -f src/main/kubernetes/keycloak/keycloak.yaml \
-  -p KEYCLOAK_HOSTNAME=keycloak-demo.apps.<cluster domain> | oc apply -f -
-```
-
-The operator creates a route for that host name with edge TLS. Wait until the import has finished:
-
-```bash
-oc get keycloakrealmimports wind-turbine -o jsonpath='{.status.conditions}'
-```
-
-The Keycloak admin console login is in the `keycloak-initial-admin` secret.
-
-Finally, point the app at the realm:
-
-```bash
-oc set env deployment/quinoa-wind-turbine GAME_OIDC_ENABLED=true \
-  GAME_OIDC_URL=https://keycloak-demo.apps.<cluster domain>/realms/wind-turbine
-```
-
-The app validates the issuer of every token, so `GAME_OIDC_URL` must use the same external host name that the MCP clients get their tokens from. The app reaches it through the cluster router, which needs a certificate the app trusts. Redeploying the app with the Quarkus OpenShift extension replaces the deployment and drops variables set with `oc set env`, so either set them again or add them to the build, for example with `-Dquarkus.openshift.env.vars.game-oidc-enabled=true`.
-
-For projects created from the software template, the Helm chart does all of this when `keycloak.enabled` is `true` in `manifests/helm/app/values.yaml`. Turn it on only on clusters where the operator is installed, because Argo CD can't sync the Keycloak resources without it.
-
-## SSL
-
-If the cluster does not have a signed certificate, install Let's Encrypt support:
-
-```bash
-oc apply -f https://raw.githubusercontent.com/tnozicka/openshift-acme/master/deploy/single-namespace/{role,serviceaccount,issuer-letsencrypt-live,deployment}.yaml
-oc create rolebinding openshift-acme --role=openshift-acme --serviceaccount="$( oc project -q ):openshift-acme" --dry-run -o yaml | oc apply -f -
-```
-
-If the cluster already has a signed certificate, create a route with an `edge` TLS termination.
+Deploying directly, as above, is enough to run the game. For the full GitOps and Tekton pipeline
+setup, see [GitOps and pipeline setup](gitops-pipeline.md).
