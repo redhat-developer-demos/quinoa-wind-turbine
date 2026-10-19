@@ -81,6 +81,49 @@ The dashboard renders the race from the `/ws/dashboard` WebSocket, which sends t
 
 The operator starts, pauses and resets the race from the dashboard, which posts a game event to `/api/game/event`. A reset creates a new race ID and clears the players. Each replica then registers the players connected to it again, so they show up in the new race without tapping.
 
+### Race commentary
+
+The dashboard displays commentary for lead changes, each team's 25/50/75% milestones, player
+surges and the finish. Template lines work by default. A shared Kafka consumer group generates
+commentary once per race update, and the `race-commentary` topic distributes the lines to every
+dashboard replica. Delivery is at-least-once, and dashboards discard duplicate event IDs.
+
+Enable AI commentary with `GAME_AI_ENABLED=true` and `OPENAI_API_KEY`. The default model is
+[`gpt-6-luna`](https://developers.openai.com/api/docs/models/gpt-6-luna), and `OPENAI_MODEL` selects
+another model. In dev mode:
+
+```bash
+export OPENAI_API_KEY='<your API key>'
+GAME_AI_ENABLED=true ./mvnw quarkus:dev
+```
+
+To use a local server that supports OpenAI Chat Completions, set its API base URL and model name:
+
+```bash
+GAME_AI_ENABLED=true OPENAI_BASE_URL=http://localhost:11434/v1/ \
+  OPENAI_MODEL=granite4 OPENAI_API_KEY=unused OPENAI_REASONING_EFFORT= \
+  ./mvnw quarkus:dev
+```
+
+Start the local model server and make the chosen model available first. The app doesn't download
+models. An empty `OPENAI_REASONING_EFFORT` omits that optional parameter for servers that don't
+support it. The hosted default uses `none` for short commentary.
+
+The model receives only the event, team totals and the relevant player's generated name and
+score. Each request has a two-second deadline. Provider errors and blank or overlong output use
+the matching template, and only one request runs at a time. `GET /api/features` returns
+`{"aiEnabled":false}` or `{"aiEnabled":true}` to report the configured mode.
+
+`game.commentary.interval` (default `3s`) limits routine commentary. Finish bypasses that delay.
+`game.commentary.timeout` (default `2s`) and `game.commentary.max-length` (default `180`) control
+the request deadline and line length. A surge requires two windows of running race time, each
+`game.commentary.surge-window` (default `5s`), and an increase at least
+`game.commentary.surge-multiplier` (default `2`) times the previous window and
+`game.commentary.surge-min-taps` (default `10`) taps' worth of power.
+
+AI mode, endpoint and model changes take effect on restart. Without AI enabled, no model service
+or credential is needed and template commentary stays visible.
+
 ## Running the application in dev mode
 
 Install first:
@@ -171,13 +214,24 @@ Outside dev and test, OIDC is off unless `GAME_OIDC_ENABLED=true` and `GAME_OIDC
 
 ## Customizing the game
 
-The main game settings are in [`src/main/webui/src/Config.js`](src/main/webui/src/Config.js:1).
+Team names, colors and car images are set in
+[`application.properties`](src/main/resources/application.properties). The dashboard, player screen
+and commentary all use these settings:
 
-Team names, colors and car images are defined in [`TEAMS_CONFIG`](src/main/webui/src/Config.js:8). Update the `name`, `color` and `car` fields for each team to change how the game looks on the dashboard and on the player screen.
+```properties
+game.teams.1.name=Mountains
+game.teams.1.color=grey
+game.teams.1.car=car-orange
+game.teams.2.name=Beach
+game.teams.2.color=skyblue
+game.teams.2.car=car-blue-convertible
+```
 
-The available car image names are listed in the comment above [`TEAMS_CONFIG`](src/main/webui/src/Config.js:7).
+The UI loads the team configuration from `GET /api/config` before rendering. Change the properties
+and restart the app, then reload open pages. The available car images are listed in
+[`Config.js`](src/main/webui/src/Config.js), which still exports `TEAMS_CONFIG` for the components.
 
-The race rules are set on the server in `application.properties`. `game.tap-power` is the power of one tap and `game.taps-needed-per-player` is how many taps each player needs for their team to finish. A team's distance is its power × 100 / (tap power × taps needed × players in the team). [`TAP_POWER`](src/main/webui/src/Config.js:22) in `Config.js` sets the power each tap sends from the phone, so keep it equal to `game.tap-power`. [`SHOW_TOP`](src/main/webui/src/Config.js:24) sets how many players the dashboard shows per team.
+The race rules are set on the server in `application.properties`. `game.tap-power` is the power of one tap and `game.taps-needed-per-player` is how many taps each player needs for their team to finish. A team's distance is its power × 100 / (tap power × taps needed × players in the team). `TAP_POWER` in `Config.js` sets the power each tap sends from the phone, so keep it equal to `game.tap-power`. `SHOW_TOP` sets how many players the dashboard shows per team.
 
 The player controls are enabled in the same file with [`ENABLE_TAPPING`](src/main/webui/src/Config.js:27), [`ENABLE_SHAKING`](src/main/webui/src/Config.js:28), [`ENABLE_BLOWING`](src/main/webui/src/Config.js:29) and [`ENABLE_SWIPING`](src/main/webui/src/Config.js:30). This lets you switch between the different interaction modes used by the game.
 

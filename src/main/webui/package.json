@@ -26,7 +26,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "vite test"
+    "test": "vite test",
+    "test:api": "node --test src/*.test.mjs src/api/*.test.mjs"
   },
   "browserslist": {
     "production": [

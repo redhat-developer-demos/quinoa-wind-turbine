@@ -1,6 +1,7 @@
 import * as React from 'react';
 import styled from 'styled-components';
 import { TEAMS_CONFIG } from '../../Config';
+import { RACE_ANIMATION_MS } from './RaceAnimation';
 
 const RaceDiv = styled.div`
   text-align: center;
@@ -18,7 +19,7 @@ const RaceDiv = styled.div`
   }
   
   .car {
-    transition: offset-distance 2000ms linear;
+    transition: offset-distance ${RACE_ANIMATION_MS}ms linear;
     
   }
   
@@ -72,7 +73,13 @@ function RaceTrackSvg(props) {
 
 function RaceTrack(props) {
   return (
-    <RaceDiv distance1={props.distances[0]} distance2={props.distances[1]}>
+    <RaceDiv distance1={props.distances[0]} distance2={props.distances[1]}
+      onTransitionEnd={(event) => {
+        if (event.propertyName === 'offset-distance'
+            && parseFloat(getComputedStyle(event.target).offsetDistance) >= 99.99) {
+          props.onFinishCrossed?.(Number(event.target.id.replace('car', '')));
+        }
+      }}>
       <RaceTrackSvg />
     </RaceDiv>
   );

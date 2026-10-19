@@ -16,8 +16,16 @@ Feature 1.1 is merged into `main` with PR #98, together with the configurable da
 the GitHub Actions image build fix described under [Done outside the plan](#done-outside-the-plan).
 Feature 1.2 is merged with PR #99, which also fixes the frontend build after the Vite 8 update on
 `main`. The [open follow-ups](#open-follow-ups) list the work that came out of both features.
-Feature 1.3 is planned in [`docs/plans/1.3-mcp-server.md`](plans/1.3-mcp-server.md) and implemented
-on the `mcp-server` branch, not merged yet. Features 1.4 onwards haven't started.
+Feature 1.3 is committed on `main` as `1abf286`; its implementation plan is in
+[`docs/plans/1.3-mcp-server.md`](plans/1.3-mcp-server.md). Cluster verification is deferred and
+doesn't block the next implementation step, feature 1.4 (race commentary), planned in
+[`docs/plans/1.4-race-commentator.md`](plans/1.4-race-commentator.md). Feature 1.4 is implemented
+in this PR. Stage 2 and later features haven't started.
+
+Feature 1.5 is planned to make cluster deployment repeatable with either Strimzi on OpenShift or
+Confluent Cloud. It includes the deferred cluster verification from 1.3 and 1.4. Its scope is
+described under [Deploy the game with Strimzi or Confluent Cloud](#15-deploy-the-game-with-strimzi-or-confluent-cloud).
+No deployment changes or cluster tests have been performed as part of writing this item.
 
 ## Ground rules
 
@@ -31,21 +39,16 @@ the flag off downgrades the demo instead of breaking it:
 | Agent players | LLM picks a pacing strategy | Scripted bots with fixed strategies |
 | Track and car themes | Generated from a prompt | Preset themes picked from a list |
 
-The LangChain4j dependency stays in the build, with its model integration and Dev Services off by
-default so that a plain `./mvnw quarkus:dev` doesn't pull an Ollama model. A `GET /api/features`
-endpoint tells the UI which flags are on, and the UI hides AI panels when they're off. The first AI
-PR (1.4) needs to confirm the exact LangChain4j properties for this: `enable-integration=false` on
-the provider and `quarkus.langchain4j.devservices.enabled=false`.
+Feature 1.4 adds the LangChain4j OpenAI extension, with its model integration and Dev Services off
+by default. A plain `./mvnw quarkus:dev` needs no model or API key. A `GET /api/features` endpoint
+tells the UI which flags are on. Template commentary remains visible when AI is off.
 
-Two model providers are supported. OpenAI with a small, cheap chat model is the default when the
-flag is on, and it reads the API key from `OPENAI_API_KEY` locally and from a secret on the
-cluster. Ollama with a Granite model is the alternative, activated by an `ollama` config profile
-that also turns on the Ollama Dev Service. The model names are config values, so you can pick the
-cheapest current OpenAI model and Granite tag when you implement 1.4 instead of fixing them now.
-With both provider extensions on the classpath, LangChain4j needs to be told which one to use.
-1.4 has to check whether that choice is a build-time property. If it is, switching providers means
-building with a different profile, which is fine for dev mode and for the cluster image but rules
-out switching on stage without a restart.
+Use one OpenAI-compatible provider integration. OpenAI is the default endpoint when AI is on,
+with the API key from `OPENAI_API_KEY` locally and from a secret on the cluster. The base URL and
+model name are configurable, so an Ollama or another local server can use the same integration
+when it supports the required Chat Completions API. There is no separate Ollama extension,
+profile or model Dev Service. Endpoint, model and AI flag changes take effect on restart; 1.4
+must verify that the same packaged build supports them.
 
 ## Kafka and deployment targets
 
@@ -267,8 +270,8 @@ server helped build the app and the app now runs one itself.
 
 #### What was built
 
-Status: implemented on the `mcp-server` branch, not merged. The template chart change is commit
-`6b6fad5` on the template's `wind-turbine-remote` branch, not pushed.
+Status: committed on `main` as `1abf286`. The template chart change is commit `6b6fad5` on the
+template's `wind-turbine-remote` branch. Cluster verification is deferred while work moves to 1.4.
 
 `RaceTools` defines two MCP servers. `/mcp` needs no login and has `get_race_state`,
 `get_leaderboard`, `get_player` and the resource `race://current`, which sends an update
@@ -304,9 +307,13 @@ the race. `PlayerStandingTest` covers the `get_player` ranking.
 
 Verified in dev mode with the dashboard open in a browser: a `developer` token from Keycloak called
 `start_race` over `/admin/mcp`, and the dashboard showed the race running. The browser login from
-Claude Code and goose, and the Keycloak resources on a cluster, aren't verified yet.
+Claude Code and goose isn't verified yet and remains a follow-up. Verification of the Keycloak
+resources on a cluster is deferred and doesn't block 1.4.
 
 ### 1.4 Add a race commentator, with or without an LLM
+
+The implementation plan is in
+[`docs/plans/1.4-race-commentator.md`](plans/1.4-race-commentator.md).
 
 The commentator subscribes to `race-progress` and game events and posts a short line when something
 notable happens, such as a lead change, a team crossing 25/50/75%, a player surge or the finish. It
@@ -320,13 +327,147 @@ LangChain4j implementation needs a timeout and a length guardrail, and it falls 
 template line if the model is slow or fails. Commentary goes out through the dashboard WebSocket
 from 1.2 and appears as a ticker.
 
-This PR sets up both model providers described in the ground rules, with OpenAI as the default and
-Granite on Ollama under the `ollama` profile.
+This PR adds the OpenAI-compatible provider described in the ground rules, with a configurable
+base URL and model name for hosted or local endpoints.
 
 Tests: template commentator unit tests, and a mocked AI service to check the trigger logic and the
 fallback on timeout.
 
 Demo moment: run the race with the flag off, turn it on, and run it again.
+
+#### What was built
+
+Status: implemented in this PR. Local verification is recorded in
+the [implementation plan](plans/1.4-race-commentator.md#verification-results). Cluster testing is
+deferred.
+
+`CommentaryTriggerDetector` detects lead changes, 25/50/75% milestones, player surges and finish
+from race snapshots. `CommentaryCoordinator` coalesces routine triggers, gives finish priority,
+and bounds work to one model call and one pending trigger. Templates are the default. With
+`GAME_AI_ENABLED=true`, a stateless LangChain4j AI service uses the configured OpenAI-compatible
+endpoint and falls back to templates on error, timeout or invalid output.
+
+One consumer group generates commentary from partition 0 of `race-progress`, and `race-commentary`
+distributes the lines to every replica. Replicas cache recent lines for reconnects, deduplicate
+event IDs, and reconcile independently arriving race, game and commentary updates. The dashboard
+displays the latest line in a polite live region and cancels all socket streams on close.
+`GET /api/features` reports the configured AI flag.
+
+Team names, colors and cars are configured in `application.properties` under `game.teams.1.*`
+and `game.teams.2.*`. The UI reads them from `GET /api/config`, and both commentary implementations
+use the same names. Finish commentary waits until the winning car completes its movement.
+
+The Kafka Streams race store now preserves a monotonic publication timestamp. A delayed power
+record can still determine race time, but its finish snapshot can no longer appear older than
+the preceding periodic snapshot and be discarded by commentary consumers.
+
+The topic is configured in Dev Services and the Strimzi manifest, with Confluent CLI instructions
+in `docs/openshift-install.md`. Both software-template Helm charts have the matching topic change.
+The README documents the hosted default and custom endpoint configuration.
+
+### 1.5 Deploy the game with Strimzi or Confluent Cloud
+
+Status: planned, not implemented. This item covers deploying the game and its dependencies and
+testing them on OpenShift after 1.4. Both Kafka options must support the same application image
+and JSON messages. Choose one provider per deployment:
+
+- Strimzi runs Kafka on the OpenShift cluster. The deployment provisions the operator, Kafka
+  cluster, persistent storage and topics.
+- Confluent Cloud provides Kafka externally. The deployment provisions or connects to a Cloud
+  cluster, creates the topics and permissions, and supplies the connection credentials to the app.
+
+#### Shared application and dependency deployment
+
+Create one application deployment definition with provider-specific configuration and resources.
+Consolidate the duplicated OpenShift settings in `application.properties`, keeping the existing
+`openshift-cluster` and `confluent` profiles usable. Replace the unconditional generated
+`QUARKUS_PROFILE=openshift-cluster` setting so a Confluent deployment selects the correct runtime
+profile. Verify that switching providers needs only deployment configuration, without rebuilding
+the image or changing serializers.
+
+Parameterize the namespace, image registry and tag, route host, replica count, resource requests
+and limits, storage class and dependency endpoints. Build with Java 25 and use a unique image tag.
+Configure startup, readiness and liveness probes, an HTTPS route and graceful shutdown for the
+WebSocket connections. Deploy directly first, with GitOps and Pipelines documented as optional
+automation rather than prerequisites for running the game.
+
+Add a repeatable Infinispan deployment with persistent storage and explicit counter/state
+configuration. Its service name and authentication secret must match the app configuration rather
+than depend on manually creating `infinispan-generated-secret`. Allow an existing Infinispan
+service to be supplied. Separate deployments must use independent game state, including their
+Infinispan counters, even when both Kafka options run side by side.
+
+Create secret references for the dashboard password, Infinispan credentials and one shared
+`quarkus.http.auth.session.encryption-key` across all app replicas. Keep these references in the
+deployment definition so a redeploy preserves them. Supply team configuration, AI mode and model
+settings through deployment configuration, with an optional OpenAI API-key secret. Template
+commentary must work without that secret.
+
+Support reusing an existing Keycloak instance or deploying Keycloak with PostgreSQL and persistent
+storage when admin MCP access is needed. Split the realm import from instance creation so reusing
+Keycloak does not replace an existing installation. Update
+`src/main/kubernetes/keycloak/keycloak.yaml` for the operator APIs served by the target cluster
+and its namespace scope. The inspected cluster serves `v2alpha1`, while this manifest currently
+uses `v2beta1`. Import the `wind-turbine` realm with the admin role, audience mapper, MCP client
+and required OAuth callbacks. Configure the external issuer URL and certificate trust from the
+app pods, and provide the realm import's password secret in the realm import's namespace.
+
+#### Strimzi on OpenShift
+
+Replace the software template's Kafka 3.4/ZooKeeper manifest with a KRaft deployment supported by
+the chosen Strimzi operator release. Include `Kafka` and `KafkaNodePool` resources, three brokers
+and a controller quorum, persistent volumes and a topic operator. Document operator installation and namespace scope,
+including the Red Hat Streams distribution where appropriate.
+
+Update `src/main/kubernetes/openshift.cluster.yml` and the software-template Helm resources to
+create `power`, `game-events`, `race-progress` and `race-commentary` before the game starts. Keep
+the race inputs on partition 0 and use one partition for these topics. Set replication to three,
+compact `race-progress`, and retain `race-commentary` for one hour. Configure replication for
+Kafka Streams internal topics as well. Supply the internal bootstrap endpoint and configure
+listener authentication, TLS and secrets consistently for both messaging and Kafka Streams.
+
+#### Confluent Cloud
+
+Keep Strimzi operators and Kafka custom resources out of the Confluent deployment. Provide
+repeatable Cloud topic and permission provisioning, using the same four topic names, partition
+counts and retention policies as the Strimzi path. The app may use an existing Cloud cluster.
+Document cluster selection or creation, region and the network access needed from OpenShift.
+
+Wire `CONFLUENT_BOOTSTRAP_SERVERS`, `CONFLUENT_API_KEY` and `CONFLUENT_API_SECRET` through deployment
+configuration and secrets. Apply SASL/TLS settings to both reactive messaging and Kafka Streams.
+Keep internal-topic replication at three. Grant access to the application topics, the shared
+commentary consumer group, per-replica consumer groups and Kafka Streams internal topics and
+groups. Account for the current UUID-based group names when defining permissions. Topic creation
+and ACL provisioning must complete before the app rollout.
+
+#### Documentation and software templates
+
+Update `README.md` and `docs/openshift-install.md` with complete prerequisites, build and deploy
+steps, secret setup, dependency readiness checks and cleanup for each provider. Explain which
+resources are created and which existing services can be reused. Keep credentials out of source
+control and distinguish deleting the app from deleting persistent data or Cloud resources.
+
+Add the provider choice to both software-template variants and their Helm charts. Include
+Strimzi resources only for that option and Cloud connection secrets only for Confluent. Preserve
+the shared Infinispan, Keycloak, application and route configuration in both paths.
+
+#### Cluster verification
+
+Run the same acceptance checks against both providers with AI disabled first, then with OpenAI
+when credentials are available. Verify rollout, dependency health, team configuration, dashboard
+login, player WebSockets, read-only MCP and authenticated admin MCP access through HTTPS.
+
+Use `GameLoader --ws` for simulated players and a few browser contexts for UI checks. Verify race
+progress and finish, commentary timing and team names, pause/resume, reset and reconnect replay.
+Scale the app to five replicas and confirm that login works across pods, every dashboard receives
+the same commentary IDs, and only one consumer owns commentary generation. Restart the Streams
+owner and commentary owner during a race, check state recovery and reassignment, and verify that
+stale commentary is not replayed. Cover a new pod joining an already running race, including the
+known game-status initialization follow-up. Record failures and required fixes before marking
+either deployment path verified.
+
+Demo moment: deploy the same image once with Strimzi and once with Confluent Cloud, then run the
+same race checks through each deployment's route.
 
 ## Stage 2: agents as players and as developers
 
@@ -432,8 +573,9 @@ Tests: a finished race appears in the hall of fame, and a reset race does not.
 
 ### 4.3 Support more than two teams
 
-The backend from 1.1 already handles any number of teams. This feature moves the team definitions
-from `Config.js` to a `game.teams` config served by `GET /api/game/config`, removes the
+The backend from 1.1 already handles any number of teams. Feature 1.4 moved the two team definitions
+to `game.teams` config served by `GET /api/config`. This feature extends that endpoint to return
+all configured teams, removes the
 `destination() > 2` check in favor of the configured count, and updates the UI where it assumes
 two teams:
 
@@ -536,9 +678,6 @@ after the assignments.
   that created it. This was already the case before 1.1.
 - Turn on `processing.guarantee=exactly_once_v2` for the cluster profiles, so a Streams crash at
   the finish can't emit `finish` twice. Dev Services Kafka stays at-least-once.
-- Change the Quarkus Agent MCP (`~/workspace/kdubois/quarkus-agent-mcp`, `ProjectFiles`) to stop
-  generating `CLAUDE.md`, or to write `@AGENTS.md` so the file imports the instructions instead of
-  linking to them. The project hook can then go.
 - Make `GameLoader` use player IDs that real phones don't get. It assigns IDs from 0, and the
   users counter hands out the same IDs to phones, so a phone and a bot can end up as one player.
 - Find out why the socket tests hang in the dev-mode test runner (`devui-testing_runTest`). They
@@ -547,7 +686,7 @@ after the assignments.
   dashboard socket only authenticates on the pod that created the session.
 - Add goose's OAuth callback to the `mcp-agent` redirect URIs, and check the browser login with
   Claude Code and goose against `/admin/mcp`.
-- Check the Keycloak resources on a cluster with the RHBK operator: the edge route, the password
+- Deferred: check the Keycloak resources on a cluster with the RHBK operator: the edge route, the password
   placeholder in the realm import, and whether the app trusts the router's certificate when it
   calls Keycloak through the external host.
 - New pods read `game-events` from the latest offset, so a pod that starts during a race reports

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import io.quarkus.runtime.annotations.RegisterForReflection;
 import io.quarkus.websockets.next.HttpUpgradeCheck;
 import io.quarkus.websockets.next.OnOpen;
+import io.quarkus.websockets.next.OnClose;
 import io.quarkus.websockets.next.WebSocket;
 import io.quarkus.websockets.next.WebSocketConnection;
 import io.smallrye.mutiny.Multi;
@@ -14,6 +15,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.acme.GameResource.GameEvent;
 
 import java.net.URI;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * The dashboard's connection. It receives the current race on connect, then every race snapshot and game event.
@@ -26,25 +30,54 @@ public class DashboardSocket {
 
     private final GameResource game;
     private final RaceResource race;
+    private final CommentaryFeed commentary;
+    private static final Object CLOSED = new Object();
+    private final Map<String, CompletableFuture<Void>> closing = new ConcurrentHashMap<>();
 
-    public DashboardSocket(GameResource game, RaceResource race) {
+    public DashboardSocket(GameResource game, RaceResource race, CommentaryFeed commentary) {
         this.game = game;
         this.race = race;
+        this.commentary = commentary;
     }
 
     @OnOpen
     public Multi<DashboardMessage> open(WebSocketConnection connection) {
-        return Multi.createBy().merging().streams(
-            Multi.createBy().concatenating().streams(Multi.createFrom().item(race::state),
-                    PlayerSocket.whileOpen(race.updates(), connection))
-                .map(DashboardMessage.Race::new),
-            PlayerSocket.whileOpen(game.updates(), connection).map(DashboardMessage.Game::new));
+        CompletableFuture<Void> closed = new CompletableFuture<>();
+        closing.put(connection.id(), closed);
+        Multi<DashboardMessage> live = Multi.createBy().merging().streams(
+            race.updates().map(DashboardMessage.Race::new),
+            game.updates().map(DashboardMessage.Game::new),
+            commentary.updates().map(DashboardMessage.Comment::new));
+        Multi<DashboardMessage> messages = Multi.createBy().concatenating().streams(
+            Multi.createFrom().item(() -> (DashboardMessage) new DashboardMessage.Race(race.state())),
+            Multi.createFrom().iterable(commentary.latest().stream()
+                .<DashboardMessage>map(DashboardMessage.Comment::new).toList()),
+            live);
+        // WebSockets Next doesn't cancel the returned Multi on close. A quiet commentary stream must end too.
+        return untilClosed(messages, closed)
+            .onTermination().invoke(() -> closing.remove(connection.id(), closed));
+    }
+
+    static Multi<DashboardMessage> untilClosed(Multi<DashboardMessage> messages, CompletableFuture<Void> closed) {
+        return Multi.createBy().merging().streams(messages.<Object>map(message -> message),
+                Uni.createFrom().completionStage(closed).replaceWith(CLOSED).toMulti())
+            .select().first(item -> item != CLOSED)
+            .map(item -> (DashboardMessage) item);
+    }
+
+    @OnClose
+    public void close(WebSocketConnection connection) {
+        CompletableFuture<Void> closed = closing.remove(connection.id());
+        if (closed != null) {
+            closed.complete(null);
+        }
     }
 
     @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
     @JsonSubTypes({
         @JsonSubTypes.Type(value = DashboardMessage.Race.class, name = "race"),
-        @JsonSubTypes.Type(value = DashboardMessage.Game.class, name = "game")
+        @JsonSubTypes.Type(value = DashboardMessage.Game.class, name = "game"),
+        @JsonSubTypes.Type(value = DashboardMessage.Comment.class, name = "commentary")
     })
     public sealed interface DashboardMessage {
 
@@ -54,6 +87,10 @@ public class DashboardSocket {
 
         @RegisterForReflection
         record Game(GameEvent event) implements DashboardMessage {
+        }
+
+        @RegisterForReflection
+        record Comment(Commentary commentary) implements DashboardMessage {
         }
     }
 
