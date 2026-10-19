@@ -1,0 +1,65 @@
+# Infinispan for the game's clustered counters, as an OpenShift template so the password is generated
+# per deployment:
+#
+#   oc process -f src/main/kubernetes/infinispan/infinispan.yaml | oc apply -f -
+#
+# Needs the community Infinispan operator in the namespace. The app defines the "users" and "races"
+# counters at startup (GameResource), so no server-side cache or counter config is required here. The
+# counters are PERSISTENT, so the instance keeps a data volume and the race and user IDs survive a
+# restart. Quarkus doesn't read this directory, so deploying the app doesn't apply it.
+#
+# To reuse an existing Infinispan service instead of this one, skip this template and set
+# infinispan-host, infinispan-username and the infinispan-credentials secret to match it. Each
+# namespace gets its own instance and its own counters, so separate deployments keep independent
+# game state.
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: wind-turbine-infinispan
+parameters:
+  - name: INFINISPAN_PASSWORD
+    description: Password for the game's Infinispan user. Generated when not supplied.
+    generate: expression
+    from: '[a-zA-Z0-9]{16}'
+  - name: STORAGE_SIZE
+    description: Size of the Infinispan data volume
+    value: 1Gi
+  - name: REPLICAS
+    description: Number of Infinispan nodes
+    value: "1"
+objects:
+  # One secret holds both the identities file the operator reads and the password the app maps into
+  # INFINISPAN_PASSWORD, from the same value so they can't drift. The app connects as this user.
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: infinispan-credentials
+    type: Opaque
+    stringData:
+      username: developer
+      password: ${INFINISPAN_PASSWORD}
+      identities.yaml: |
+        credentials:
+          - username: developer
+            password: ${INFINISPAN_PASSWORD}
+            # deployer is the least-privilege built-in role with CREATE, which the app needs to define
+            # the "users" and "races" counters. application has no CREATE; admin is broader than needed.
+            roles:
+              - deployer
+  - apiVersion: infinispan.org/v1
+    kind: Infinispan
+    metadata:
+      name: infinispan
+    spec:
+      replicas: ${{REPLICAS}}
+      # Use the credentials above instead of the operator-generated secret.
+      security:
+        endpointSecretName: infinispan-credentials
+        # The Hot Rod client authenticates with SASL but no TLS, so serve the endpoint in plaintext.
+        endpointEncryption:
+          type: None
+      # DataGrid service is required for clustered counters and persistent storage.
+      service:
+        type: DataGrid
+        container:
+          storage: ${STORAGE_SIZE}
