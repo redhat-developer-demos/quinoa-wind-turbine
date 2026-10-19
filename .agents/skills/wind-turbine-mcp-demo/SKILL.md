@@ -18,14 +18,16 @@ power. Team 1 is Mountains and team 2 is Beach.
 
 ## Before the demo
 
-1. Make sure dev mode runs. With the Quarkus Agent MCP, call `quarkus_status` and `quarkus_start` if
-   needed. Otherwise the user runs `./mvnw quarkus:dev`.
+1. Make sure dev mode runs with OIDC enabled. The default game runs without Keycloak, so admin MCP
+   needs `GAME_OIDC_ENABLED=true` in the dev process environment. With the Quarkus Agent MCP, its
+   server process must inherit that environment variable before `quarkus_start`. Otherwise start
+   with `GAME_OIDC_ENABLED=true ./mvnw quarkus:dev`. Check status with `quarkus_status`.
 2. Check that both game servers are connected. If `wind-turbine-race` shows `ECONNREFUSED`, it was
    probably tried before dev mode started: ask the user to run `/mcp`, pick it and choose Reconnect.
    It needs no login, so Authenticate is the wrong choice for it.
 3. The admin login opens a browser, so only the user can do it: `/mcp`, pick `wind-turbine-admin`,
-   choose Authenticate, and log in as `developer` / `developer`. Keycloak Dev Services gets a new
-   port every time dev mode starts, so the user has to authenticate again after each restart.
+   choose Authenticate, and log in as `developer` / `developer`. Keycloak Dev Services uses port
+   8181 in dev mode. The user may need to authenticate again when the realm or its keys change.
 4. Ask the user to open `http://localhost:8080/dashboard` in a browser (same login) so the audience
    sees the race. The dashboard follows the server's state, so it shows what the tools do.
 5. Each tool call waits for a permission prompt or an auto-mode check, which can take several
@@ -98,7 +100,7 @@ Read-only calls work the same way against `$B/mcp` without the `Authorization` h
   Keycloak. Authenticate again.
 - A 403 means the token is valid but the user lacks the `admin` role. Only `developer` has it in
   the dev realm.
-- Outside dev mode, `/admin/mcp` works only when the deployment sets `GAME_OIDC_ENABLED=true` and
+- `/admin/mcp` requires `GAME_OIDC_ENABLED=true` in every mode. Outside dev mode, also set
   `GAME_OIDC_URL`. See `docs/openshift-install.md`. For a deployed app, add a server with
   `claude mcp add --transport http --client-id mcp-agent --callback-port 33418 wind-turbine-admin https://<route>/admin/mcp`.
 - Don't use Playwright or browser instances to simulate players. Use `GameLoader`, as `AGENTS.md`
