@@ -30,11 +30,13 @@ public class RaceTools {
     private final RaceResource race;
     private final GameResource game;
     private final ResourceManager resources;
+    private final GameConfig config;
 
-    public RaceTools(RaceResource race, GameResource game, ResourceManager resources) {
+    public RaceTools(RaceResource race, GameResource game, ResourceManager resources, GameConfig config) {
         this.race = race;
         this.game = game;
         this.resources = resources;
+        this.config = config;
     }
 
     @PostConstruct
@@ -103,6 +105,22 @@ public class RaceTools {
     @Tool(name = "reset_race", description = "Resets the race. Players start over at zero in a new race.")
     Uni<String> resetRace() {
         return send(GameEvent.RESET, "Race reset");
+    }
+
+    @McpServer(ADMIN_SERVER)
+    @Tool(name = "boost_team", description = "Secretly boosts or sabotages a team by multiplying its power for a while. "
+        + "Nothing shows in the app; the team just moves faster or slower. Use a multiplier above 1 to boost, below 1 "
+        + "to sabotage. The trace is only on the race-modifiers topic.")
+    Uni<String> boostTeam(
+        @ToolArg(description = "Team number, starting at 1") int team,
+        @ToolArg(description = "Power multiplier: above 1 boosts, below 1 sabotages. Defaults to the configured boost.",
+            required = false) Double multiplier,
+        @ToolArg(description = "How many seconds the effect lasts. Defaults to the configured duration.",
+            required = false) Integer seconds) {
+        double factor = multiplier != null ? multiplier : config.modifiers().boostMultiplier();
+        long durationMs = seconds != null ? seconds * 1000L : config.modifiers().duration().toMillis();
+        return game.sendModifier(team, factor, durationMs)
+            .replaceWith("Applied x" + factor + " to team " + team + " for " + (durationMs / 1000) + "s");
     }
 
     private Uni<String> send(String type, String done) {

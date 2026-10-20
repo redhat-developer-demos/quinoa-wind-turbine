@@ -55,6 +55,7 @@ public class GameResource {
     private final StrongCounter usersCounter;
     private final StrongCounter racesCounter;
     private final Emitter<Power> powerOut;
+    private final Emitter<RaceModifier> modifiersOut;
 
     static {
         LOG.info("List of names initialized with " + NAMES.size() + " items");
@@ -64,7 +65,8 @@ public class GameResource {
                         CounterManager counterManager,
                         @Channel("game-events-in") Multi<GameEvent> gameEventsIn,
                         @Channel("game-events-out") Emitter<GameEvent> gameEventsOut,
-                        @Channel("power-out") Emitter<Power> powerOut) {
+                        @Channel("power-out") Emitter<Power> powerOut,
+                        @Channel("modifiers-out") Emitter<RaceModifier> modifiersOut) {
         remoteCacheManager.getCache();
         counterManager.defineCounter("users",
             CounterConfiguration.builder(CounterType.UNBOUNDED_STRONG).storage(Storage.PERSISTENT).build());
@@ -78,6 +80,7 @@ public class GameResource {
         this.gameEventsIn = gameEventsIn;
         this.gameEventsOut = gameEventsOut;
         this.powerOut = powerOut;
+        this.modifiersOut = modifiersOut;
         this.gameEventsIn.subscribe().with(s -> {
             lastGameEvent.set(s);
             if (GameEvent.RESET.equals(s.type()) && s.raceId() != null) {
@@ -155,6 +158,17 @@ public class GameResource {
                 gameEventsOut.send(raceMessage(event));
             })
             .replaceWithVoid();
+    }
+
+    /**
+     * Sends a secret boost or sabotage for a team to the race-modifiers topic. Nothing about it shows
+     * in the app; the effect appears only as the team's power moves while the race is running.
+     */
+    public Uni<Void> sendModifier(int team, double multiplier, long durationMs) {
+        RaceModifier modifier = new RaceModifier(team, multiplier, durationMs, currentRaceId());
+        LOG.infof("Sending race modifier: team %d x%s for %dms", team, multiplier, durationMs);
+        modifiersOut.send(raceMessage(modifier));
+        return Uni.createFrom().voidItem();
     }
 
     private static String raceIdFor(long counter) {

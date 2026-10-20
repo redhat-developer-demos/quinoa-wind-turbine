@@ -25,6 +25,7 @@ import java.util.Properties;
 import static org.acme.RaceTopology.GAME_EVENTS_TOPIC;
 import static org.acme.RaceTopology.POWER_TOPIC;
 import static org.acme.RaceTopology.RACE_KEY;
+import static org.acme.RaceTopology.RACE_MODIFIERS_TOPIC;
 import static org.acme.RaceTopology.RACE_PROGRESS_TOPIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -40,6 +41,7 @@ class RaceTopologyTest {
     private TopologyTestDriver driver;
     private TestInputTopic<String, Power> power;
     private TestInputTopic<String, GameEvent> gameEvents;
+    private TestInputTopic<String, RaceModifier> raceModifiers;
     private TestOutputTopic<String, RaceState> progress;
     private TestOutputTopic<String, GameEvent> finishEvents;
 
@@ -53,6 +55,8 @@ class RaceTopologyTest {
             new ObjectMapperSerde<>(Power.class).serializer());
         gameEvents = driver.createInputTopic(GAME_EVENTS_TOPIC, new StringSerializer(),
             new ObjectMapperSerde<>(GameEvent.class).serializer());
+        raceModifiers = driver.createInputTopic(RACE_MODIFIERS_TOPIC, new StringSerializer(),
+            new ObjectMapperSerde<>(RaceModifier.class).serializer());
         progress = driver.createOutputTopic(RACE_PROGRESS_TOPIC, new StringDeserializer(),
             new ObjectMapperSerde<>(RaceState.class).deserializer());
         finishEvents = driver.createOutputTopic(GAME_EVENTS_TOPIC, new StringDeserializer(),
@@ -248,6 +252,79 @@ class RaceTopologyTest {
         assertEquals(Status.STARTED, race.status());
         assertNull(race.winner());
         assertTrue(finishEvents.readValuesToList().stream().noneMatch(e -> e.raceId() == null));
+    }
+
+    @Test
+    void aBoostRaisesATeamsDistanceForTheSamePower() {
+        reset("race-1", 0);
+        power("ada", 1, 0, "race-1", 10);
+        power("cy", 2, 0, "race-1", 10);
+        start(1_000);
+        modifier(1, 2.0, 10_000, "race-1", 1_100);
+        power("ada", 1, 30, "race-1", 1_200);
+        power("cy", 2, 30, "race-1", 1_300);
+
+        RaceState race = snapshot();
+        // Team 1's 30 power counts as 60, so it leads although both teams tapped the same.
+        assertEquals(List.of(
+            new TeamState(1, 1, 1, 60, 40.0, null),
+            new TeamState(2, 2, 1, 30, 20.0, null)), race.teams());
+        // Each player's own generated power stays raw, so the leaderboard is unaffected by the boost.
+        assertEquals(List.of(
+            new PlayerState("ada", 1, 30),
+            new PlayerState("cy", 2, 30)), race.players());
+    }
+
+    @Test
+    void aSabotageLowersATeamsDistance() {
+        reset("race-1", 0);
+        power("ada", 1, 0, "race-1", 10);
+        start(1_000);
+        modifier(1, 0.5, 10_000, "race-1", 1_100);
+        power("ada", 1, 40, "race-1", 1_200);
+
+        RaceState race = snapshot();
+        // 40 power counts as 20 for the team, though ada generated 40.
+        assertEquals(20, race.teams().getFirst().power());
+        assertEquals(40, race.players().getFirst().generated());
+    }
+
+    @Test
+    void aModifierStopsApplyingAfterItExpires() {
+        reset("race-1", 0);
+        power("ada", 1, 0, "race-1", 10);
+        start(1_000);
+        // The boost lasts one second of race time, so it expires at elapsed 1100.
+        modifier(1, 2.0, 1_000, "race-1", 1_100);
+        power("ada", 1, 30, "race-1", 1_200);   // elapsed 200: boosted, counts 60
+        power("ada", 1, 30, "race-1", 3_000);   // elapsed 2000: expired, counts 30
+
+        RaceState race = snapshot();
+        assertEquals(90, race.teams().getFirst().power());
+        assertEquals(60, race.players().getFirst().generated());
+    }
+
+    @Test
+    void aModifierForOneTeamDoesNotAffectAnother() {
+        reset("race-1", 0);
+        power("ada", 1, 0, "race-1", 10);
+        power("cy", 2, 0, "race-1", 10);
+        start(1_000);
+        modifier(1, 2.0, 10_000, "race-1", 1_100);
+        power("ada", 1, 25, "race-1", 1_200);
+        power("cy", 2, 25, "race-1", 1_300);
+
+        RaceState race = snapshot();
+        assertEquals(50, team(race, 1).power());
+        assertEquals(25, team(race, 2).power());
+    }
+
+    private TeamState team(RaceState race, int id) {
+        return race.teams().stream().filter(t -> t.id() == id).findFirst().orElseThrow();
+    }
+
+    private void modifier(int team, double multiplier, long durationMs, String raceId, long at) {
+        raceModifiers.pipeInput(RACE_KEY, new RaceModifier(team, multiplier, durationMs, raceId), T0.plusMillis(at));
     }
 
     private void reset(String raceId, long at) {

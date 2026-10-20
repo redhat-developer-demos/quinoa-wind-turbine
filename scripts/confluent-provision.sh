@@ -31,10 +31,11 @@ confluent kafka topic create power          --partitions 1 || true
 confluent kafka topic create game-events    --partitions 1 || true
 confluent kafka topic create race-progress  --partitions 1 --config cleanup.policy=compact || true
 confluent kafka topic create race-commentary --partitions 1 --config retention.ms=3600000 || true
+confluent kafka topic create race-modifiers  --partitions 1 --config retention.ms=3600000 || true
 
 echo "Granting topic ACLs to service account $SA..."
-# The app produces to and consumes from the four game topics.
-for t in power game-events race-progress race-commentary; do
+# The app produces to and consumes from the game topics.
+for t in power game-events race-progress race-commentary race-modifiers; do
   confluent kafka acl create --allow --service-account "$SA" --operations READ,WRITE,DESCRIBE --topic "$t"
 done
 # Kafka Streams creates and uses its own changelog and repartition topics, prefixed with the

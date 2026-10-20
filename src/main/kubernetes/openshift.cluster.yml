@@ -102,3 +102,16 @@ spec:
   replicas: 3
   config:
     retention.ms: 3600000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: race-modifiers
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  partitions: 1
+  replicas: 3
+  config:
+    # Keep the secret-boost events around for an hour so the Confluent investigation can inspect them.
+    retention.ms: 3600000
