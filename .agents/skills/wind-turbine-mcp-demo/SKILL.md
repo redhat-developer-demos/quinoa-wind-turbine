@@ -16,6 +16,51 @@ The app is an MCP server with two endpoints, configured in `.mcp.json` (Claude C
 teams in race order with `distance` in percent of the track, and the players sorted by generated
 power. Team 1 is Mountains and team 2 is Beach.
 
+## Running against a cluster deployment
+
+The `.mcp.json` / `.bob/mcp.json` URLs point at `localhost:8080` for dev mode. To drive a deployment
+on OpenShift, point the client at the route instead, for example `https://<app-route>/mcp` and
+`https://<app-route>/admin/mcp`. With Bob: `bob mcp add wind-turbine-race-cluster https://<route>/mcp
+-t http --scope global` (and the same for `/admin/mcp`). Headless `bob run` needs `BOB_API_KEY` set in
+the environment.
+
+Admin MCP on the cluster needs OIDC and a Keycloak realm that lets the agent register a client:
+
+- Enable OIDC on the deployment with `GAME_OIDC_ENABLED=true` and `GAME_OIDC_URL=https://<keycloak>/realms/wind-turbine`.
+  A Quarkus redeploy replaces the deployment and drops variables set with `oc set env`, so re-apply
+  them (or bake them into the build) after every redeploy.
+- The `wind-turbine` realm must have the client-registration policies and the `wind-turbine-audience`
+  default scope from `src/main/kubernetes/keycloak/realm-import.yaml`, and no "Trusted Hosts" policy,
+  so an agent like Bob can register a client dynamically and get a token with the `wind-turbine`
+  audience. A realm imported before those were added keeps Keycloak's strict Trusted Hosts default and
+  rejects registration ("Host not trusted"); re-importing is additive, so recreate the realm fresh.
+- Read-only `/mcp` tools work with no login, so a headless agent can watch a cluster race at once.
+  Admin tools need a one-time interactive OAuth login the agent can't do headless: run `bob chat` (or,
+  in Claude Code, `/mcp` then Authenticate) and log in as `developer`, which caches the token.
+
+## Smooth demo rule: no commands that need approval
+
+When the user asks to run, start or demo the game, drive it **only** through tools that don't prompt:
+the `wind-turbine-race` / `wind-turbine-admin` MCP tools and the Quarkus Agent MCP (`quarkus_status`,
+`quarkus_start`, `quarkus_logs`). Don't use `execute_command`, `curl`, `lsof`, `ps`, `kill`, `sleep`
+or shell polling loops, and skip the HTTP fallback below. Each of those triggers an approval prompt
+and breaks the flow.
+
+- Check whether the app is up with `quarkus_status` or a `get_race_state` call, not `lsof` or `curl`.
+  If `get_race_state` answers, the app is already running: don't start a second instance.
+- Poll with `get_race_state`, but never call it 5 times in a row with identical arguments: the
+  tool runner treats that as a doom loop and aborts the run, so the demo stalls and the race ends
+  unreported. Alternate it with `get_leaderboard` (for team 1, then team 2, then no team), and keep
+  going until the status is `FINISHED`. Report each lead change and milestone as you see it, and
+  always report the final result. If the client can subscribe to `race://current`, subscribe instead
+  of polling. Plain reads of the resource return the same snapshot as `get_race_state`, so they don't
+  avoid the repeated-call guard.
+- The one command the demo can't avoid is the simulated-player launcher. It is pre-approved in
+  `.claude/settings.local.json` as `Bash(jbang scripts/GameLoader.java:*)`. Run exactly that
+  command, and nothing else, from the shell. If it isn't pre-approved (Bob), ask the user once to
+  start it, or to let real phones join.
+- If something fails and the fix needs a shell command, stop and tell the user. Don't improvise.
+
 ## Before the demo
 
 1. Make sure dev mode runs with OIDC enabled. The default game runs without Keycloak, so admin MCP
