@@ -92,7 +92,7 @@ To run load tests and analyze system behavior:
    * `--power` is the **maximum** per click; actual values are random in `[1, power]`, so players diverge naturally.
    * `--interval` controls milliseconds between click batches (default 200). Use `--interval 75` for ~20s races, `--interval 100` for ~45s races.
    * `--ws` sends clicks over the player WebSocket instead of `POST /api/power` (recommended).
-   * Set `--clicks` to at least `1500 / power` so every player reaches the finish line.
+   * Over WebSockets (`--ws`), the loader taps until the race finishes, so `--clicks` is only a safety cap. Each click is a random 1..power (about `power/2`), so finishing needs roughly `3000 / power` batches; the default cap (500) covers the usual powers. Without `--ws` there's no finish detection, so size `--clicks` to at least `3000 / power`.
 3. **Start the game:**
    * Open `http://localhost:8080/dashboard` in a browser (dev mode login: `developer` / `developer`, configured by `game.admin.*` in [`GameConfig.java`](src/main/java/org/acme/GameConfig.java) and checked by [`AdminIdentityProvider.java`](src/main/java/org/acme/AdminIdentityProvider.java)), and click the **Play** button.
    * Alternatively, send a POST event using an authenticated admin session to `/api/game/event` with `{"type":"start"}`.

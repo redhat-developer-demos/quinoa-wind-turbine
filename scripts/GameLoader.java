@@ -49,7 +49,9 @@ class GameLoader implements Callable<Integer> {
     @Option(names = {"-p", "--players"}, description = "The amount of players to assign", defaultValue = "50")
     private int players;
 
-    @Option(names = {"-c", "--clicks"}, description = "How many click each player will trigger", defaultValue = "100")
+    @Option(names = {"-c", "--clicks"}, description = "Safety cap on click batches per player; over WebSockets the loader "
+            + "stops when the race finishes. Each click is a random 1..power (about power/2), so finishing needs roughly "
+            + "3000/power batches.", defaultValue = "500")
     private int clicks;
 
     @Option(names = {"--power"}, description = "Click power (maximum, actual is random 1..power)", defaultValue = "15")
@@ -177,6 +179,7 @@ class GameLoader implements Callable<Integer> {
         HttpClient httpClient = vertx.createHttpClient(new HttpClientOptions().setTrustAll(true).setVerifyHost(false)
                 .setMaxWebSockets(users.size()));
         final List<WebSocket> sockets = Collections.synchronizedList(new ArrayList<>());
+        final AtomicBoolean finished = new AtomicBoolean(false);
         final CountDownLatch latchConnect = new CountDownLatch(users.size());
         for (JsonObject user : users) {
             WebSocketConnectOptions options = new WebSocketConnectOptions().setHost(url.getHost()).setPort(port)
@@ -188,9 +191,13 @@ class GameLoader implements Callable<Integer> {
                     WebSocket socket = r.result();
                     socket.textMessageHandler(text -> {
                         JsonObject message = new JsonObject(text);
-                        if ("status".equals(message.getString("type"))
-                                && "start".equals(message.getJsonObject("event").getString("type"))) {
-                            started.set(true);
+                        if ("status".equals(message.getString("type"))) {
+                            String event = message.getJsonObject("event").getString("type");
+                            if ("start".equals(event)) {
+                                started.set(true);
+                            } else if ("finish".equals(event)) {
+                                finished.set(true);
+                            }
                         }
                     });
                     sockets.add(socket);
@@ -205,20 +212,20 @@ class GameLoader implements Callable<Integer> {
         }
         System.out.println("game started");
 
-        final CountDownLatch latchClick = new CountDownLatch(sockets.size() * clicks);
-        for (int i = 0; i < clicks; i++) {
+        // Each click is a random 1..power, averaging about power/2, so a fixed click count often leaves
+        // the race near half way. Keep tapping until the race finishes; clicks is only a safety cap.
+        int batch = 0;
+        for (; batch < clicks && !finished.get(); batch++) {
             for (WebSocket socket : sockets) {
                 final String click = new JsonObject().put("quantity", R.nextInt(power) + 1).encode();
-                socket.writeTextMessage(click).onComplete(r -> {
-                    if (r.failed()) {
-                        r.cause().printStackTrace();
-                    }
-                    latchClick.countDown();
-                });
+                socket.writeTextMessage(click).onFailure(Throwable::printStackTrace);
             }
             Thread.sleep(interval);
         }
-        latchClick.await();
+        System.out.println(finished.get()
+                ? "race finished after " + batch + " batches"
+                : "clicks cap reached at " + batch + " batches (race not finished; raise --clicks)");
+        Thread.sleep(500);
         sockets.forEach(WebSocket::close);
     }
 }

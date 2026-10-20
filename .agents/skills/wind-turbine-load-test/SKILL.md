@@ -24,7 +24,7 @@ jbang scripts/GameLoader.java http://localhost:8080 --players 12 --clicks 600 --
 
 **Key options:**
 * `--players` — number of simulated players (split evenly across teams)
-* `--clicks` — how many click events each player sends; must be at least `1500 / power` for every player to finish
+* `--clicks` — a safety cap on click batches per player. With `--ws` the loader taps until the race finishes, so the cap rarely matters; each click is a random 1..power (about `power/2`), so finishing needs roughly `3000 / power` batches. Without `--ws` size it to at least `3000 / power`.
 * `--power` — maximum power per click (actual value is random 1..power, so average is ~power/2)
 * `--interval` — milliseconds between click batches (default 200); lower = faster race
 * `--ws` — send clicks over the player WebSocket instead of `POST /api/power` (recommended; players then wait for the `start` event on their socket)
