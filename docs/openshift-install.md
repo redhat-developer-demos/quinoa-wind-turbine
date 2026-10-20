@@ -106,7 +106,7 @@ own instance and counters, so two deployments keep independent game state.
 ## Deploy Kafka
 
 [`openshift.cluster.yml`](../src/main/kubernetes/openshift.cluster.yml) holds a KRaft Kafka cluster
-and the four topics. The cluster is one dual-role node pool of three nodes, giving three brokers and
+and the topics. The cluster is one dual-role node pool of three nodes, giving three brokers and
 a three-member controller quorum with persistent volumes, and the plain internal listener on 9092
 that the `openshift-cluster` profile points at:
 
@@ -115,9 +115,9 @@ oc apply -f src/main/kubernetes/openshift.cluster.yml
 oc wait --for=condition=Ready --timeout=360s kafka/my-cluster
 ```
 
-The topic operator creates `power`, `game-events`, `race-progress` (compacted) and `race-commentary`
-(one-hour retention), each with one partition and three replicas. The race inputs stay on partition 0
-so one Streams task owns the race. The `openshift-cluster` profile sets the Kafka Streams internal
+The topic operator creates `power`, `game-events`, `race-progress` (compacted), `race-commentary` and
+`race-modifiers` (both one-hour retention), each with one partition and three replicas. The race
+inputs stay on partition 0 so one Streams task owns the race. The `openshift-cluster` profile sets the Kafka Streams internal
 topics to three replicas as well.
 
 ## Deploy the application
@@ -280,7 +280,7 @@ confluent iam service-account create wind-turbine --description "Wind turbine ra
 confluent api-key create --service-account <service-account-id> --resource <cluster-id>
 ```
 
-Create the topics and the service account's ACLs with the provisioning script. It creates the four
+Create the topics and the service account's ACLs with the provisioning script. It creates the same
 topics with the same partitions and retention as the Strimzi path, and grants the service account
 access to those topics, the Kafka Streams internal topics (prefix `quinoa-wind-turbine-`) and the
 consumer groups (prefixes `wind-turbine-`, `commentary-` and `quinoa-wind-turbine`):

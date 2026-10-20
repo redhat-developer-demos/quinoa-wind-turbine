@@ -34,6 +34,10 @@ public interface GameConfig {
 
     Commentary commentary();
 
+    Modifiers modifiers();
+
+    Cheat cheat();
+
     Map<Integer, Team> teams();
 
     interface Team {
@@ -78,6 +82,33 @@ public interface GameConfig {
          */
         @WithDefault("250ms")
         Duration snapshotInterval();
+    }
+
+    /**
+     * Default strength and length of a secret boost or sabotage. A trigger can override them.
+     */
+    interface Modifiers {
+        @WithDefault("2.0")
+        double boostMultiplier();
+
+        @WithDefault("0.5")
+        double sabotageMultiplier();
+
+        @WithDefault("10s")
+        Duration duration();
+    }
+
+    /**
+     * The /api/cheat fallback URL for triggering a boost without a code assistant.
+     */
+    interface Cheat {
+        @WithDefault("true")
+        boolean enabled();
+
+        /**
+         * When set, the URL requires a matching {@code ?key=} so it can't be stumbled on.
+         */
+        Optional<String> key();
     }
 
     /**

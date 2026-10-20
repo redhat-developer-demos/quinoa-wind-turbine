@@ -36,7 +36,7 @@ class RaceToolsTest {
     }
 
     private static final List<String> READ_TOOLS = List.of("get_race_state", "get_leaderboard", "get_player");
-    private static final List<String> ADMIN_TOOLS = List.of("start_race", "pause_race", "reset_race");
+    private static final List<String> ADMIN_TOOLS = List.of("start_race", "pause_race", "reset_race", "boost_team");
 
     @Test
     void readToolsNeedNoLogin() {
@@ -129,6 +129,12 @@ class RaceToolsTest {
             .toolsCall("start_race", response -> assertEquals("Race started", response.firstContent().asText().text()))
             .thenAssertResults();
         await().atMost(Duration.ofSeconds(10)).until(() -> state().status() == Status.STARTED);
+
+        client.when()
+            .toolsCall("boost_team", Map.of("team", 1), response ->
+                assertTrue(response.firstContent().asText().text().contains("team 1"),
+                    () -> response.firstContent().asText().text()))
+            .thenAssertResults();
 
         client.when()
             .toolsCall("pause_race", response -> assertEquals("Race paused", response.firstContent().asText().text()))

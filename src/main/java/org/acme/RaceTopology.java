@@ -47,12 +47,14 @@ public class RaceTopology {
     static final String POWER_TOPIC = "power";
     static final String GAME_EVENTS_TOPIC = "game-events";
     static final String RACE_PROGRESS_TOPIC = "race-progress";
+    static final String RACE_MODIFIERS_TOPIC = "race-modifiers";
 
     static final String RACE_KEY = "race";
     static final int RACE_PARTITION = 0;
 
     static final String RACE_STORE = "race";
     static final String PLAYERS_STORE = "race-players";
+    static final String MODIFIERS_STORE = "race-modifiers-state";
 
     @Produces
     Topology raceTopology(GameConfig config) {
@@ -75,6 +77,9 @@ public class RaceTopology {
             Serdes.String(), new ObjectMapperSerde<>(Race.class)).withCachingEnabled());
         builder.addStateStore(Stores.keyValueStoreBuilder(Stores.inMemoryKeyValueStore(PLAYERS_STORE),
             Serdes.String(), new ObjectMapperSerde<>(PlayerState.class)).withCachingEnabled());
+        // Active secret boosts per team. Kept server-side only, never published in a snapshot.
+        builder.addStateStore(Stores.keyValueStoreBuilder(Stores.inMemoryKeyValueStore(MODIFIERS_STORE),
+            Serdes.String(), new ObjectMapperSerde<>(ActiveModifier.class)).withCachingEnabled());
 
         KStream<String, RaceInput> power = builder
             .stream(POWER_TOPIC, Consumed.with(Serdes.String(), new ObjectMapperSerde<>(Power.class)))
@@ -82,9 +87,12 @@ public class RaceTopology {
         KStream<String, RaceInput> gameEvents = builder
             .stream(GAME_EVENTS_TOPIC, Consumed.with(Serdes.String(), new ObjectMapperSerde<>(GameEvent.class)))
             .mapValues(RaceInput.GameEventReceived::new);
+        KStream<String, RaceInput> modifiers = builder
+            .stream(RACE_MODIFIERS_TOPIC, Consumed.with(Serdes.String(), new ObjectMapperSerde<>(RaceModifier.class)))
+            .mapValues(RaceInput.ModifierReceived::new);
 
-        KStream<String, RaceUpdate> updates = power.merge(gameEvents)
-            .process(() -> new RaceProcessor(rules, snapshotInterval), RACE_STORE, PLAYERS_STORE);
+        KStream<String, RaceUpdate> updates = power.merge(gameEvents).merge(modifiers)
+            .process(() -> new RaceProcessor(rules, snapshotInterval), RACE_STORE, PLAYERS_STORE, MODIFIERS_STORE);
 
         Serde<GameEvent> gameEventSerde = new ObjectMapperSerde<>(GameEvent.class);
         updates.mapValues(RaceUpdate::state)
@@ -101,6 +109,17 @@ public class RaceTopology {
 
         record GameEventReceived(GameEvent event) implements RaceInput {
         }
+
+        record ModifierReceived(RaceModifier modifier) implements RaceInput {
+        }
+    }
+
+    /**
+     * A boost or sabotage in effect for one team, stored server-side. {@code expiresAtElapsedMs} is in
+     * race-elapsed time, so the effect ends mid-race once the race clock passes it.
+     */
+    @RegisterForReflection
+    record ActiveModifier(double multiplier, long expiresAtElapsedMs) {
     }
 
     /**
@@ -166,6 +185,7 @@ public class RaceTopology {
         private ProcessorContext<String, RaceUpdate> context;
         private KeyValueStore<String, Race> races;
         private KeyValueStore<String, PlayerState> players;
+        private KeyValueStore<String, ActiveModifier> modifiers;
         private boolean changed;
 
         RaceProcessor(GameConfig.RaceRules rules, Duration snapshotInterval) {
@@ -178,6 +198,7 @@ public class RaceTopology {
             this.context = context;
             this.races = context.getStateStore(RACE_STORE);
             this.players = context.getStateStore(PLAYERS_STORE);
+            this.modifiers = context.getStateStore(MODIFIERS_STORE);
             // Power events arrive many times per second, so snapshots go out on a timer instead of per event
             context.schedule(snapshotInterval, PunctuationType.WALL_CLOCK_TIME, timestamp -> {
                 Race race = races.get(RACE_KEY);
@@ -192,6 +213,7 @@ public class RaceTopology {
             switch (record.value()) {
                 case RaceInput.PowerReceived(Power power) -> onPower(power, record.timestamp());
                 case RaceInput.GameEventReceived(GameEvent event) -> onGameEvent(event, record.timestamp());
+                case RaceInput.ModifierReceived(RaceModifier modifier) -> onModifier(modifier, record.timestamp());
                 case null -> {
                 }
             }
@@ -220,7 +242,10 @@ public class RaceTopology {
             if (!joined && quantity == 0) {
                 return;
             }
-            teams.put(player.team(), teams.getOrDefault(player.team(), TeamProgress.EMPTY).add(joined ? 1 : 0, quantity));
+            // A secret boost or sabotage multiplies what the team's power counts for, while each player's
+            // own generated power stays raw, so the leaderboard still reflects individual effort.
+            long teamQuantity = applyModifier(player.team(), quantity, race.elapsedAt(timestamp));
+            teams.put(player.team(), teams.getOrDefault(player.team(), TeamProgress.EMPTY).add(joined ? 1 : 0, teamQuantity));
             players.put(player.name(), player.add(quantity));
             race = race.withTeams(teams);
             changed = true;
@@ -280,6 +305,33 @@ public class RaceTopology {
             publish(race, timestamp, false);
         }
 
+        private void onModifier(RaceModifier modifier, long timestamp) {
+            if (modifier == null || modifier.team() < 1) {
+                return;
+            }
+            Race race = races.get(RACE_KEY);
+            // Only rig a running race, and ignore an effect aimed at a previous race.
+            if (race == null || race.status() != Status.STARTED
+                || (modifier.raceId() != null && !Objects.equals(modifier.raceId(), race.raceId()))) {
+                return;
+            }
+            // No snapshot goes out here: the effect stays secret and shows up only as the team's power
+            // moves once its players tap again.
+            long expiresAt = race.elapsedAt(timestamp) + Math.max(0, modifier.durationMs());
+            modifiers.put(Integer.toString(modifier.team()), new ActiveModifier(modifier.multiplier(), expiresAt));
+        }
+
+        private long applyModifier(int team, long quantity, long elapsedMs) {
+            if (quantity == 0) {
+                return 0;
+            }
+            ActiveModifier modifier = modifiers.get(Integer.toString(team));
+            if (modifier == null || elapsedMs >= modifier.expiresAtElapsedMs()) {
+                return quantity;
+            }
+            return Math.max(0, Math.round(quantity * modifier.multiplier()));
+        }
+
         private Race reset(String raceId) {
             List<String> names = new ArrayList<>();
             try (KeyValueIterator<String, PlayerState> all = players.all()) {
@@ -287,6 +339,12 @@ public class RaceTopology {
             }
             // Players register again with their next power event, phones send one every few seconds
             names.forEach(players::delete);
+            // Clear any secret boosts so they don't carry into the next race.
+            List<String> modifierKeys = new ArrayList<>();
+            try (KeyValueIterator<String, ActiveModifier> all = modifiers.all()) {
+                all.forEachRemaining(kv -> modifierKeys.add(kv.key));
+            }
+            modifierKeys.forEach(modifiers::delete);
             Race previous = races.get(RACE_KEY);
             return Race.waiting(raceId).publishedAt(previous == null ? 0 : previous.lastSnapshotAt());
         }
