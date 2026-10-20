@@ -265,21 +265,55 @@ A read-only MCP `initialize` against `https://$HOST/mcp` returns the server info
 
 ## Confluent Cloud
 
-The Confluent path keeps Strimzi operators and Kafka custom resources out of the deployment. Create
-the four topics in Confluent Cloud, since it doesn't create topics on first use:
+The Confluent path runs Kafka off the cluster, so it needs no Strimzi operator and no Kafka custom
+resources. The rest of the setup is the same: the Infinispan operator, the secrets, Infinispan, the
+optional Keycloak, and the app. Only Kafka changes, and only through configuration.
+
+The app authenticates to Confluent Cloud with an API key that belongs to a service account. Create
+the service account and an API key for the cluster with the Confluent CLI:
 
 ```bash
-confluent kafka topic create power --partitions 1
-confluent kafka topic create game-events --partitions 1
-confluent kafka topic create race-progress --partitions 1 --config cleanup.policy=compact
-confluent kafka topic create race-commentary --partitions 1 --config retention.ms=3600000
+confluent login
+confluent environment use <env-id>
+confluent kafka cluster use <cluster-id>
+confluent iam service-account create wind-turbine --description "Wind turbine race"
+confluent api-key create --service-account <service-account-id> --resource <cluster-id>
 ```
 
-Kafka Streams also creates changelog topics with replication factor three, which Confluent Cloud
-requires, so the API key needs permission to create topics with the `quinoa-wind-turbine-` prefix.
-Deploy with `QUARKUS_PROFILE=confluent` and supply `CONFLUENT_BOOTSTRAP_SERVERS`, `CONFLUENT_API_KEY`
-and `CONFLUENT_API_SECRET`. The full Confluent deployment is tracked in the
-[1.5 plan](plans/1.5-cluster-deployment.md).
+Create the topics and the service account's ACLs with the provisioning script. It creates the four
+topics with the same partitions and retention as the Strimzi path, and grants the service account
+access to those topics, the Kafka Streams internal topics (prefix `quinoa-wind-turbine-`) and the
+consumer groups (prefixes `wind-turbine-`, `commentary-` and `quinoa-wind-turbine`):
+
+```bash
+scripts/confluent-provision.sh <service-account-id>
+```
+
+Confluent Cloud doesn't create topics on first use, and Kafka Streams needs replication factor three
+for its changelog topics, which the `confluent` profile sets. Run the script before the app rolls out.
+
+Put the connection details in the `confluent-credentials` secret that the deployment reads:
+
+```bash
+oc create secret generic confluent-credentials -n wind-turbine \
+  --from-literal=bootstrap-servers='<bootstrap endpoint>:9092' \
+  --from-literal=api-key='<API key>' \
+  --from-literal=api-secret='<API secret>'
+```
+
+Deploy the app with the `confluent` profile instead of `openshift-cluster`. Everything else from
+[Create the secrets](#create-the-secrets) through [Deploy the application](#deploy-the-application)
+applies, except you skip [Deploy Kafka](#deploy-kafka):
+
+```bash
+./mvnw clean package -Dquarkus.profile=confluent -Dquarkus.kubernetes.deploy=true -DskipTests \
+  -Dquarkus.container-image.registry=image-registry.openshift-image-registry.svc:5000 \
+  -Dquarkus.container-image.group=wind-turbine
+```
+
+The profile sets `QUARKUS_PROFILE=confluent` on the deployment and reads the bootstrap endpoint and
+API key from the secret, so the same image runs against Confluent Cloud with no code or serializer
+change. Verify it with the same race as the Strimzi path.
 
 ## Clean up
 
