@@ -266,9 +266,10 @@ public class RaceTopology {
             Map<Integer, TeamProgress> teams = new TreeMap<>(race.teams());
             teams.replaceAll((id, team) -> !team.finished() && team.players() > 0
                 && rules.distance(team.power(), team.players()) >= 100 ? team.finishedAt(elapsed) : team);
-            List<TeamProgress> racing = teams.values().stream().filter(t -> t.players() > 0).toList();
             race = race.withTeams(teams);
-            if (!racing.isEmpty() && racing.stream().allMatch(TeamProgress::finished)) {
+            // The race ends the moment the first team crosses the line. Once a team has won there is no
+            // point making the others keep tapping, so a single finisher finishes the race.
+            if (teams.values().stream().anyMatch(t -> t.players() > 0 && t.finished())) {
                 return race.stopped(Status.FINISHED, timestamp);
             }
             return race;
