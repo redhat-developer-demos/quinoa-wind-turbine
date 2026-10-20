@@ -95,22 +95,31 @@ show up in `get_race_state` with `generated: 0`.
 actual values are random in `[1, power]`, so the average is `(power + 1) / 2`. Race duration is roughly
 `1500 / ((power + 1) / 2) × interval_ms / 1000` seconds. The recommended preset (`--power 10 --interval 75`)
 gives ~20-second races with genuine spread between players. Adjust `--interval` to taste:
-`--interval 100` ≈ 27s, `--interval 50` ≈ 14s. Set `--clicks` well above `1500 / ((power + 1) / 2)`
-(about 273 for `--power 10`), or slow players stop before the finish line.
+`--interval 100` ≈ 27s, `--interval 50` ≈ 14s. Over `--ws` the loader taps until the race finishes, so
+`--clicks` is only a safety cap and the default (500) is plenty; raise it only for very slow settings.
 
 With random power, players naturally diverge and teams produce genuine race drama. Team 1
 still wins ties on the tie-break rule.
 
 ## Run the race
 
+When the user asks to run or demo the race, do the whole flow yourself and don't stop to ask between
+steps: reset, get the players in, start, monitor, and report the result. Only pause for the things
+that genuinely need the user, such as the one-time admin login or launching real phones.
+
+Keep the narration short. The tool output is already shown, so don't paste raw JSON or the whole
+leaderboard on every poll. Report a one-line state (each team's distance and who leads) and then speak
+only when something changes: a lead change, a team passing 25/50/75%, or the finish. Launch the player
+loader once and watch the race through `get_race_state`; don't re-read the loader's log file.
+
 1. `reset_race` starts a new race ID and clears the scores. Connected players register again by
    themselves.
 2. `get_race_state` until the expected players are listed.
 3. `start_race`.
-4. Poll `get_race_state` every few seconds and report what the user asked for, such as the first
-   team whose `distance` reaches 50, a lead change, or the leaderboard. Stop polling when the status
-   is `FINISHED`, and report the `winner` and finish times. Clients that support resource
-   subscriptions can subscribe to `race://current` instead of polling.
+4. Poll `get_race_state` every few seconds. Report the milestone the user asked for (for example the
+   first team past 50%) or lead changes, in one line each. Stop polling when the status is `FINISHED`,
+   and report the `winner` and finish time. Clients that support resource subscriptions can subscribe
+   to `race://current` instead of polling.
 5. `pause_race` and `start_race` pause and resume the same race.
 
 If polling through tool calls is too slow for a milestone, wait in a shell loop on the REST endpoint

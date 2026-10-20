@@ -176,18 +176,19 @@ The script is written as a jbang script. If you have jbang installed, start the 
 jbang scripts/GameLoader.java http://localhost:8080
 ```
 
-By default the script creates 50 players and sends 100 power events for each player.
+By default the script creates 50 players. Each click sends a random 1..power, so `--clicks` is a
+safety cap: over WebSockets the loader keeps tapping until the race finishes.
 
-You can change the number of players, the number of clicks and the power value:
+You can change the number of players, the click cap and the power value:
 
 ```bash
-jbang scripts/GameLoader.java http://localhost:8080 --players 20 --clicks 50 --power 15
+jbang scripts/GameLoader.java http://localhost:8080 --players 20 --power 15
 ```
 
-With `--ws`, each simulated player opens the player WebSocket and sends its clicks as messages, the way the phones do, instead of one `POST /api/power` per click:
+With `--ws`, each simulated player opens the player WebSocket and sends its clicks as messages, the way the phones do, instead of one `POST /api/power` per click, and stops when the race finishes:
 
 ```bash
-jbang scripts/GameLoader.java http://localhost:8080 --players 20 --clicks 50 --power 15 --ws
+jbang scripts/GameLoader.java http://localhost:8080 --players 20 --power 15 --ws
 ```
 
 To compare the two transports, run the script once in each mode and look at `http_server_requests_seconds` and the `quarkus_websockets_server_*` metrics on `http://localhost:8080/metrics`.
