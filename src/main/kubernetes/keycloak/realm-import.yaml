@@ -37,6 +37,78 @@ objects:
         realm: wind-turbine
         enabled: true
         sslRequired: external
+        # Added to every new client, including a client an MCP agent registers dynamically, so their
+        # tokens carry the wind-turbine audience the app requires.
+        clientScopes:
+          - name: wind-turbine-audience
+            protocol: openid-connect
+            attributes:
+              include.in.token.scope: "false"
+              display.on.consent.screen: "false"
+            protocolMappers:
+              - name: wind-turbine-audience
+                protocol: openid-connect
+                protocolMapper: oidc-audience-mapper
+                consentRequired: false
+                config:
+                  included.client.audience: wind-turbine
+                  id.token.claim: "false"
+                  access.token.claim: "true"
+                  introspection.token.claim: "true"
+              - name: realm-roles
+                protocol: openid-connect
+                protocolMapper: oidc-usermodel-realm-role-mapper
+                consentRequired: false
+                config:
+                  claim.name: realm_access.roles
+                  jsonType.label: String
+                  multivalued: "true"
+                  id.token.claim: "false"
+                  access.token.claim: "true"
+                  introspection.token.claim: "true"
+        defaultDefaultClientScopes:
+          - profile
+          - email
+          - roles
+          - web-origins
+          - wind-turbine-audience
+        # Let an MCP client such as Bob register a client dynamically during login. Without these
+        # anonymous client-registration policies Keycloak rejects the registration, so Bob can't log in.
+        # No "Trusted Hosts" policy on purpose: an MCP agent such as Bob registers a client from the
+        # presenter's laptop (an unknown host), so the realm must not restrict registration by host.
+        # Keycloak rejects a Trusted Hosts policy with both checks off, so the policy is omitted.
+        components:
+          org.keycloak.services.clientregistration.policy.ClientRegistrationPolicy:
+            - name: Consent Required
+              providerId: consent-required
+              subType: anonymous
+              config: {}
+            - name: Max Clients Limit
+              providerId: max-clients
+              subType: anonymous
+              config:
+                max-clients:
+                  - "200"
+            - name: Allowed Protocol Mapper Types
+              providerId: allowed-protocol-mappers
+              subType: anonymous
+              config:
+                allowed-protocol-mapper-types:
+                  - oidc-sha256-pairwise-sub-mapper
+                  - oidc-usermodel-property-mapper
+                  - oidc-full-name-mapper
+                  - oidc-usermodel-attribute-mapper
+                  - oidc-address-mapper
+                  - saml-user-property-mapper
+                  - saml-role-list-mapper
+                  - saml-user-attribute-mapper
+                  - oidc-audience-mapper
+            - name: Allowed Client Scopes
+              providerId: allowed-client-templates
+              subType: anonymous
+              config:
+                allow-default-scopes:
+                  - "true"
         roles:
           realm:
             - name: admin
