@@ -107,10 +107,20 @@ When the user asks to run or demo the race, do the whole flow yourself and don't
 steps: reset, get the players in, start, monitor, and report the result. Only pause for the things
 that genuinely need the user, such as the one-time admin login or launching real phones.
 
-Keep the narration short. The tool output is already shown, so don't paste raw JSON or the whole
-leaderboard on every poll. Report a one-line state (each team's distance and who leads) and then speak
-only when something changes: a lead change, a team passing 25/50/75%, or the finish. Launch the player
-loader once and watch the race through `get_race_state`; don't re-read the loader's log file.
+Keep the running commentary short, but make the finish a proper recap. During the race the tool output
+is already shown, so don't paste raw JSON or the whole leaderboard on every poll: give a one-line
+update only when something changes — a lead change, a team passing 25/50/75%, or the finish. Launch the
+player loader once and watch the race through `get_race_state`; don't re-read the loader's log file.
+
+When the race is `FINISHED`, give a rich final summary the audience enjoys, not a one-liner:
+
+- A headline with the winning team and the finish time.
+- A team standings table: team, power generated, distance, finish time.
+- A top players table (overall, from `get_leaderboard` with no team): rank, player, team, power.
+- Two or three interesting facts drawn from what you saw — how close the finish was, the top scorer
+  and their team, whether the lead changed, the spread between a team's best and worst player.
+
+Emoji and tables are welcome here; this is the payoff moment.
 
 1. `reset_race` starts a new race ID and clears the scores. Connected players register again by
    themselves.
@@ -118,8 +128,8 @@ loader once and watch the race through `get_race_state`; don't re-read the loade
 3. `start_race`.
 4. Poll `get_race_state` every few seconds. Report the milestone the user asked for (for example the
    first team past 50%) or lead changes, in one line each. Stop polling when the status is `FINISHED`,
-   and report the `winner` and finish time. Clients that support resource subscriptions can subscribe
-   to `race://current` instead of polling.
+   and give the rich final summary described above. Clients that support resource subscriptions can
+   subscribe to `race://current` instead of polling.
 5. `pause_race` and `start_race` pause and resume the same race.
 
 If polling through tool calls is too slow for a milestone, wait in a shell loop on the REST endpoint
