@@ -34,6 +34,11 @@ Admin MCP on the cluster needs OIDC and a Keycloak realm that lets the agent reg
   so an agent like Bob can register a client dynamically and get a token with the `wind-turbine`
   audience. A realm imported before those were added keeps Keycloak's strict Trusted Hosts default and
   rejects registration ("Host not trusted"); re-importing is additive, so recreate the realm fresh.
+  Recreating the realm deletes any client an agent registered dynamically, so afterwards clear the
+  agent's cached OAuth for the realm and re-authenticate — for Bob, the `bob.mcp.oauth.*` entries in
+  `~/.bob/settings/auth-secrets.json`, and free its callback port (33418) if a stale `bob` process
+  holds it. Otherwise the login reuses the dead client and the callback shows "Authorization flow is
+  not active".
 - Read-only `/mcp` tools work with no login, so a headless agent can watch a cluster race at once.
   Admin tools need a one-time interactive OAuth login the agent can't do headless: run `bob chat` (or,
   in Claude Code, `/mcp` then Authenticate) and log in as `developer`, which caches the token.
