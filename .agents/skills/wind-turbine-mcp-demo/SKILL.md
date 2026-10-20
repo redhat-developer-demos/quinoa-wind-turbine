@@ -78,6 +78,9 @@ and breaks the flow.
 5. Each tool call waits for a permission prompt or an auto-mode check, which can take several
    seconds. For a live demo, suggest allowing the game's tools in `.claude/settings.json`, for example
    `mcp__wind-turbine-race__*` and `mcp__wind-turbine-admin__*`, so milestones aren't reported late.
+   With Bob, the cleanest way to avoid prompts is to launch `bob chat --auto-approve`. Bob keeps
+   per-tool approvals only in its global store (`~/.bob/settings/settings.json`, `approval.allowedExecutors`),
+   not per project, and reads them at startup, so editing them while a chat is open has no effect.
 
 ## Get players into the race
 
