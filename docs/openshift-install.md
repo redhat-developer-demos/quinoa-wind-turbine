@@ -263,11 +263,14 @@ curl -s "https://$HOST/api/race/state"
 The race state reaches `FINISHED`, and `GET /api/race/leaderboard?team=1` returns the ranked players.
 A read-only MCP `initialize` against `https://$HOST/mcp` returns the server info without a login.
 
-## Confluent Cloud
+## Confluent
 
 The Confluent path runs Kafka off the cluster, so it needs no Strimzi operator and no Kafka custom
 resources. The rest of the setup is the same: the Infinispan operator, the secrets, Infinispan, the
-optional Keycloak, and the app. Only Kafka changes, and only through configuration.
+optional Keycloak, and the app. Only Kafka changes, and only through configuration. Pick the variant
+that matches your cluster: managed Confluent Cloud, or a self-managed Confluent Platform cluster.
+
+### Confluent Cloud
 
 The app authenticates to Confluent Cloud with an API key that belongs to a service account. Create
 the service account and an API key for the cluster with the Confluent CLI:
@@ -314,6 +317,58 @@ applies, except you skip [Deploy Kafka](#deploy-kafka):
 The profile sets `QUARKUS_PROFILE=confluent` on the deployment and reads the bootstrap endpoint and
 API key from the secret, so the same image runs against Confluent Cloud with no code or serializer
 change. Verify it with the same race as the Strimzi path.
+
+Confluent Cloud brokers use publicly trusted certificates, so remove the four `%confluent.*.ssl.truststore.*`
+lines and the three `%confluent.quarkus.openshift.*confluent-ca*` lines from `application.properties`
+before deploying to Cloud; those exist for the self-managed path below, which has a private CA.
+
+### Self-managed Confluent Platform
+
+A self-managed Confluent Platform cluster uses the same `confluent` profile, with two differences from
+Cloud: the brokers usually present a private CA, so the client needs that CA in a truststore, and they
+don't auto-create topics, so you create the five topics yourself. The profile already mounts a
+`confluent-ca` secret as a PEM truststore and skips none of the SASL settings, so most of this is
+providing the CA and the credentials.
+
+Get the broker CA. If you have host access, copy it (for example
+`/var/lib/confluent-access/kafka-ca.crt`); otherwise pull it from the broker's TLS chain, since the
+brokers present the CA:
+
+```bash
+openssl s_client -connect <broker-host>:9094 -showcerts </dev/null 2>/dev/null > chain.pem
+# the self-signed CA is the certificate whose subject equals its issuer
+```
+
+Create the CA truststore secret and the SASL credentials, then create the topics. The brokers speak
+SASL_SSL/PLAIN, so supply the broker's SASL username and password (not the Control Center login):
+
+```bash
+oc create secret generic confluent-ca -n wind-turbine-confluent --from-file=kafka-ca.crt=./kafka-ca.crt
+oc create secret generic confluent-credentials -n wind-turbine-confluent \
+  --from-literal=bootstrap-servers='<broker-host>:9094,<broker-host>:9095,<broker-host>:9096' \
+  --from-literal=api-key='<SASL username>' \
+  --from-literal=api-secret='<SASL password>'
+
+BOOTSTRAP='<broker-host>:9094,<broker-host>:9095,<broker-host>:9096' \
+  SASL_USER='<SASL username>' SASL_PW='<SASL password>' CA=./kafka-ca.crt \
+  jbang scripts/CreateTopics.java
+```
+
+`scripts/CreateTopics.java` creates the five topics with the same partitions and retention as the
+Strimzi path, over SASL_SSL with the private CA. It needs kafka-clients 4.x (older clients fail on
+Java 24+ because the Security Manager is gone), which the script pins. Deploy the app the same way as
+for Cloud, into the namespace that holds these secrets:
+
+```bash
+oc project wind-turbine-confluent
+./mvnw clean package -Dquarkus.profile=confluent -Dquarkus.kubernetes.deploy=true -DskipTests \
+  -Dquarkus.container-image.registry=image-registry.openshift-image-registry.svc:5000 \
+  -Dquarkus.container-image.group=wind-turbine-confluent
+```
+
+The `confluent` profile mounts the `confluent-ca` secret at `/mnt/confluent-ca` and points the Kafka
+and Kafka Streams clients at it as a PEM truststore. The broker leaf cert includes the broker IP in
+its SAN, so hostname verification stays on. Verify with the same race as the Strimzi path.
 
 ## Clean up
 
