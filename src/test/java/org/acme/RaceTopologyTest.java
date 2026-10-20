@@ -105,16 +105,15 @@ class RaceTopologyTest {
     }
 
     @Test
-    void finishesOnceAllTeamsCrossTheLine() {
+    void finishesWhenTheFirstTeamCrossesTheLine() {
         reset("race-1", 0);
         power("ada", 1, 0, "race-1", 10);
         power("cy", 2, 0, "race-1", 10);
         start(1_000);
-        power("ada", 1, 100, "race-1", 2_000);
-        power("cy", 2, 150, "race-1", 3_000);
+        power("ada", 1, 75, "race-1", 2_000);   // team 1 at 50%, still racing
         assertTrue(finishEvents.isEmpty());
 
-        power("ada", 1, 60, "race-1", 5_000);
+        power("cy", 2, 150, "race-1", 3_000);    // team 2 crosses the line and wins, ending the race
         GameEvent finish = finishEvents.readValue();
         assertEquals(GameEvent.FINISH, finish.type());
         assertEquals("race-1", finish.raceId());
@@ -123,9 +122,10 @@ class RaceTopologyTest {
         RaceState race = lastProgress();
         assertEquals(Status.FINISHED, race.status());
         assertEquals(2, race.winner());
+        // Team 2 finished first; team 1 is left at the distance it had reached, not finished.
         assertEquals(List.of(
             new TeamState(2, 1, 1, 150, 100.0, 2_000L),
-            new TeamState(1, 2, 1, 160, 100.0, 4_000L)), race.teams());
+            new TeamState(1, 2, 1, 75, 50.0, null)), race.teams());
 
         power("ada", 1, 60, "race-1", 6_000);
         driver.advanceWallClockTime(SNAPSHOT_INTERVAL);
