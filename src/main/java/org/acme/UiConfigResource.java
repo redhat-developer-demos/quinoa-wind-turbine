@@ -27,9 +27,9 @@ public class UiConfigResource {
         List<Team> teams = themes.current().teams().stream()
             .map(t -> new Team(t.id(), t.name(), t.color(), t.car(), t.carTint()))
             .toList();
-        return new UiConfig(teams, config.ai().enabled());
+        return new UiConfig(teams, config.ai().enabled(), themes.current().track());
     }
 
-    public record UiConfig(List<Team> teams, boolean aiEnabled) {}
+    public record UiConfig(List<Team> teams, boolean aiEnabled, RaceTheme.Track track) {}
     public record Team(int id, String name, String color, String car, String carTint) {}
 }

@@ -61,6 +61,10 @@ const HallOfFameDiv = styled.div`
   .name {
     color: #e6e6e6;
   }
+  .team {
+    color: #8a8a8a;
+    font-size: 0.85rem;
+  }
   .power {
     text-align: right;
     font-variant-numeric: tabular-nums;
@@ -96,27 +100,34 @@ export default function HallOfFame() {
     <HallOfFameDiv>
       <h2>Hall of fame</h2>
       <div className="races">
-        {races.map((race) => (
-          <div className="race" key={race.raceId}>
-            <div className="race-head">
-              <span className="winner" style={{ color: teamColor(race.winner) }}>{race.winnerName}</span>
-              <span className="time">{formatTime(race.elapsedMs)}</span>
+        {races.map((race) => {
+          const teamNameOf = (id) => (race.teams.find((t) => t.id === id) || {}).name || '';
+          return (
+            <div className="race" key={race.raceId}>
+              <div className="race-head">
+                <span className="winner" style={{ color: teamColor(race.winner) }}>{race.winnerName} wins</span>
+                <span className="time">{formatTime(race.elapsedMs)}</span>
+              </div>
+              {race.topPlayers.length > 0 && (
+                <table className="players">
+                  <tbody>
+                    {race.topPlayers.map((player, i) => (
+                      <tr key={player.name}>
+                        <td className="rank">{i + 1}</td>
+                        <td className="name">
+                          {player.name}
+                          {' '}
+                          <span className="team">({teamNameOf(player.team)})</span>
+                        </td>
+                        <td className="power">{powerApi.humanPower(player.generated)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
-            {race.topPlayers.length > 0 && (
-              <table className="players">
-                <tbody>
-                  {race.topPlayers.map((player, i) => (
-                    <tr key={player.name}>
-                      <td className="rank">{i + 1}</td>
-                      <td className="name">{player.name}</td>
-                      <td className="power">{powerApi.humanPower(player.generated)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </HallOfFameDiv>
   );

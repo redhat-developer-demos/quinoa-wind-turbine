@@ -7,6 +7,8 @@ export const IS_TOUCH_DEVICE = (('ontouchstart' in window)
 // available cars images: 'car-classic-black', 'car-barbie', 'car-grey', 'car-red', 'car-blue-convertible', 'car-orange'
 // Loaded before rendering; application.properties is shared with server commentary.
 export let TEAMS_CONFIG = [];
+// The active theme's track from the server, or null to use the dashboard's default track.
+export let CURRENT_TRACK = null;
 
 export async function loadConfig() {
   const response = await fetch('/api/config');
@@ -17,6 +19,7 @@ export async function loadConfig() {
     throw new Error('Invalid race team configuration');
   }
   TEAMS_CONFIG = config.teams;
+  CURRENT_TRACK = config.track || null;
 }
 
 // Dashboard
