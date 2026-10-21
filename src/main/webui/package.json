@@ -27,7 +27,7 @@
     "dev": "vite",
     "build": "vite build",
     "test": "vite test",
-    "test:api": "node --test src/*.test.mjs src/api/*.test.mjs"
+    "test:api": "node --test src/*.test.mjs src/api/*.test.mjs src/components/Dashboard/*.test.mjs"
   },
   "browserslist": {
     "production": [

@@ -31,12 +31,17 @@ public class RaceTools {
     private final GameResource game;
     private final ResourceManager resources;
     private final GameConfig config;
+    private final HallOfFameResource hallOfFame;
+    private final ThemeService themes;
 
-    public RaceTools(RaceResource race, GameResource game, ResourceManager resources, GameConfig config) {
+    public RaceTools(RaceResource race, GameResource game, ResourceManager resources, GameConfig config,
+                     HallOfFameResource hallOfFame, ThemeService themes) {
         this.race = race;
         this.game = game;
         this.resources = resources;
         this.config = config;
+        this.hallOfFame = hallOfFame;
+        this.themes = themes;
     }
 
     @PostConstruct
@@ -83,6 +88,14 @@ public class RaceTools {
 
     @McpServer(McpServer.DEFAULT)
     @McpServer(ADMIN_SERVER)
+    @Tool(name = "get_hall_of_fame", description = "Returns past finished races, most recent first: the winning team, "
+        + "the race time, the final team standings and the top generators of each race.")
+    List<HallOfFameEntry> getHallOfFame() {
+        return hallOfFame.all();
+    }
+
+    @McpServer(McpServer.DEFAULT)
+    @McpServer(ADMIN_SERVER)
     @Resource(uri = RACE_URI, name = "current_race", mimeType = "application/json",
         description = "The current race as JSON. Subscribe to get a notification for every race update.")
     TextResourceContents currentRace() {
@@ -121,6 +134,34 @@ public class RaceTools {
         long durationMs = seconds != null ? seconds * 1000L : config.modifiers().duration().toMillis();
         return game.sendModifier(team, factor, durationMs)
             .replaceWith("Applied x" + factor + " to team " + team + " for " + (durationMs / 1000) + "s");
+    }
+
+    @McpServer(ADMIN_SERVER)
+    @Tool(name = "list_preset_themes", description = "Lists the built-in race themes that can be applied, each with "
+        + "its id, name and the two teams' names, colors and cars.")
+    List<RaceTheme> listPresetThemes() {
+        return themes.presets();
+    }
+
+    @McpServer(ADMIN_SERVER)
+    @Tool(name = "apply_theme", description = "Restyles the race between races: sets each team's name, color and car. "
+        + "Apply a built-in preset by id, or pass a full theme. Changes every dashboard and phone at once.")
+    String applyTheme(
+        @ToolArg(description = "Id of a preset theme from list_preset_themes. Leave out to pass a full theme instead.",
+            required = false) String presetId,
+        @ToolArg(description = "A full theme to apply, instead of a preset id.", required = false) RaceTheme theme) {
+        RaceTheme toApply = theme;
+        if (presetId != null) {
+            toApply = themes.presets().stream()
+                .filter(t -> t.id().equals(presetId))
+                .findFirst()
+                .orElseThrow(() -> new ToolCallException("No preset theme " + presetId));
+        }
+        if (toApply == null) {
+            throw new ToolCallException("Pass a preset id or a full theme");
+        }
+        List<String> errors = themes.apply(toApply);
+        return errors.isEmpty() ? "Applied theme" : "Theme rejected: " + String.join("; ", errors);
     }
 
     private Uni<String> send(String type, String done) {

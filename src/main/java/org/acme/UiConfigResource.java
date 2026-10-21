@@ -7,25 +7,29 @@ import jakarta.ws.rs.core.MediaType;
 
 import java.util.List;
 
+/**
+ * The team configuration the UI renders. It serves the active theme's teams (which default to the
+ * configured teams) plus whether AI is enabled, so the dashboard can show the AI theme controls.
+ */
 @Path("config")
 public class UiConfigResource {
+    private final ThemeService themes;
     private final GameConfig config;
 
-    public UiConfigResource(GameConfig config) {
+    public UiConfigResource(ThemeService themes, GameConfig config) {
+        this.themes = themes;
         this.config = config;
     }
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     public UiConfig configuration() {
-        return new UiConfig(List.of(team(1), team(2)));
+        List<Team> teams = themes.current().teams().stream()
+            .map(t -> new Team(t.id(), t.name(), t.color(), t.car(), t.carTint()))
+            .toList();
+        return new UiConfig(teams, config.ai().enabled());
     }
 
-    private Team team(int id) {
-        var team = config.teams().get(id);
-        return new Team(id, team.name(), team.color(), team.car());
-    }
-
-    public record UiConfig(List<Team> teams) {}
-    public record Team(int id, String name, String color, String car) {}
+    public record UiConfig(List<Team> teams, boolean aiEnabled) {}
+    public record Team(int id, String name, String color, String car, String carTint) {}
 }

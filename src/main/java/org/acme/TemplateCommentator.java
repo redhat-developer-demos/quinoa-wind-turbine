@@ -9,8 +9,8 @@ public class TemplateCommentator implements Commentator {
     private final IntFunction<String> teamName;
 
     @Inject
-    public TemplateCommentator(GameConfig config) {
-        this(config::teamName);
+    public TemplateCommentator(ThemeService themes) {
+        this(themes::teamName);
     }
 
     TemplateCommentator(IntFunction<String> teamName) {

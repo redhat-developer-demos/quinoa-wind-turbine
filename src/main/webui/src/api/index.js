@@ -4,3 +4,4 @@ export * as playerSocket from './PlayerSocket';
 export * as sensors from './Sensors';
 
 export * as raceApi from './RaceApi';
+export * as hallOfFameApi from './HallOfFameApi';

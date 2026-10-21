@@ -6,22 +6,26 @@ import { Trophy, CloudOffline } from '@styled-icons/ionicons-outline';
 import { Plug, Reset } from '@styled-icons/boxicons-regular';
 import { gameApi, powerApi } from '../../api';
 import StopWatch from './StopWatch';
-import { SHOW_TOP, TEAMS_CONFIG } from '../../Config';
+import { SHOW_TOP } from '../../Config';
+import { useTheme } from '../../ThemeContext';
 import { sortTeams } from './DashboardUtils';
 
 const Title = styled.h1`
   text-align: center;
   font-weight: 700;
-  font-size: 3rem;
+  font-size: 2.25rem;
+  margin: 18px 0;
   color: white;
 `;
 
+// Keep this in sync with the track's left offset in RaceTrack.jsx and the panel offsets in
+// HallOfFame.jsx and Winner.jsx. A narrow sidebar leaves the race track as much width as possible.
 const LeftBarDiv = styled.div`
   position: fixed;
   left: 0;
   top: 0;
   bottom: 0;
-  width: 350px;
+  width: 200px;
   background-color: #262626;
   display: flex;
   flex-direction: column;
@@ -57,7 +61,7 @@ function Control({ className, status, winner }) {
 }
 
 const StyledControl = styled(Control)`
-  margin: 20px 0;
+  margin: 14px 0 24px;
   text-align: center;
   color: white;
 
@@ -67,7 +71,7 @@ const StyledControl = styled(Control)`
     cursor: pointer;
 
     svg {
-      height: 100px;
+      height: 68px;
       color: white;
     }
   }
@@ -97,65 +101,62 @@ const Teams = styled.div`
   }
 `;
 
+// Stacked so a long team name never collides with the stats in the narrow sidebar.
 const Header = styled.div`
-  display: flex;
   border-bottom: 1px solid white;
-  font-size: 2rem;
-  justify-content: space-between;
+  padding-bottom: 6px;
 
-  & > span:first-child {
-    flex-grow: 1;
-
-    svg {
-      margin-right: 10px;
-      margin-top: -10px;
-    }
+  .team-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.4rem;
+    line-height: 1.1;
   }
 
-  & > span:not(:first-child) {
+  .team-stats {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 6px;
     color: white;
-    font-size: 1rem;
-    line-height: 2rem;
+    font-size: 0.95rem;
     font-weight: bold;
   }
 
-  .total-power {
-    margin-right: 10px;
-  }
-
   .count-players {
-    svg {
-      margin-top: -5px;
-      margin-right: 5px;
-    }
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
   }
-
-
 `;
 
 function Team(props) {
+  const { teams } = useTheme();
   const team = _.values(props.team);
   const top = team.sort((a, b) => b.generated - a.generated).slice(0, SHOW_TOP);
-  const teamConfig = TEAMS_CONFIG[props.id - 1];
+  const teamConfig = teams[props.id - 1];
   return (
     <div className={props.className}>
       <Header style={{ color: teamConfig.color }}>
-        <span>
-          {props.winner === props.id && <Trophy size={32} />}
-          Team
-          {' '}
-          <br />
-          {' '}
-          {teamConfig.name}
-        </span>
-        {props.winner < 0 && <span className="total-power">{powerApi.humanPower(props.generated)}</span>}
-        {props.time && <span><StopWatch time={props.time} running={false} /></span>}
-        {!props.time && (
-          <span className="count-players">
-            <Plug size={20} />
-            {team.length}
+        <div className="team-name">
+          {props.winner === props.id && <Trophy size={24} />}
+          <span>
+            Team
+            {' '}
+            {teamConfig.name}
           </span>
-        )}
+        </div>
+        <div className="team-stats">
+          {props.winner < 0 && <span className="total-power">{powerApi.humanPower(props.generated)}</span>}
+          {props.time && <StopWatch time={props.time} running={false} />}
+          {!props.time && (
+            <span className="count-players">
+              <Plug size={18} />
+              {team.length}
+            </span>
+          )}
+        </div>
       </Header>
       <ol>
         {top.length > 0 ? top.map((u) => (
