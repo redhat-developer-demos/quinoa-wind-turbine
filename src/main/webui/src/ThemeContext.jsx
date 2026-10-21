@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { TEAMS_CONFIG } from './Config';
+import { TEAMS_CONFIG, CURRENT_TRACK } from './Config';
 
 // The track the dashboard draws when nothing overrides it: the hand-painted image with its two
 // hand-drawn lane paths. An AI theme can instead send a generated track with a `centerline`, which
@@ -22,7 +22,7 @@ const ThemeContext = React.createContext(null);
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = React.useState(() => ({
     teams: TEAMS_CONFIG,
-    track: DEFAULT_TRACK,
+    track: CURRENT_TRACK || DEFAULT_TRACK,
   }));
   const value = React.useMemo(() => ({ theme, setTheme }), [theme]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

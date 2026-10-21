@@ -13,7 +13,7 @@ class ThemeValidatorTest {
     private final ThemeValidator validator = new ThemeValidator();
 
     private RaceTheme theme(ThemeTeam... teams) {
-        return new RaceTheme("t", "Test", List.of(teams));
+        return new RaceTheme("t", "Test", List.of(teams), null);
     }
 
     private ThemeTeam team(int id, String name, String color, String car) {

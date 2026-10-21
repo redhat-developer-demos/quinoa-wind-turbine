@@ -23,7 +23,8 @@ function Dashboard(props) {
     // A theme was applied between races: pull the new teams and restyle every component.
     fetch('/api/config').then((r) => r.json()).then((cfg) => {
       if (cfg && cfg.teams) {
-        setTheme((prev) => ({ ...prev, teams: cfg.teams }));
+        // A null track in the theme means "keep the current track", so fall back to prev.track.
+        setTheme((prev) => ({ ...prev, teams: cfg.teams, track: cfg.track || prev.track }));
       }
     }).catch(() => {});
   }), [setTheme]);

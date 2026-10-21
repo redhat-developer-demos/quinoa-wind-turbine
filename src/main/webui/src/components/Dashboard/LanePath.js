@@ -3,27 +3,36 @@
 // through those points, so the same track fits any number of cars. Lane paths feed the cars'
 // CSS offset-path, so each one has to be a closed path that stays inside the view box.
 
+// Linear interpolation of two points by knot values, for the centripetal spline below.
+function lerp(a, b, ta, tb, t) {
+  const f = tb - ta === 0 ? 0 : (t - ta) / (tb - ta);
+  return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+}
+
+// Centripetal Catmull-Rom (alpha = 0.5) through a closed loop. Centripetal parameterization avoids the
+// cusps and self-loops that uniform Catmull-Rom produces on sharp or closely spaced points, which would
+// otherwise flip a lane's offset direction and make the lanes cross.
 function catmullRomClosed(points, samplesPerSegment) {
   const n = points.length;
   const sampled = [];
+  const knot = (a, b) => Math.sqrt(Math.hypot(b[0] - a[0], b[1] - a[1]) || 1e-6);
   for (let i = 0; i < n; i += 1) {
     const p0 = points[(i - 1 + n) % n];
     const p1 = points[i];
     const p2 = points[(i + 1) % n];
     const p3 = points[(i + 2) % n];
+    const t0 = 0;
+    const t1 = t0 + knot(p0, p1);
+    const t2 = t1 + knot(p1, p2);
+    const t3 = t2 + knot(p2, p3);
     for (let s = 0; s < samplesPerSegment; s += 1) {
-      const t = s / samplesPerSegment;
-      const t2 = t * t;
-      const t3 = t2 * t;
-      const x = 0.5 * ((2 * p1[0])
-        + (-p0[0] + p2[0]) * t
-        + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2
-        + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3);
-      const y = 0.5 * ((2 * p1[1])
-        + (-p0[1] + p2[1]) * t
-        + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2
-        + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3);
-      sampled.push([x, y]);
+      const t = t1 + ((t2 - t1) * s) / samplesPerSegment;
+      const a1 = lerp(p0, p1, t0, t1, t);
+      const a2 = lerp(p1, p2, t1, t2, t);
+      const a3 = lerp(p2, p3, t2, t3, t);
+      const b1 = lerp(a1, a2, t0, t2, t);
+      const b2 = lerp(a2, a3, t1, t3, t);
+      sampled.push(lerp(b1, b2, t1, t2, t));
     }
   }
   return sampled;

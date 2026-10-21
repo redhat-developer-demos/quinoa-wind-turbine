@@ -23,11 +23,13 @@ public class HallOfFameWriter implements KafkaConsumerRebalanceListener {
 
     private final HallOfFameStore store;
     private final GameConfig config;
+    private final ThemeService themes;
     private volatile boolean owner;
 
-    public HallOfFameWriter(HallOfFameStore store, GameConfig config) {
+    public HallOfFameWriter(HallOfFameStore store, GameConfig config, ThemeService themes) {
         this.store = store;
         this.config = config;
+        this.themes = themes;
     }
 
     @Incoming("hall-of-fame-race-in")
@@ -36,7 +38,7 @@ public class HallOfFameWriter implements KafkaConsumerRebalanceListener {
         if (!owner || state == null || state.status() != Status.FINISHED) {
             return;
         }
-        store.record(HallOfFameEntry.from(state, config, Instant.now().toEpochMilli(),
+        store.record(HallOfFameEntry.from(state, themes::teamName, Instant.now().toEpochMilli(),
             config.hallOfFame().topPlayers()));
     }
 

@@ -98,6 +98,6 @@ public class ThemeService {
             .sorted(Map.Entry.comparingByKey())
             .map(e -> new ThemeTeam(e.getKey(), e.getValue().name(), e.getValue().color(), e.getValue().car(), null))
             .toList();
-        return new RaceTheme("default", "Default", teams);
+        return new RaceTheme("default", "Default", teams, null);
     }
 }
