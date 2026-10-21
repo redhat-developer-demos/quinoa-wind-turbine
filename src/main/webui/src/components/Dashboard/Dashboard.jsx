@@ -4,8 +4,10 @@ import { elapsedNow, toDashboardModel } from './DashboardUtils';
 import LeftBar from './LeftBar';
 import RaceTrack from './RaceTrack';
 import Winner from './Winner';
+import HallOfFame from './HallOfFame';
 import CommentaryTicker from './CommentaryTicker';
 import { RACE_ANIMATION_MS } from './RaceAnimation';
+import { useSetTheme } from '../../ThemeContext';
 
 const NO_WINNER = { winner: -1 };
 
@@ -15,8 +17,16 @@ function Dashboard(props) {
   const [time, setTime] = useState(0);
   const [showWinner, setShowWinner] = useState(false);
   const [commentary, setCommentary] = useState();
+  const setTheme = useSetTheme();
 
-  useEffect(() => raceApi.consume(setRace, setOffline, setCommentary), []);
+  useEffect(() => raceApi.consume(setRace, setOffline, setCommentary, () => {
+    // A theme was applied between races: pull the new teams and restyle every component.
+    fetch('/api/config').then((r) => r.json()).then((cfg) => {
+      if (cfg && cfg.teams) {
+        setTheme((prev) => ({ ...prev, teams: cfg.teams }));
+      }
+    }).catch(() => {});
+  }), [setTheme]);
 
   // The server owns the race clock. The stopwatch runs locally and resyncs when it drifts.
   useEffect(() => {
@@ -51,6 +61,7 @@ function Dashboard(props) {
       <CommentaryTicker commentary={commentary && commentary.raceId === race?.raceId
         && (commentary.trigger !== 'finish' || winnerShown) ? commentary : undefined} />
       {winnerShown && <Winner rank={rank} />}
+      {status === 'initial' && !offline && <HallOfFame />}
     </div>
   );
 }

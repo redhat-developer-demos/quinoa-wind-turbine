@@ -21,6 +21,7 @@ import static io.restassured.RestAssured.given;
 import static io.restassured.http.ContentType.JSON;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -35,8 +36,10 @@ class RaceToolsTest {
         }
     }
 
-    private static final List<String> READ_TOOLS = List.of("get_race_state", "get_leaderboard", "get_player");
-    private static final List<String> ADMIN_TOOLS = List.of("start_race", "pause_race", "reset_race", "boost_team");
+    private static final List<String> READ_TOOLS =
+        List.of("get_race_state", "get_leaderboard", "get_player", "get_hall_of_fame");
+    private static final List<String> ADMIN_TOOLS = List.of("start_race", "pause_race", "reset_race", "boost_team",
+        "list_preset_themes", "apply_theme");
 
     @Test
     void readToolsNeedNoLogin() {
@@ -49,6 +52,7 @@ class RaceToolsTest {
                 assertTrue(race.containsKey("raceId"), race::encode);
             })
             .toolsCall("get_player", Map.of("name", "Nobody"), response -> assertTrue(response.isError()))
+            .toolsCall("get_hall_of_fame", response -> assertFalse(response.isError()))
             .resourcesRead(RaceTools.RACE_URI, response -> assertTrue(
                 new JsonObject(response.contents().getFirst().asText().text()).containsKey("status")))
             .thenAssertResults();

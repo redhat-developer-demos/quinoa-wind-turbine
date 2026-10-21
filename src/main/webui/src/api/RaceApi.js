@@ -3,7 +3,7 @@ import { socketUrl } from './PlayerSocket.js';
 /**
  * Renders the race from the dashboard connection, which sends the current race on connect and every snapshot after.
  */
-export function consume(setRace, setOffline, setCommentary = () => {}) {
+export function consume(setRace, setOffline, setCommentary = () => {}, onTheme = () => {}) {
   let socket;
   let i = 0;
   let closed = false;
@@ -80,6 +80,8 @@ export function consume(setRace, setOffline, setCommentary = () => {}) {
           currentRace = { ...currentRace, status: 'WAITING' };
         }
         setCommentary(undefined);
+      } else if (message.type === 'game' && message.event.type === 'theme') {
+        onTheme();
       }
     };
     socket.onclose = (e) => {

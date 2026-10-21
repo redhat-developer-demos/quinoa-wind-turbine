@@ -36,6 +36,8 @@ public interface GameConfig {
 
     Modifiers modifiers();
 
+    HallOfFame hallOfFame();
+
     Cheat cheat();
 
     Map<Integer, Team> teams();
@@ -54,6 +56,20 @@ public interface GameConfig {
     interface Ai {
         @WithDefault("false")
         boolean enabled();
+    }
+
+    interface HallOfFame {
+        /**
+         * How many finished races {@code GET /api/hall-of-fame} returns, most recent first.
+         */
+        @WithDefault("50")
+        int maxEntries();
+
+        /**
+         * How many of a race's top generators to keep in its hall-of-fame entry.
+         */
+        @WithDefault("3")
+        int topPlayers();
     }
 
     interface Commentary {

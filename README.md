@@ -76,6 +76,11 @@ The backend exposes the race over REST:
 - `GET /api/race/state` returns the current race: status, race time, teams in race order and players sorted by power.
 - `GET /api/race/leaderboard` returns the players with their rank. Add `?team=2` for one team.
 - `GET /api/race/stream` is a server-sent events stream of the same snapshots.
+- `GET /api/hall-of-fame` returns past finished races, most recent first: the winning team, the race time, the final team standings and the top generators of each race.
+
+### Hall of fame
+
+When a race finishes, its result is stored in a persistent Infinispan cache that spans a whole event and survives a restart. The result keeps the stable facts, the winning team and race time and the final standings, plus the top generators of that race by their race name. Player names are generated and don't follow a person across races, so the hall of fame tracks race results rather than individual achievement over the day. The dashboard shows it between races, and `game.hall-of-fame.max-entries` (default `50`) caps how many races the endpoint returns while `game.hall-of-fame.top-players` (default `3`) sets how many generators each entry keeps.
 
 The dashboard renders the race from the `/ws/dashboard` WebSocket, which sends the current race when it connects and then every snapshot and game event. It needs the dashboard login, and it only accepts connections from pages served by the app itself, because browsers send the login cookie with WebSocket handshakes from any site.
 
@@ -89,7 +94,7 @@ commentary once per race update, and the `race-commentary` topic distributes the
 dashboard replica. Delivery is at-least-once, and dashboards discard duplicate event IDs.
 
 Enable AI commentary with `GAME_AI_ENABLED=true` and `OPENAI_API_KEY`. The default model is
-[`gpt-6-luna`](https://developers.openai.com/api/docs/models/gpt-6-luna), and `OPENAI_MODEL` selects
+[`gpt-5.6-luna`](https://developers.openai.com/api/docs/models/gpt-5.6-luna), and `OPENAI_MODEL` selects
 another model. In dev mode:
 
 ```bash
@@ -110,12 +115,12 @@ models. An empty `OPENAI_REASONING_EFFORT` omits that optional parameter for ser
 support it. The hosted default uses `none` for short commentary.
 
 The model receives only the event, team totals and the relevant player's generated name and
-score. Each request has a two-second deadline. Provider errors and blank or overlong output use
+score. Each request has a five-second deadline. Provider errors and blank or overlong output use
 the matching template, and only one request runs at a time. `GET /api/features` returns
 `{"aiEnabled":false}` or `{"aiEnabled":true}` to report the configured mode.
 
 `game.commentary.interval` (default `3s`) limits routine commentary. Finish bypasses that delay.
-`game.commentary.timeout` (default `2s`) and `game.commentary.max-length` (default `180`) control
+`game.commentary.timeout` (default `5s`) and `game.commentary.max-length` (default `180`) control
 the request deadline and line length. A surge requires two windows of running race time, each
 `game.commentary.surge-window` (default `5s`), and an increase at least
 `game.commentary.surge-multiplier` (default `2`) times the previous window and
@@ -203,9 +208,10 @@ http://localhost:8080/dashboard
 
 The app is also an MCP server, so an agent such as Claude Code or goose can read the race and, with an admin login, run it. There are two endpoints, because MCP clients only start their login when the server answers with a 401.
 
-`/mcp` needs no login. It has the tools `get_race_state`, `get_leaderboard` and `get_player`, and the resource `race://current`, which sends an update notification to subscribers every time the race changes.
+`/mcp` needs no login. It has the tools `get_race_state`, `get_leaderboard`, `get_player` and `get_hall_of_fame`, and the resource `race://current`, which sends an update notification to subscribers every time the race changes.
 
-`/admin/mcp` has the same tools and resource, plus `start_race`, `pause_race` and `reset_race`. It
+`/admin/mcp` has the same tools and resource, plus `start_race`, `pause_race`, `reset_race`,
+`boost_team`, and the theme tools `list_preset_themes` and `apply_theme`. It
 needs a bearer token with the `admin` role from the `wind-turbine` Keycloak realm. Enable OIDC
 explicitly to use it. For local development:
 
@@ -254,6 +260,12 @@ game.teams.2.car=car-blue-convertible
 The UI loads the team configuration from `GET /api/config` before rendering. Change the properties
 and restart the app, then reload open pages. The available car images are listed in
 [`Config.js`](src/main/webui/src/Config.js), which still exports `TEAMS_CONFIG` for the components.
+
+You can also restyle the race between races without a restart. A theme sets each team's name, color
+and car and takes effect on every dashboard and phone at once. Apply a built-in preset or a full
+theme with `POST /api/theme` as an admin, or the `apply_theme` MCP tool; `GET /api/theme/presets`
+lists the presets. The painted track stays the default for now; themed and AI-generated tracks come
+later.
 
 The race rules are set on the server in `application.properties`. `game.tap-power` is the power of one tap and `game.taps-needed-per-player` is how many taps each player needs for their team to finish. A team's distance is its power × 100 / (tap power × taps needed × players in the team). `TAP_POWER` in `Config.js` sets the power each tap sends from the phone, so keep it equal to `game.tap-power`. `SHOW_TOP` sets how many players the dashboard shows per team.
 

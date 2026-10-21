@@ -82,11 +82,15 @@ public class GameResource {
         this.powerOut = powerOut;
         this.modifiersOut = modifiersOut;
         this.gameEventsIn.subscribe().with(s -> {
-            lastGameEvent.set(s);
-            if (GameEvent.RESET.equals(s.type()) && s.raceId() != null) {
-                raceId.set(s.raceId());
+            // A theme event restyles the board but is not a race lifecycle event, so it must not
+            // become the "last game event" that drives game status.
+            if (!GameEvent.THEME.equals(s.type())) {
+                lastGameEvent.set(s);
+                if (GameEvent.RESET.equals(s.type()) && s.raceId() != null) {
+                    raceId.set(s.raceId());
+                }
+                LOG.infof("Set last game event: %s", s.type());
             }
-            LOG.infof("Set last game event: %s", s.type());
             updates.onNext(s);
         });
     }
@@ -171,6 +175,17 @@ public class GameResource {
         return Uni.createFrom().voidItem();
     }
 
+    /**
+     * Broadcasts a theme to the race-wide game-events topic so every replica and client restyles.
+     * It carries the theme in the event data and does not touch the race lifecycle.
+     */
+    public Uni<Void> sendTheme(RaceTheme theme) {
+        GameEvent event = new GameEvent(GameEvent.THEME, Map.of("theme", theme));
+        LOG.infof("Broadcasting theme: %s", theme.id());
+        gameEventsOut.send(raceMessage(event));
+        return Uni.createFrom().voidItem();
+    }
+
     private static String raceIdFor(long counter) {
         return "race-" + counter;
     }
@@ -186,6 +201,7 @@ public class GameResource {
         static final String START = "start";
         static final String PAUSE = "pause";
         static final String FINISH = "finish";
+        static final String THEME = "theme";
         static final GameEvent PING = new GameEvent("ping");
 
         public GameEvent(String type) {

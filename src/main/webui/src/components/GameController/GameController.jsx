@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { gameApi, playerSocket, sensors } from '../../api';
 import Generator from './Generator';
-import { ENABLE_SHAKING, TEAMS_CONFIG } from '../../Config';
+import { ENABLE_SHAKING } from '../../Config';
+import { useTheme } from '../../ThemeContext';
 import TopBar from './TopBar';
 import EnableShakingModal from './EnableShakingModal';
 import ChooseTeamModal from './ChooseTeamModal';
@@ -73,6 +74,7 @@ function Standing({ standing }) {
 }
 
 function StatusContent(props) {
+  const { teams } = useTheme();
   switch (props.status.value) {
     case 'started':
       return (
@@ -90,7 +92,7 @@ function StatusContent(props) {
     default:
       return (
         <LoadingDiv>
-          <div><img src={`./${TEAMS_CONFIG[props.user.team - 1].car}.png`} /></div>
+          <div><img src={`./${teams[props.user.team - 1].car}.png`} /></div>
           <div>Waiting for game...</div>
         </LoadingDiv>
       );
@@ -98,6 +100,7 @@ function StatusContent(props) {
 }
 
 export default function GameController() {
+  const { teams } = useTheme();
   const [user, setUser] = useState();
   const [status, setStatus] = useState({ value: 'offline' });
   const [generated, setCounter] = useState(0);
@@ -154,7 +157,7 @@ export default function GameController() {
     const timeout = setTimeout(() => setNotification(null), 3000);
     return () => clearTimeout(timeout);
   }, [notification]);
-  const teamConfig = user && TEAMS_CONFIG[user.team - 1];
+  const teamConfig = user && teams[user.team - 1];
   const teamColor = teamConfig && teamConfig.color;
   const teamName = teamConfig && teamConfig.name;
   return (
