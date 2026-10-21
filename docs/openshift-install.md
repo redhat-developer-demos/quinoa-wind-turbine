@@ -13,6 +13,28 @@ and the same JSON messages, so switching providers only changes configuration.
 You need OpenShift 4.14 or later with cluster-admin, and the `oc` CLI logged in. The commands below
 deploy into a namespace called `wind-turbine`; change it to suit.
 
+## Deploy with the script
+
+[`scripts/deploy-openshift.sh`](../scripts/deploy-openshift.sh) runs every step below in order, with
+the waits in between. It is safe to re-run:
+
+```bash
+scripts/deploy-openshift.sh
+```
+
+- Existing dashboard, session and Infinispan passwords are read back and reused, so a re-run doesn't
+  rotate them.
+- A realm import that already reports `Done` is left alone. Reimporting would invalidate the cached
+  OAuth client of any MCP agent.
+- The OIDC settings are baked into the s2i build, so every redeploy keeps them.
+
+Settings come from environment variables: `NAMESPACE` (default `wind-turbine`), `KEYCLOAK_NAMESPACE`
+(default `keycloak`) and `KEYCLOAK_CR` (default `keycloak`). Set `SKIP_KEYCLOAK=1` to deploy without
+the admin MCP tools. If no Keycloak CR exists in the Keycloak namespace, the script skips the realm
+import and deploys with OIDC off.
+
+The sections below describe the same steps by hand, for when you need to run one of them alone.
+
 ## Install the operators
 
 Install these from OperatorHub. The Kafka and Infinispan operators own cluster-scoped CRDs, so
