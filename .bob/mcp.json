@@ -19,6 +19,26 @@
         "reset_race",
         "start_race"
       ]
+    },
+    "wind-turbine-race-cluster": {
+      "url": "https://quinoa-wind-turbine-wind-turbine.apps.ocp.485fj.sandbox1374.opentlc.com/mcp",
+      "alwaysAllow": [
+        "get_race_state",
+        "get_leaderboard",
+        "get_player"
+      ]
+    },
+    "wind-turbine-admin-cluster": {
+      "url": "https://quinoa-wind-turbine-wind-turbine.apps.ocp.485fj.sandbox1374.opentlc.com/admin/mcp",
+      "alwaysAllow": [
+        "get_race_state",
+        "get_leaderboard",
+        "get_player",
+        "start_race",
+        "pause_race",
+        "reset_race",
+        "boost_team"
+      ]
     }
   }
 }

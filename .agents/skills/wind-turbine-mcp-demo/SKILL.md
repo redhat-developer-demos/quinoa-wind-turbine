@@ -66,6 +66,25 @@ and breaks the flow.
   start it, or to let real phones join.
 - If something fails and the fix needs a shell command, stop and tell the user. Don't improvise.
 
+## Admin login check: stop and wait for the user
+
+Before starting a race, confirm the admin MCP server is authenticated. Call a harmless admin tool such
+as `get_race_state` on `wind-turbine-admin` (or `wind-turbine-admin-cluster` for a cluster
+deployment). If it fails with `Unauthorized`, `401`, `Session not available ... after restart`, or
+`fetch failed` while the app is up, the login hasn't happened or has expired.
+
+When that happens:
+
+1. Don't work around it. Don't start the race through the HTTP fallback, a shell command, or another
+   server, and don't carry on with only the read-only server.
+2. Tell the user in plain words that they need to authenticate: `/mcp`, pick the admin server, choose
+   Authenticate, and log in as `developer` / `developer` (for Bob, reconnect or re-authenticate the
+   server in its MCP settings). If the app isn't running yet, start it first (it must have
+   `GAME_OIDC_ENABLED=true`), then ask for the login.
+3. Wait for the user to confirm they're done. Then re-check with `get_race_state` and continue.
+
+Only the user can do the browser login, so ask once and wait; don't poll or retry in a loop.
+
 ## Before the demo
 
 1. Make sure dev mode runs with OIDC enabled. The default game runs without Keycloak, so admin MCP
@@ -146,6 +165,35 @@ and read the state through MCP afterwards:
 ```bash
 until curl -s localhost:8080/api/race/state | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d['status']!='STARTED' or max(t['distance'] for t in d['teams'])>=50 else 1)"; do sleep 1; done
 ```
+
+## After the demo: stop the app and clear the cached MCP login
+
+Dev mode starts a fresh Keycloak every time, with new keys. Bob caches the dynamically registered
+client and tokens, so next time it reuses a client the new Keycloak doesn't know and the login fails
+(`Authorization flow is not active`, 401s). When the user says to stop the game or wrap up the demo:
+
+1. Stop the app with `quarkus_stop`.
+2. Remove the cached OAuth entries for the wind-turbine realm from `~/.bob/settings/auth-secrets.json`.
+   Keys look like `bob.mcp.oauth.<server-hash>.<...>`; the hash identifies the MCP server. Find the
+   hashes whose keys mention `realms%252Fwind-turbine` (dev: `localhost:8181`, cluster: the `sso` route)
+   and delete every key with those hashes. Leave other servers' entries and the `bob.auth.*`,
+   `bob.profile.*` and `bob.telemetry.*` keys alone, and never print token values:
+
+   ```bash
+   python3 -c "
+   import json,os,re
+   p=os.path.expanduser('~/.bob/settings/auth-secrets.json')
+   d=json.load(open(p))
+   pre=lambda k: re.match(r'bob\.mcp\.oauth\.([0-9a-f]+)\.',k)
+   hs={pre(k).group(1) for k in d if pre(k) and 'realms%252Fwind-turbine' in k}
+   for k in [k for k in d if pre(k) and pre(k).group(1) in hs]: del d[k]
+   json.dump(d,open(p,'w'),indent=2)
+   print('removed servers:',sorted(hs))"
+   ```
+
+3. Free the callback port if a stale `bob` process holds it (33418), then tell the user they'll need
+   to authenticate `wind-turbine-admin` again next time.
+
 
 ## Without the MCP tools
 

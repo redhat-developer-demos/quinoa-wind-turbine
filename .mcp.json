@@ -10,9 +10,21 @@
       "type": "http",
       "url": "http://localhost:8080/mcp"
     },
+    "wind-turbine-race-cluster": {
+      "type": "http",
+      "url": "https://quinoa-wind-turbine-wind-turbine.apps.ocp.485fj.sandbox1374.opentlc.com/mcp"
+    },
     "wind-turbine-admin": {
       "type": "http",
       "url": "http://localhost:8080/admin/mcp",
+      "oauth": {
+        "clientId": "mcp-agent",
+        "callbackPort": 33418
+      }
+    },
+    "wind-turbine-admin-cluster": {
+      "type": "http",
+      "url": "https://quinoa-wind-turbine-wind-turbine.apps.ocp.485fj.sandbox1374.opentlc.com/admin/mcp",
       "oauth": {
         "clientId": "mcp-agent",
         "callbackPort": 33418
