@@ -54,7 +54,9 @@ function Cars({
         offsetDistance: `${distances[i]}%`,
       }}
     >
-      <g transform={wrap || undefined}><FormulaOneCar color={team.color} /></g>
+      <g transform={wrap || undefined}>
+        <FormulaOneCar color={team.color} accent={team.accent || undefined} logo={team.logo || undefined} />
+      </g>
     </g>
   ));
 }

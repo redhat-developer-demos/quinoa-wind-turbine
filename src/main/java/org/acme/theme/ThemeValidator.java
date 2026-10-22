@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Checks a theme before it is applied, so a bad admin entry or AI output keeps the current theme
@@ -17,6 +18,8 @@ public class ThemeValidator {
 
     static final Set<String> ALLOWED_CARS = Set.of(
         "car-barbie", "car-blue-convertible", "car-classic-black", "car-grey", "car-orange", "car-red");
+    static final Set<String> ALLOWED_LOGOS = Set.of("ibm");
+    static final Pattern COLOR_PATTERN = Pattern.compile("#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|[a-zA-Z]{3,20}");
     static final int MAX_NAME_LENGTH = 24;
     static final double MIN_COLOR_DISTANCE = 60;
 
@@ -47,6 +50,12 @@ public class ThemeValidator {
             }
             if (team.color() == null || team.color().isBlank()) {
                 errors.add("A team color is blank");
+            }
+            if (team.accent() != null && !COLOR_PATTERN.matcher(team.accent()).matches()) {
+                errors.add("Invalid accent color: " + team.accent());
+            }
+            if (team.logo() != null && !ALLOWED_LOGOS.contains(team.logo())) {
+                errors.add("Unknown logo: " + team.logo());
             }
             if (team.car() == null || !ALLOWED_CARS.contains(team.car())) {
                 errors.add("Unknown car: " + team.car());

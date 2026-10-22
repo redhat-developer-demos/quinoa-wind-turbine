@@ -5,6 +5,7 @@ import Generator from './Generator';
 import { ENABLE_SHAKING } from '../../Config';
 import { useTheme } from '../../ThemeContext';
 import TopBar from './TopBar';
+import FormulaOneCar, { FormulaOneCarDefs } from '../Dashboard/FormulaOneCar';
 import EnableShakingModal from './EnableShakingModal';
 import ChooseTeamModal from './ChooseTeamModal';
 import RankModal from './RankModal';
@@ -28,8 +29,8 @@ const LoadingDiv = styled.div`
   flex-direction: column;
   font-size: 2rem;
 
-  img {
-    height: 40px;
+  svg {
+    height: 60px;
     animation: spin 3s linear infinite;
   }
 
@@ -75,6 +76,7 @@ function Standing({ standing }) {
 
 function StatusContent(props) {
   const { teams } = useTheme();
+  const team = teams[props.user.team - 1];
   switch (props.status.value) {
     case 'started':
       return (
@@ -92,7 +94,12 @@ function StatusContent(props) {
     default:
       return (
         <LoadingDiv>
-          <div><img src={`./${teams[props.user.team - 1].car}.png`} /></div>
+          <div>
+            <svg viewBox="0 0 50 28" aria-hidden="true">
+              <defs><FormulaOneCarDefs /></defs>
+              <FormulaOneCar color={team.color} accent={team.accent || undefined} logo={team.logo || undefined} />
+            </svg>
+          </div>
           <div>Waiting for game...</div>
         </LoadingDiv>
       );

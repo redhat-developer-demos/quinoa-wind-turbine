@@ -29,6 +29,39 @@ class ThemeValidatorTest {
     }
 
     @Test
+    void acceptsAnAccentColor() {
+        List<String> errors = validator.validate(theme(
+            new ThemeTeam(1, "Falcons", "#c8102e", "car-red", "#fdd835"),
+            new ThemeTeam(2, "Peaches", "#ffa270", "car-orange", "gold")), 2);
+        assertTrue(errors.isEmpty(), errors::toString);
+    }
+
+    @Test
+    void rejectsAnInvalidAccentColor() {
+        assertFalse(validator.validate(theme(
+            new ThemeTeam(1, "Falcons", "#c8102e", "car-red", "url(#x)"),
+            team(2, "Peaches", "#ffa270", "car-orange")), 2).isEmpty());
+    }
+
+    @Test
+    void acceptsAKnownLogoAndRejectsAnUnknownOne() {
+        assertTrue(validator.validate(theme(
+            new ThemeTeam(1, "Falcons", "#c8102e", "car-red", null, "ibm"),
+            team(2, "Peaches", "#ffa270", "car-orange")), 2).isEmpty());
+        assertFalse(validator.validate(theme(
+            new ThemeTeam(1, "Falcons", "#c8102e", "car-red", null, "<script>"),
+            team(2, "Peaches", "#ffa270", "car-orange")), 2).isEmpty());
+    }
+
+    @Test
+    void everyPresetIsValid() {
+        for (RaceTheme preset : new PresetThemes().all()) {
+            List<String> errors = validator.validate(preset, 2);
+            assertTrue(errors.isEmpty(), preset.id() + ": " + errors);
+        }
+    }
+
+    @Test
     void acceptsCssColorNamesWithoutAContrastCheck() {
         List<String> errors = validator.validate(theme(
             team(1, "Mountains", "grey", "car-grey"),
