@@ -157,3 +157,9 @@ When adding or modifying Quarkus capabilities:
 2. **Consult Skills:** Call `quarkus_skills` before implementing new features to review configuration properties and architectural patterns.
 3. **Dev MCP Tools:** Use `quarkus_callTool` with `devui-testing_runTests` or `devui-testing_runTest` for running tests in dev mode.
 4. **Never run `mvn clean` while dev mode is active:** It deletes `target/test-classes` and breaks the live test runner.
+
+<!-- groma:start -->
+## Groma
+
+This project uses Groma. Before you scan, inspect, or curate architecture, or change files for a Backlog task, run `groma agent-instructions` and read the guide it names for that job. When it reports a first scan, ask the user whether they want you to curate the architecture. Do not edit Groma-owned architecture files directly.
+<!-- groma:end -->
