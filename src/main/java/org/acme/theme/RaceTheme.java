@@ -12,8 +12,16 @@ import java.util.List;
 @RegisterForReflection
 public record RaceTheme(String id, String name, List<ThemeTeam> teams, Track track) {
 
+    /**
+     * A team's look. {@code accent} is the livery's second color and {@code logo} an optional sponsor
+     * mark drawn on the rear wing; both may be null.
+     */
     @RegisterForReflection
-    public record ThemeTeam(int id, String name, String color, String car, String carTint) {
+    public record ThemeTeam(int id, String name, String color, String car, String accent, String logo) {
+
+        public ThemeTeam(int id, String name, String color, String car, String accent) {
+            this(id, name, color, car, accent, null);
+        }
     }
 
     /**

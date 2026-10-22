@@ -6,8 +6,21 @@ const CHASSIS = 'M30 48 L61 44 C79 40 88 33 109 33 C129 33 141 38 154 42 '
 const SIDEPOD = 'M44 37 C62 34 77 23 98 23 L124 25 Q140 26 146 34 '
   + 'L136 43 L102 45 L61 46 Z';
 
+// Sponsor marks a theme can put on the rear wing, drawn along the wing's main element.
+const LOGOS = {
+  ibm: (
+    <text transform="translate(17.2 52) rotate(-90)" textAnchor="middle" dominantBaseline="central"
+      fontFamily="'IBM Plex Sans', 'Arial Black', Helvetica, sans-serif" fontWeight="900" fontSize="10"
+      textLength="38" lengthAdjust="spacingAndGlyphs" fill="#0f62fe">
+      IBM
+    </text>
+  ),
+};
+
 // The 250 × 104 drawing fits the track's 50 × 28 car box, pointing right and centered at (25, 14).
-export default function FormulaOneCar({ color }) {
+// `accent` is the livery's second color (the wing elements and stripes), white unless a theme sets one.
+// `logo` names an optional sponsor mark for the rear wing.
+export default function FormulaOneCar({ color, accent = '#f4f6f7', logo }) {
   return (
     <g filter="url(#f1-shadow)">
       <g transform="translate(0 3.6) scale(0.2)">
@@ -39,8 +52,9 @@ export default function FormulaOneCar({ color }) {
 
         {/* Rear wing: two aero elements and body-colored endplates. */}
         <path d="M4 14 Q15 11 26 16 L26 88 Q15 93 4 90 Z" fill="#11171c" />
-        <path d="M12 17 Q18 15 22 18 L22 86 Q18 89 12 87 Z" fill="#edf1f3" />
+        <path d="M12 17 Q18 15 22 18 L22 86 Q18 89 12 87 Z" fill={accent} />
         <path d="M8 18 V86 M24 19 V85" stroke="#78828a" strokeWidth="1.3" />
+        {LOGOS[logo]}
         <path d="M2 10 H29 V16 H2 Z M2 88 H29 V94 H2 Z" fill={color} stroke="#171d22" strokeWidth="1" />
         <path d="M4 11 H27 M4 89 H27" stroke="#fff" strokeOpacity="0.45" strokeWidth="1.2" />
 
@@ -50,7 +64,7 @@ export default function FormulaOneCar({ color }) {
             <path d={SIDEPOD} fill={color} stroke="#192127" strokeWidth="1.2" />
             <path d={SIDEPOD} fill="url(#f1-paint)" />
             <path d="M52 37 C78 33 92 25 124 28 L139 32 L134 35 C103 29 88 36 63 41 Z"
-              fill="#f4f6f7" />
+              fill={accent} />
             <path d="M130 28 Q141 28 145 34 L136 41 L128 39 Z" fill="#111a20" />
             <path d="M132 29 L140 32" stroke="#738089" strokeWidth="1.2" />
             <path d="M79 27 L83 32 M85 25.5 L89 30.5 M91 24.5 L95 29.5"
@@ -63,7 +77,7 @@ export default function FormulaOneCar({ color }) {
           <g key={String(mirror)} transform={mirror ? 'translate(0 104) scale(1 -1)' : undefined}>
             <path d="M218 13 H248 Q241 30 242 46 L228 46 Q225 26 218 13 Z"
               fill="#11171c" stroke="#080c10" strokeWidth="1" />
-            <path d="M225 18 H242 Q236 30 238 43 L231 43 Q230 29 225 18 Z" fill="#edf1f3" />
+            <path d="M225 18 H242 Q236 30 238 43 L231 43 Q230 29 225 18 Z" fill={accent} />
             <path d="M222 18 Q230 33 230 44 M229 18 Q235 32 234 43"
               fill="none" stroke="#879198" strokeWidth="1.1" />
             <path d="M217 10 H249 L248 16 H220 Z" fill={color} stroke="#171d22" strokeWidth="1" />
@@ -76,7 +90,7 @@ export default function FormulaOneCar({ color }) {
         <path d={CHASSIS} fill={color} stroke="#192127" strokeWidth="1.2" />
         <path d={CHASSIS} fill="url(#f1-paint)" />
         <path d="M36 51 L97 42 L107 45 L96 49 L36 53 Z" fill="#fff" opacity="0.28" />
-        <path d="M153 44 L230 49 M153 60 L230 55" stroke="#f4f6f7" strokeWidth="1.8" fill="none" />
+        <path d="M153 44 L230 49 M153 60 L230 55" stroke={accent} strokeWidth="1.8" fill="none" />
         <path d="M160 48 L229 51" stroke="#fff" strokeWidth="2" strokeLinecap="round" opacity="0.35" />
         <path d="M100 45 L91 47 V57 L100 59 Z" fill="#121b21" stroke="#89939a" strokeWidth="1" />
 

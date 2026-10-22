@@ -26,11 +26,11 @@ public class UiConfigResource {
     @Produces(MediaType.APPLICATION_JSON)
     public UiConfig configuration() {
         List<Team> teams = themes.current().teams().stream()
-            .map(t -> new Team(t.id(), t.name(), t.color(), t.car(), t.carTint()))
+            .map(t -> new Team(t.id(), t.name(), t.color(), t.car(), t.accent(), t.logo()))
             .toList();
         return new UiConfig(teams, config.ai().enabled(), themes.current().track());
     }
 
     public record UiConfig(List<Team> teams, boolean aiEnabled, RaceTheme.Track track) {}
-    public record Team(int id, String name, String color, String car, String carTint) {}
+    public record Team(int id, String name, String color, String car, String accent, String logo) {}
 }

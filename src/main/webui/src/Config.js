@@ -4,7 +4,8 @@ export const IS_TOUCH_DEVICE = (('ontouchstart' in window)
     || (navigator.maxTouchPoints > 0)
     || (navigator.msMaxTouchPoints > 0));
 
-// available cars images: 'car-classic-black', 'car-barbie', 'car-grey', 'car-red', 'car-blue-convertible', 'car-orange'
+// Each team has a `color` (the F1 car's body) and an optional `accent` (its livery stripes and wing
+// elements, white when unset). `car` names a legacy sprite id that the validator still requires.
 // Loaded before rendering; application.properties is shared with server commentary.
 export let TEAMS_CONFIG = [];
 // The active theme's track from the server, or null to use the dashboard's default track.
