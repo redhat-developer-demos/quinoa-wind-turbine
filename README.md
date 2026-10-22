@@ -67,7 +67,7 @@ A player joins through the main UI at the root of the domain and receives a gene
 
 Over the same socket, the phone receives the game status, its team's position, its own rank inside the team, and short notifications such as "Your team took the lead!". The server sends these from its local copy of the race, so the phone doesn't poll.
 
-The race runs on the server. [`RaceTopology`](src/main/java/org/acme/RaceTopology.java) reads the `power` and `game-events` topics and keeps per-player scores and per-team totals in Kafka Streams state stores. It computes each team's distance, records the finish time when a team crosses the line, and writes the `finish` event once every team with players has finished. All race messages use the same key and partition, so one Streams task owns the race and only that task can decide the finish, even with several replicas.
+The race runs on the server. [`RaceTopology`](src/main/java/org/acme/race/RaceTopology.java) reads the `power` and `game-events` topics and keeps per-player scores and per-team totals in Kafka Streams state stores. It computes each team's distance, records the finish time when a team crosses the line, and writes the `finish` event once every team with players has finished. All race messages use the same key and partition, so one Streams task owns the race and only that task can decide the finish, even with several replicas.
 
 The topology writes a snapshot of the race to the compacted `race-progress` topic at most every 250 ms, and only when the race changed. Every replica reads that topic from the start and keeps the latest snapshot, so any replica can answer race queries without calling the others. Because the dashboard only renders these snapshots, you can close the dashboard tab during a race, open it again, and the race continues from the same position.
 
@@ -116,7 +116,7 @@ support it. The hosted default uses `none` for short commentary.
 
 The model receives only the event, team totals and the relevant player's generated name and
 score. Each request has a five-second deadline. Provider errors and blank or overlong output use
-the matching template, and only one request runs at a time. `GET /api/features` returns
+the matching template, and only one request runs at a time. `GET /api/config` returns
 `{"aiEnabled":false}` or `{"aiEnabled":true}` to report the configured mode.
 
 `game.commentary.interval` (default `3s`) limits routine commentary. Finish bypasses that delay.

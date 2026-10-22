@@ -1,32 +1,22 @@
 {
-  "name": "react-demo-app",
+  "name": "wind-turbine-webui",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@rooks/use-key": "^4.11.2",
-    "@styled-icons/bootstrap": "^10.47.0",
     "@styled-icons/boxicons-regular": "^10.47.0",
     "@styled-icons/boxicons-solid": "^10.47.0",
     "@styled-icons/heroicons-outline": "^10.47.0",
     "@styled-icons/ionicons-outline": "^10.46.0",
-    "@testing-library/jest-dom": "^7.0.1",
-    "@testing-library/react": "^16.3.3",
-    "@vitejs/plugin-react": "6.1.2",
-    "classnames": "^2.5.1",
     "lodash": "^4.18.1",
-    "prop-types": "^15.8.1",
     "react": "^18.1.0",
     "react-dom": "^18.1.0",
     "react-router-dom": "^7.18.4",
-    "react-transition-group": "^4.4.5",
-    "styled-components": "^6.6.0",
-    "vite": "8.3.4",
-    "web-vitals": "^6.2.3"
+    "styled-components": "^6.6.0"
   },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "vite test",
+    "test": "npm run test:api",
     "test:api": "node --test src/*.test.mjs src/api/*.test.mjs src/components/Dashboard/*.test.mjs"
   },
   "browserslist": {
@@ -40,5 +30,9 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "6.1.2",
+    "vite": "8.3.4"
   }
 }

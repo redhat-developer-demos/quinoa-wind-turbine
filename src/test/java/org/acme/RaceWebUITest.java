@@ -18,6 +18,7 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import org.acme.race.RaceState;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 import static io.restassured.RestAssured.given;
