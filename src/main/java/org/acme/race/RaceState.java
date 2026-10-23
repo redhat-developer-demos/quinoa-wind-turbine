@@ -21,15 +21,38 @@ public record RaceState(String raceId, Status status, long elapsedMs, long updat
     }
 
     @RegisterForReflection
-    public record PlayerState(String name, int team, long generated) {
+    public record PlayerState(String name, int team, long generated, java.util.Set<String> modes) {
+
+        public PlayerState {
+            modes = modes != null ? java.util.Collections.unmodifiableSet(new java.util.TreeSet<>(modes)) : java.util.Set.of();
+        }
+
+        public PlayerState(String name, int team, long generated) {
+            this(name, team, generated, java.util.Set.of());
+        }
+
+        PlayerState add(long quantity, java.util.Collection<String> newModes) {
+            java.util.Set<String> merged = new java.util.TreeSet<>(modes != null ? modes : java.util.Set.of());
+            if (newModes != null) {
+                merged.addAll(newModes);
+            }
+            return new PlayerState(name, team, generated + quantity, merged);
+        }
 
         PlayerState add(long quantity) {
-            return new PlayerState(name, team, generated + quantity);
+            return add(quantity, java.util.Set.of());
         }
     }
 
     @RegisterForReflection
-    public record LeaderboardEntry(int rank, String name, int team, long generated) {
+    public record LeaderboardEntry(int rank, String name, int team, long generated, java.util.Set<String> modes) {
+        public LeaderboardEntry {
+            modes = modes != null ? java.util.Collections.unmodifiableSet(new java.util.TreeSet<>(modes)) : java.util.Set.of();
+        }
+
+        public LeaderboardEntry(int rank, String name, int team, long generated) {
+            this(rank, name, team, generated, java.util.Set.of());
+        }
     }
 
     /**
@@ -51,7 +74,7 @@ public record RaceState(String raceId, Status status, long elapsedMs, long updat
         return IntStream.range(0, ranked.size())
             .mapToObj(i -> {
                 PlayerState p = ranked.get(i);
-                return new LeaderboardEntry(i + 1, p.name(), p.team(), p.generated());
+                return new LeaderboardEntry(i + 1, p.name(), p.team(), p.generated(), p.modes());
             })
             .toList();
     }

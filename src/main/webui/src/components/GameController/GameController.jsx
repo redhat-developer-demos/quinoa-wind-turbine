@@ -122,10 +122,10 @@ export default function GameController() {
     setStanding(null);
   }
 
-  function generatePower(quantity) {
+  function generatePower(quantity, mode = 'tap') {
     if (user && socket.current && status.value === 'started') {
       setCounter((c) => c + quantity);
-      socket.current.generate(quantity);
+      socket.current.generate(quantity, mode);
     }
   }
 

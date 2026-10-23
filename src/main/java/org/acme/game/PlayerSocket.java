@@ -92,7 +92,8 @@ public class PlayerSocket {
             LOG.debugf("Ignoring %d power from %s", generated.quantity(), user.name());
             return;
         }
-        powerOut.send(raceMessage(new Power(generated.quantity(), user.name(), user.team(), game.currentRaceId())));
+        java.util.Set<String> modes = generated.modes() != null ? new java.util.TreeSet<>(generated.modes()) : java.util.Set.of();
+        powerOut.send(raceMessage(new Power(generated.quantity(), user.name(), user.team(), game.currentRaceId(), modes)));
     }
 
     /**
@@ -124,7 +125,10 @@ public class PlayerSocket {
     }
 
     @RegisterForReflection
-    public record Generated(int quantity) {
+    public record Generated(int quantity, List<String> modes) {
+        public Generated(int quantity) {
+            this(quantity, List.of());
+        }
     }
 
     @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")

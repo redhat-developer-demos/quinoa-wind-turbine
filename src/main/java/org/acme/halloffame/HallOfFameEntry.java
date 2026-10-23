@@ -24,7 +24,14 @@ public record HallOfFameEntry(String raceId, long finishedAt, long elapsedMs, In
     }
 
     @RegisterForReflection
-    public record PlayerResult(String name, int team, long generated) {
+    public record PlayerResult(String name, int team, long generated, java.util.Set<String> modes) {
+        public PlayerResult {
+            modes = modes != null ? java.util.Collections.unmodifiableSet(new java.util.TreeSet<>(modes)) : java.util.Set.of();
+        }
+
+        public PlayerResult(String name, int team, long generated) {
+            this(name, team, generated, java.util.Set.of());
+        }
     }
 
     /**
@@ -38,7 +45,7 @@ public record HallOfFameEntry(String raceId, long finishedAt, long elapsedMs, In
             .toList();
         List<PlayerResult> players = race.players().stream()
             .limit(Math.max(0, topPlayers))
-            .map(player -> new PlayerResult(player.name(), player.team(), player.generated()))
+            .map(player -> new PlayerResult(player.name(), player.team(), player.generated(), player.modes()))
             .toList();
         String winnerName = race.winner() == null ? null : teamName.apply(race.winner());
         return new HallOfFameEntry(race.raceId(), finishedAt, race.elapsedMs(), race.winner(), winnerName,
