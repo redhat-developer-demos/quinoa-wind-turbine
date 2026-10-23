@@ -174,6 +174,14 @@
         <version>${surefire-plugin.version}</version>
         <configuration>
           <excludedGroups>e2e,optional</excludedGroups>
+          <!-- Environment variables beat application.properties, so pin the AI settings here. Without this, a
+               GAME_AI_ENABLED or OPENAI_BASE_URL in the caller's shell sends the tests to a real model. The tests
+               that need a model start their own local stub. -->
+          <environmentVariables>
+            <GAME_AI_ENABLED>false</GAME_AI_ENABLED>
+            <OPENAI_BASE_URL>http://127.0.0.1:1/v1/</OPENAI_BASE_URL>
+            <OPENAI_API_KEY>unused</OPENAI_API_KEY>
+          </environmentVariables>
           <systemPropertyVariables>
             <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
             <maven.home>${maven.home}</maven.home>
