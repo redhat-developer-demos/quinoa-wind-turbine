@@ -8,7 +8,7 @@ import { gameApi, powerApi } from '../../api';
 import StopWatch from './StopWatch';
 import { SHOW_TOP } from '../../Config';
 import { useTheme } from '../../ThemeContext';
-import { sortTeams } from './DashboardUtils';
+import { sortTeams, getContrastColor } from './DashboardUtils';
 
 const Title = styled.h1`
   text-align: center;
@@ -103,22 +103,27 @@ const Teams = styled.div`
 
 // Stacked so a long team name never collides with the stats in the narrow sidebar.
 const Header = styled.div`
-  border-bottom: 1px solid white;
-  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 8px;
+  margin-bottom: 6px;
 
-  .team-name {
-    display: flex;
+  .team-badge {
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
-    font-size: 1.4rem;
-    line-height: 1.1;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.2;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
   }
 
   .team-stats {
     display: flex;
     align-items: center;
     gap: 16px;
-    margin-top: 6px;
+    margin-top: 8px;
     color: white;
     font-size: 0.95rem;
     font-weight: bold;
@@ -135,17 +140,17 @@ function Team(props) {
   const { teams } = useTheme();
   const team = _.values(props.team);
   const top = team.sort((a, b) => b.generated - a.generated).slice(0, SHOW_TOP);
-  const teamConfig = teams[props.id - 1];
+  const teamConfig = teams[props.id - 1] || { name: `Team ${props.id}`, color: '#9e9e9e' };
+  const teamTextColor = getContrastColor(teamConfig.color);
   return (
     <div className={props.className}>
-      <Header style={{ color: teamConfig.color }}>
-        <div className="team-name">
-          {props.winner === props.id && <Trophy size={24} />}
-          <span>
-            Team
-            {' '}
-            {teamConfig.name}
-          </span>
+      <Header>
+        <div
+          className="team-badge"
+          style={{ backgroundColor: teamConfig.color, color: teamTextColor }}
+        >
+          {props.winner === props.id && <Trophy size={20} />}
+          <span>Team {teamConfig.name}</span>
         </div>
         <div className="team-stats">
           {props.winner < 0 && <span className="total-power">{powerApi.humanPower(props.generated)}</span>}

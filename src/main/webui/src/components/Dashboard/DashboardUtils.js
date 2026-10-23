@@ -56,3 +56,29 @@ export function elapsedNow(race) {
   }
   return race.elapsedMs + Math.max(0, Date.now() - race.updatedAt);
 }
+
+/**
+ * Determines whether text should be dark (#111827) or light (#ffffff) to ensure high contrast
+ * and readability against any given background hex or CSS color.
+ */
+export function getContrastColor(color) {
+  if (!color) return '#ffffff';
+  let hex = color.trim().toLowerCase();
+  if (hex === 'white' || hex === '#fff' || hex === '#ffffff') return '#111827';
+  if (hex === 'black' || hex === '#000' || hex === '#000000') return '#ffffff';
+  if (hex.startsWith('#')) {
+    hex = hex.slice(1);
+    if (hex.length === 3) {
+      hex = hex.split('').map((c) => c + c).join('');
+    }
+    if (hex.length === 6) {
+      const r = parseInt(hex.substring(0, 2), 16) / 255;
+      const g = parseInt(hex.substring(2, 4), 16) / 255;
+      const b = parseInt(hex.substring(4, 6), 16) / 255;
+      const toLinear = (c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+      const luminance = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+      return luminance > 0.4 ? '#111827' : '#ffffff';
+    }
+  }
+  return '#ffffff';
+}
