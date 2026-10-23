@@ -41,7 +41,7 @@ class OptionalServicesDisabledTest {
         String previousRace = state().raceId();
         event(admin, "reset");
         String raceId = await().atMost(Duration.ofSeconds(20)).until(OptionalServicesDisabledTest::state,
-            race -> !race.raceId().equals(previousRace)).raceId();
+            race -> !race.raceId().equals(previousRace) && race.status() == RaceState.Status.WAITING).raceId();
         try {
             var player = given().queryParam("team", 1).post("/api/game/assign")
                 .then().statusCode(200).extract().as(GameResource.User.class);
@@ -49,6 +49,16 @@ class OptionalServicesDisabledTest {
             event(admin, "start");
             await().atMost(Duration.ofSeconds(20)).until(() -> state().status() == RaceState.Status.STARTED);
             int power = gameConfig.tapPower() * gameConfig.tapsNeededPerPlayer();
+            // The commentary consumer treats the first snapshot it sees for a race as a baseline and says nothing
+            // about it. A first tap and the lead line it causes show that the consumer has seen this race before
+            // it finishes, which on a slow runner can otherwise happen within one snapshot interval.
+            int first = Math.min(gameConfig.tapPower(), power - 1);
+            given().contentType(JSON).body(new PowerResource.Power(first, player.name(), 1))
+                .post("/api/power").then().statusCode(204);
+            power -= first;
+            await().atMost(Duration.ofSeconds(20)).until(() -> commentary.latest()
+                .filter(value -> raceId.equals(value.raceId()) && "lead".equals(value.trigger())),
+                java.util.Optional::isPresent);
             while (power > 0) {
                 int batch = Math.min(power, GameConfig.MAX_QUANTITY);
                 given().contentType(JSON).body(new PowerResource.Power(batch, player.name(), 1))
