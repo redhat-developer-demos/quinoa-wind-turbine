@@ -3,6 +3,7 @@ import { Plug } from '@styled-icons/boxicons-regular';
 import { Bolt } from '@styled-icons/boxicons-solid';
 import { CloudDone, CloudOffline } from '@styled-icons/ionicons-outline';
 import styled from 'styled-components';
+import { getContrastColor } from '../Dashboard/DashboardUtils';
 
 const TopBarDiv = styled.div`
   position: fixed;
@@ -11,7 +12,7 @@ const TopBarDiv = styled.div`
   right: 0;
   height: 70px;
   display: flex;
-  color: white;
+  color: ${(props) => props.textColor || 'white'};
   font-size: 2rem;
   background-color: ${(props) => props.color};
   align-items: center;
@@ -56,8 +57,9 @@ const StatusDiv = styled.div`
 
 function TopBar(props) {
   const statusColor = props.status !== 'offline' ? 'green' : 'grey';
+  const textColor = getContrastColor(props.color);
   return (
-    <TopBarDiv color={props.color}>
+    <TopBarDiv color={props.color} textColor={textColor}>
       <UserDiv>
         <Plug size={32} />
         <span id="user-name">{props.user.name}</span>
