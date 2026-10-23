@@ -5,29 +5,79 @@
 The application has two browser entry points. The player screen is used on the phone, and the dashboard is used by the game operator. Both talk to the Quarkus backend. Power and game events go through Kafka, a Kafka Streams topology computes the race from them, and Infinispan holds the counters for player and race IDs.
 
 ```mermaid
-flowchart LR
-    A[Player phone UI] -->|join team| B[GameResource]
-    A <-->|taps, status and standing| W[PlayerSocket /ws/player]
-    D[Dashboard UI] -->|start, pause or reset| B
-    D <-->|race snapshots and game events| S[DashboardSocket /ws/dashboard]
+flowchart TB
+    A[Player phone UI]
+    D[Dashboard UI]
+    M[Code assistant]
 
-    W -->|registration and power| H[(Kafka topic: power)]
-    C[PowerResource] -->|power event| H
-    B -->|game event| I[(Kafka topic: game-events)]
+    subgraph game["game: lifecycle and connections"]
+        B[GameResource]
+        W[PlayerSocket /ws/player]
+        S[DashboardSocket /ws/dashboard]
+        C[PowerResource]
+    end
 
-    H --> T[RaceTopology]
+    subgraph race["race: scoring"]
+        T[RaceTopology]
+        R[RaceResource]
+    end
+
+    subgraph commentary["commentary"]
+        G[CommentaryGenerator]
+        F[CommentaryFeed]
+    end
+
+    subgraph halloffame["halloffame"]
+        HW[HallOfFameWriter]
+        HS[HallOfFameStore]
+    end
+
+    subgraph admin["admin: MCP tools"]
+        RT[RaceTools]
+    end
+
+    H[(Kafka: power)]
+    I[(Kafka: game-events)]
+    P[(Kafka: race-progress)]
+    Q[(Kafka: race-commentary)]
+    K[(Infinispan)]
+    L[AI model, optional]
+
+    A -->|join team| B
+    A <-->|taps, status and standing| W
+    D -->|start, pause or reset| B
+    D <-->|race snapshots, game events and commentary| S
+    M -->|/mcp and /admin/mcp| RT
+    RT --> R
+    RT --> B
+
+    W -->|registration and power| H
+    C -->|power event| H
+    B <-->|game events out, current status in| I
+
+    H --> T
     I --> T
-    T -->|race snapshots| P[(Kafka topic: race-progress)]
+    T -->|race snapshots| P
     T -->|finish event| I
-    P -->|local copy on every replica| R[RaceResource]
-    I -->|current status| B
+    P -->|local copy on every replica| R
     R --> W
     R --> S
     B --> W
     B --> S
 
-    B --> K[(Infinispan counters: users, races)]
+    P --> G
+    G -->|commentary lines| Q
+    G -.->|if enabled| L
+    Q --> F
+    F --> S
+
+    P --> HW
+    HW --> HS
+    HS --> K
+    B --> K
 ```
+
+The theme package (`ThemeService`) isn't drawn. It applies a theme by sending a `theme` game event, so it follows the same path as `GameResource`.
 
 A player joins through the main UI at the root of the domain and receives a generated name and team from `POST /api/game/assign`. The phone then opens a WebSocket to `/ws/player/{id}?team={team}`, and opening it registers the player with an empty event on the Kafka `power` topic. During the race, the phone adds up its taps and sends them over the socket at most every 200 ms, and the server publishes each batch to the same topic. Each power event is stamped with the current race ID, so power sent for a race that has since been reset doesn't count. `POST /api/power` still accepts one power event per request, which is what `GameLoader` uses by default.
 
