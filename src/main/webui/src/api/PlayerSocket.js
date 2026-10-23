@@ -17,14 +17,16 @@ export function connect(user, handlers) {
   let closed = false;
   let retries = 0;
   let pending = 0;
+  const pendingModes = new Set();
   let flushTimeout;
 
   function flush() {
     clearTimeout(flushTimeout);
     flushTimeout = null;
     if (pending > 0 && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ quantity: pending }));
+      socket.send(JSON.stringify({ quantity: pending, modes: Array.from(pendingModes) }));
       pending = 0;
+      pendingModes.clear();
     }
   }
 
@@ -61,11 +63,14 @@ export function connect(user, handlers) {
 
   open();
   return {
-    generate(quantity) {
+    generate(quantity, mode = 'tap') {
       if (pending + quantity > MAX_BATCH) {
         flush();
       }
       pending = Math.min(MAX_BATCH, pending + quantity);
+      if (mode) {
+        pendingModes.add(mode);
+      }
       if (!flushTimeout) {
         flushTimeout = setTimeout(flush, BATCH_INTERVAL_MS);
       }

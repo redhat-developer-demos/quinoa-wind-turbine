@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { hallOfFameApi, powerApi } from '../../api';
-import { TEAMS_CONFIG } from '../../Config';
 
 const HallOfFameDiv = styled.div`
   position: fixed;
@@ -20,73 +19,97 @@ const HallOfFameDiv = styled.div`
   flex-direction: column;
 
   h2 {
-    margin: 0 0 20px 0;
+    margin: 0 0 16px 0;
     text-align: center;
     font-size: 1.7rem;
     letter-spacing: 0.01em;
   }
-  .races {
+
+  .leaderboard {
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    padding-right: 4px;
   }
-  .race-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    margin-bottom: 6px;
-  }
-  .winner {
-    font-size: 1.15rem;
-    font-weight: 700;
-  }
-  .time {
-    font-variant-numeric: tabular-nums;
-    color: #9a9a9a;
-  }
+
   table.players {
     width: 100%;
     border-collapse: collapse;
   }
+
   table.players td {
-    padding: 5px 0;
+    padding: 8px 6px;
     border-top: 1px solid #2d2d2d;
   }
+
   .rank {
-    width: 28px;
-    color: #777;
+    width: 38px;
+    color: #9ca3af;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
   }
+
   .name {
-    color: #e6e6e6;
+    color: #f3f4f6;
+    font-size: 1.05rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
   }
+
   .team {
-    color: #8a8a8a;
-    font-size: 0.85rem;
+    color: #9ca3af;
+    font-size: 0.9rem;
   }
+
+  .modes {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 4px;
+  }
+
+  .mode-icon {
+    font-size: 0.95rem;
+    cursor: default;
+  }
+
   .power {
     text-align: right;
     font-variant-numeric: tabular-nums;
-    color: #b7b7b7;
+    color: #fcd700;
+    font-weight: 700;
+    font-size: 1.05rem;
   }
 `;
 
-function formatTime(ms) {
-  const total = Math.round(ms / 1000);
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
-  return `${minutes}:${String(seconds).padStart(2, '0')}`;
-}
+const MODE_ICONS = {
+  shake: { icon: '📳', label: 'Shook phone' },
+  tap: { icon: '👆', label: 'Tapped / Clicked' },
+  swipe: { icon: '↔️', label: 'Swiped' },
+  blow: { icon: '💨', label: 'Blew into mic' },
+};
 
-function teamColor(id) {
-  const config = TEAMS_CONFIG[id - 1];
-  return config ? config.color : 'white';
+function ModeBadges({ modes }) {
+  if (!modes || modes.length === 0) return null;
+  return (
+    <span className="modes">
+      {modes.map((mode) => {
+        const item = MODE_ICONS[mode] || { icon: '⚡', label: mode };
+        return (
+          <span key={mode} className="mode-icon" title={item.label} role="img" aria-label={item.label}>
+            {item.icon}
+          </span>
+        );
+      })}
+    </span>
+  );
 }
 
 /**
- * Shows past finished races between races. Fetches once on mount, which is when the dashboard returns to the
- * initial state, so each new race's result appears the next time the board is idle.
+ * Shows past finished races between races. Aggregates all top generators across past races
+ * into a single unified Hall of Fame leaderboard ranked by power, showing their input methods.
  */
 export default function HallOfFame() {
   const [races, setRaces] = useState([]);
@@ -96,38 +119,44 @@ export default function HallOfFame() {
   if (!races.length) {
     return null;
   }
+
+  const allPlayers = races.flatMap((race) => {
+    const teamNameOf = (id) => (race.teams.find((t) => t.id === id) || {}).name || '';
+    return (race.topPlayers || []).map((player) => ({
+      name: player.name,
+      teamName: teamNameOf(player.team),
+      team: player.team,
+      modes: Array.from(player.modes || []),
+      generated: player.generated,
+      raceId: race.raceId,
+    }));
+  });
+
+  allPlayers.sort((a, b) => b.generated - a.generated);
+
   return (
     <HallOfFameDiv>
       <h2>Hall of fame</h2>
-      <div className="races">
-        {races.map((race) => {
-          const teamNameOf = (id) => (race.teams.find((t) => t.id === id) || {}).name || '';
-          return (
-            <div className="race" key={race.raceId}>
-              <div className="race-head">
-                <span className="winner" style={{ color: teamColor(race.winner) }}>{race.winnerName} wins</span>
-                <span className="time">{formatTime(race.elapsedMs)}</span>
-              </div>
-              {race.topPlayers.length > 0 && (
-                <table className="players">
-                  <tbody>
-                    {race.topPlayers.map((player, i) => (
-                      <tr key={player.name}>
-                        <td className="rank">{i + 1}</td>
-                        <td className="name">
-                          {player.name}
-                          {' '}
-                          <span className="team">({teamNameOf(player.team)})</span>
-                        </td>
-                        <td className="power">{powerApi.humanPower(player.generated)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          );
-        })}
+      <div className="leaderboard">
+        <table className="players">
+          <tbody>
+            {allPlayers.map((player, i) => (
+              <tr key={`${player.raceId}-${player.name}-${i}`}>
+                <td className="rank">{i + 1}</td>
+                <td className="name">
+                  <span>{player.name}</span>
+                  {player.teamName && (
+                    <span className="team">({player.teamName})</span>
+                  )}
+                  {player.modes && player.modes.length > 0 && (
+                    <ModeBadges modes={player.modes} />
+                  )}
+                </td>
+                <td className="power">{powerApi.humanPower(player.generated)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </HallOfFameDiv>
   );

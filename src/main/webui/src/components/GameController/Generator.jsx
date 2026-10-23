@@ -61,7 +61,7 @@ function Generator(props) {
           return;
         }
         if (volume > 20) {
-          props.generatePower(volume);
+          props.generatePower(volume, 'blow');
         }
       }, 200);
       return () => clearInterval(interval);
@@ -73,7 +73,7 @@ function Generator(props) {
     useEffect(() => {
       sensors.startSwipeSensor((d, diff) => {
         const power = Math.min(100, Math.round(Math.abs(diff) / 5));
-        props.generatePower(power);
+        props.generatePower(power, 'swipe');
       });
     }, []);
   }
@@ -83,7 +83,7 @@ function Generator(props) {
     useEffect(() => {
       sensors.startShakeSensor((magnitude) => {
         const power = Math.min(magnitude, 100);
-        props.generatePower(power);
+        props.generatePower(power, 'shake');
       });
     }, []);
   }
@@ -91,14 +91,14 @@ function Generator(props) {
   const onTap = (e) => {
     // Tapping
     if (ENABLE_TAPPING) {
-      props.generatePower(TAP_POWER, true);
+      props.generatePower(TAP_POWER, 'tap');
     }
   };
 
   const onClick = (e) => {
     // Clicking
     if (!IS_TOUCH_DEVICE && ENABLE_TAPPING) {
-      props.generatePower(TAP_POWER, true);
+      props.generatePower(TAP_POWER, 'tap');
     }
   };
 

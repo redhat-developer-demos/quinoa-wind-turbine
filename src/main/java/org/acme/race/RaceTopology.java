@@ -236,7 +236,7 @@ public class RaceTopology {
                 player = null;
             }
             boolean joined = player == null;
-            PlayerState current = player != null ? player : new PlayerState(power.source(), power.destination(), 0);
+            PlayerState current = player != null ? player : new PlayerState(power.source(), power.destination(), 0, power.modes());
             // Power from a previous race, or sent while the race isn't running, only registers the player
             long quantity = race.status() == Status.STARTED && Objects.equals(race.raceId(), power.raceId())
                 ? Math.max(0, power.quantity()) : 0;
@@ -247,7 +247,7 @@ public class RaceTopology {
             // own generated power stays raw, so the leaderboard still reflects individual effort.
             long teamQuantity = applyModifier(current.team(), quantity, race.elapsedAt(timestamp));
             teams.put(current.team(), teams.getOrDefault(current.team(), TeamProgress.EMPTY).add(joined ? 1 : 0, teamQuantity));
-            players.put(current.name(), current.add(quantity));
+            players.put(current.name(), current.add(quantity, power.modes()));
             race = race.withTeams(teams);
             changed = true;
 
