@@ -52,7 +52,9 @@ or shell polling loops, and skip the HTTP fallback below. Each of those triggers
 and breaks the flow.
 
 - Check whether the app is up with `quarkus_status` or a `get_race_state` call, not `lsof` or `curl`.
-  If `get_race_state` answers, the app is already running: don't start a second instance.
+  If `get_race_state` answers, the app is already running: don't start a second instance. If it is
+  running without `GAME_OIDC_ENABLED=true`, restart it with the flag (see *Before the demo*) rather
+  than continuing without the admin server.
 - Poll with `get_race_state`, but never call it 5 times in a row with identical arguments: the
   tool runner treats that as a doom loop and aborts the run, so the demo stalls and the race ends
   unreported. Alternate it with `get_leaderboard` (for team 1, then team 2, then no team), and keep
@@ -73,6 +75,10 @@ as `get_race_state` on `wind-turbine-admin` (or `wind-turbine-admin-cluster` for
 deployment). If it fails with `Unauthorized`, `401`, `Session not available ... after restart`, or
 `fetch failed` while the app is up, the login hasn't happened or has expired.
 
+A `403` on every admin call while the app is up is different: dev mode is running without
+`GAME_OIDC_ENABLED=true`, so OIDC is off and admin MCP is blocked entirely. Restart dev mode with
+the flag (see *Before the demo*), then continue with the login check below.
+
 When that happens:
 
 1. Don't work around it. Don't start the race through the HTTP fallback, a shell command, or another
@@ -87,10 +93,14 @@ Only the user can do the browser login, so ask once and wait; don't poll or retr
 
 ## Before the demo
 
-1. Make sure dev mode runs with OIDC enabled. The default game runs without Keycloak, so admin MCP
-   needs `GAME_OIDC_ENABLED=true` in the dev process environment. With the Quarkus Agent MCP, its
-   server process must inherit that environment variable before `quarkus_start`. Otherwise start
-   with `GAME_OIDC_ENABLED=true ./mvnw quarkus:dev`. Check status with `quarkus_status`.
+1. Start dev mode with OIDC enabled. A plain dev start runs without Keycloak (faster, one less
+   container), but the full demo needs the admin MCP server: whenever the user asks to start the
+   game, bring dev mode up with `GAME_OIDC_ENABLED=true` in the dev process environment, never with
+   a plain start. With the Quarkus Agent MCP, its server process must inherit that environment
+   variable before `quarkus_start`; otherwise start with `GAME_OIDC_ENABLED=true ./mvnw quarkus:dev`.
+   If dev mode is already running without the flag (every admin tool answers `403` while the app is
+   up), don't work around it: stop and restart with the variable set. Check status with
+   `quarkus_status`.
 2. Check that both game servers are connected. If `wind-turbine-race` shows `ECONNREFUSED`, it was
    probably tried before dev mode started: ask the user to run `/mcp`, pick it and choose Reconnect.
    It needs no login, so Authenticate is the wrong choice for it.
@@ -267,8 +277,9 @@ Read-only calls work the same way against `$B/mcp` without the `Authorization` h
   returned the app's HTML page. `quarkus.quinoa.ignored-path-prefixes` must include `/.well-known`.
 - A 401 from `wind-turbine-admin` after dev mode restarted means the token is from the previous
   Keycloak. Authenticate again.
-- A 403 means the token is valid but the user lacks the `admin` role. Only `developer` has it in
-  the dev realm.
+- A `403` from `/admin/mcp` on every call means either dev mode is running without
+  `GAME_OIDC_ENABLED=true` (restart it with the flag) or the token's user lacks the `admin` role;
+  only `developer` has it in the dev realm.
 - `/admin/mcp` requires `GAME_OIDC_ENABLED=true` in every mode. Outside dev mode, also set
   `GAME_OIDC_URL`. See `docs/openshift-install.md`. For a deployed app, add a server with
   `claude mcp add --transport http --client-id mcp-agent --callback-port 33418 wind-turbine-admin https://<route>/admin/mcp`.
