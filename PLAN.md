@@ -194,10 +194,12 @@ against LC4J 1.14.1 with a live race.
   mounted directory — the host reads the top-level `blobs`/`manifests`, the container
   only the `models/` subdirectory. granite4.2:3b, imported through the host binary, was
   invisible to the container, so a start without the host server pulled the 2.2 GB model
-  once into `models/`. After that single pull both paths work: a fresh container session
-  starts in ~30 s with the model already present, and the host server serves its own
-  copy. Any future model imported via the host binary needs the same one-time container
-  pull (or a copy of manifest and blobs into `models/`).
+  once into `models/`. Resolved structurally the same day: the host Ollama app was
+  uninstalled (enough local model servers already), so dev mode always uses the
+  container and there is a single layout. After the one-time pull, a fresh container
+  session starts in ~30 s with the model present. The old top-level `blobs/` (~44 GB of
+  pre-existing models) is now unread by anything and is a deletion candidate; the
+  container's store lives under `models/`.
 - Stage cold start, with the model pre-pulled: a fresh dev session pays only the
   container start (the extension allows one minute) and the model preload.
 - qwen3:0.6b is not good enough for real commentary — it stated wrong finishing orders
