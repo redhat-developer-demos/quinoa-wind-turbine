@@ -189,6 +189,15 @@ against LC4J 1.14.1 with a live race.
   `$OLLAMA_MODELS` (default `~/.ollama`) as `/root/.ollama`, so a fresh container finds
   models pulled earlier. A restart within a dev session reuses the running container. A
   host `ollama serve` on port 11434 is detected and used instead of starting a container.
+- Layout gotcha (hit 2026-10-25): the host Ollama 0.33 and the newer
+  `ollama/ollama:latest` container image read different storage layouts from the same
+  mounted directory — the host reads the top-level `blobs`/`manifests`, the container
+  only the `models/` subdirectory. granite4.2:3b, imported through the host binary, was
+  invisible to the container, so a start without the host server pulled the 2.2 GB model
+  once into `models/`. After that single pull both paths work: a fresh container session
+  starts in ~30 s with the model already present, and the host server serves its own
+  copy. Any future model imported via the host binary needs the same one-time container
+  pull (or a copy of manifest and blobs into `models/`).
 - Stage cold start, with the model pre-pulled: a fresh dev session pays only the
   container start (the extension allows one minute) and the model preload.
 - qwen3:0.6b is not good enough for real commentary — it stated wrong finishing orders
