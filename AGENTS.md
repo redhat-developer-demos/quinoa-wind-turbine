@@ -84,6 +84,7 @@ Code lives in feature packages under `src/main/java/org/acme/`, and tests mirror
 
 ### Starting Dev Mode
 * **For AI Agents:** Use the **Quarkus Agent MCP** tool `quarkus_start` to manage dev mode and connect to Dev MCP tools automatically. Check status with `quarkus_status` and stop with `quarkus_stop`.
+* A plain dev start runs without Keycloak (faster startup, one less container). When the user asks to start the game for the full demo experience, make sure dev mode runs with `GAME_OIDC_ENABLED=true` so the admin MCP server is available; see the MCP demo skill.
 * **For Developers (CLI):** Run `./mvnw quarkus:dev`.
 
 **Endpoints:**
@@ -148,7 +149,7 @@ To run load tests and analyze system behavior:
   ```
   For sdkman users: `command` = `~/.sdkman/candidates/jbang/current/bin/jbang` (expand `~` to your home dir), `JAVA_HOME` = `~/.sdkman/candidates/java/current`.
 * **Load Testing Skill:** [`.agents/skills/wind-turbine-load-test/SKILL.md`](.agents/skills/wind-turbine-load-test/SKILL.md:1) provides automated procedures for running traffic simulations with JBang, starting races, and analyzing Prometheus metrics.
-* **MCP Demo Skill:** [`.agents/skills/wind-turbine-mcp-demo/SKILL.md`](.agents/skills/wind-turbine-mcp-demo/SKILL.md:1) covers driving a race through the game's MCP servers: the login steps only the user can do, getting simulated players in with `GameLoader --ws`, pacing a race for a 50% milestone, and an HTTP fallback without MCP tools. When asked to start the game, check the admin MCP login first; if it hasn't happened, tell the user to authenticate and wait for their confirmation instead of working around it.
+* **MCP Demo Skill:** [`.agents/skills/wind-turbine-mcp-demo/SKILL.md`](.agents/skills/wind-turbine-mcp-demo/SKILL.md:1) covers driving a race through the game's MCP servers: the login steps only the user can do, getting simulated players in with `GameLoader --ws`, pacing a race for a 50% milestone, and an HTTP fallback without MCP tools. When asked to start the game, start dev mode with `GAME_OIDC_ENABLED=true` (a plain start skips Keycloak, but the full demo needs the admin MCP server), check the admin MCP login first, and if it hasn't happened, tell the user to authenticate and wait for their confirmation instead of working around it.
 * Skills live in `.agents/skills/`. `.claude/skills` is a symlink to it, so Claude Code finds the same skills as agents that read `.agents/`.
 
 ### Quarkus Extension & MCP Conventions
