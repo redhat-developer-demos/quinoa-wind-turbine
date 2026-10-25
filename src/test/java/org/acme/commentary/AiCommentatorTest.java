@@ -56,6 +56,7 @@ class AiCommentatorTest {
         assertEquals(2, body.path("messages").size());
         assertEquals("system", body.path("messages").get(0).path("role").asText());
         assertTrue(body.path("messages").get(0).path("content").asText().contains("180"));
+        assertTrue(body.path("messages").get(0).path("content").asText().contains("one decimal place"));
         JsonNode user = body.path("messages").get(1);
         assertEquals("user", user.path("role").asText());
         String content = user.path("content").asText();
@@ -71,6 +72,9 @@ class AiCommentatorTest {
             .body("teams[0].car", org.hamcrest.Matchers.is("car-orange"));
         assertEquals(1, facts.path("players").size());
         assertEquals("Racer", facts.path("players").get(0).path("name").asText());
+        // The facts carry one-decimal distances, never the raw race-math doubles.
+        assertEquals(10.2, facts.path("teams").get(0).path("distance").asDouble(), 1e-9);
+        assertFalse(content.contains("10.1666"));
         assertFalse(content.contains("Unrelated player"));
         assertNull(OpenAiStub.REQUESTS.poll(100, TimeUnit.MILLISECONDS));
     }
@@ -137,7 +141,7 @@ class AiCommentatorTest {
 
     private static RaceState snapshot() {
         return new RaceState("ai-contract", RaceState.Status.STARTED, 1_000, 1, null,
-            List.of(new RaceState.TeamState(1, 1, 1, 150, 10, null),
+            List.of(new RaceState.TeamState(1, 1, 1, 150, 10.166666666666666, null),
                 new RaceState.TeamState(2, 2, 1, 0, 0, null)),
             List.of(new RaceState.PlayerState("Racer", 1, 150),
                 new RaceState.PlayerState("Unrelated player", 2, 0)));
