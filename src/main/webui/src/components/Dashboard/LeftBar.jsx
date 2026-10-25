@@ -89,8 +89,8 @@ const Teams = styled.div`
   display: flex;
   flex-grow: 1;
   flex-direction: column;
-  margin-left: 20px;
-  margin-right: 20px;
+  margin-left: 14px;
+  margin-right: 14px;
 
   .stopwatch {
     font-size: 1.5rem;
@@ -166,24 +166,59 @@ function Team(props) {
       <ol>
         {top.length > 0 ? top.map((u) => (
           <li key={u.name}>
-            {u.name}
-            {' '}
-            -
-            {' '}
-            {powerApi.humanPower(u.generated)}
+            <span className="player-name" title={u.name}>{u.name}</span>
+            <span className="player-power">{powerApi.humanPower(u.generated)}</span>
           </li>
-        )) : (<li>Waiting for players...</li>)}
+        )) : (<li className="waiting">Waiting for players...</li>)}
       </ol>
     </div>
   );
 }
 
+// Each row is one line: the name truncates and the power stays put, so a long name or a
+// growing number never wraps and shifts the rest of the menu.
 const StyledTeam = styled(Team)`
-  font-size: 1.0rem;
+  font-size: 0.95rem;
   color: white;
 
+  ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    counter-reset: rank;
+  }
+
   li {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
     line-height: 25px;
+    counter-increment: rank;
+  }
+
+  li::before {
+    content: counter(rank) '.';
+    flex: none;
+    width: 1.3em;
+    text-align: right;
+  }
+
+  li.waiting::before {
+    content: none;
+  }
+
+  .player-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .player-power {
+    flex: none;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
 `;
 
