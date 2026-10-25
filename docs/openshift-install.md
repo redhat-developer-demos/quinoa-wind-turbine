@@ -173,6 +173,11 @@ oc project wind-turbine
   -Dquarkus.container-image.group=wind-turbine
 ```
 
+The binary build streams the whole project directory to the cluster, so keep the tree lean first:
+run `./mvnw clean` and make sure no local `.quinoa` or `src/main/webui/node_modules` is present
+(the cluster runs its own npm install). A bloated upload fails the build with `FetchSourceFailed`,
+and the rollout then silently redeploys the previous image.
+
 The committed `quarkus.container-image.registry` stays `quay.io` for the CI build above; the override
 here sends the s2i build to the internal registry instead. The profile already sets the Java 25 base
 image, five replicas, resource requests and limits, a termination grace period that lets WebSocket

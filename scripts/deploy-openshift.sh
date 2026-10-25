@@ -145,6 +145,17 @@ log "Build and deploy the app"
   -Dquarkus.container-image.group="$NAMESPACE" \
   $OIDC_ARGS
 
+# The s2i build runs asynchronously, so a failed build does not fail the Maven deploy above; the
+# rollout below would then just re-deploy the previous image and this script would report success.
+# Fail loudly instead. The binary build streams the project directory, so a failed build is usually
+# a broken source upload: keep the tree lean (mvn clean, no local .quinoa or node_modules).
+log "Wait for the image build"
+BUILD=$(oc get builds -n "$NAMESPACE" -l buildconfig=quinoa-wind-turbine \
+  --sort-by=.metadata.creationTimestamp -o name | tail -1)
+[ -n "$BUILD" ] || die "no build was triggered by the deploy"
+oc wait --for=condition=Complete "$BUILD" -n "$NAMESPACE" --timeout=900s \
+  || die "image build $BUILD did not complete; check 'oc logs $BUILD -n $NAMESPACE'"
+
 log "Wait for the rollout"
 oc rollout status deployment/quinoa-wind-turbine -n "$NAMESPACE" --timeout=600s
 
