@@ -3,8 +3,9 @@ import { Trophy } from '@styled-icons/ionicons-outline';
 import React from 'react';
 import styled from 'styled-components';
 import { powerApi } from '../../api';
+import { SHOW_TOP_WINNER } from '../../Config';
 import { useTheme } from '../../ThemeContext';
-import { getContrastColor } from './DashboardUtils';
+import { topPlayers, getContrastColor } from './DashboardUtils';
 
 const WinnerDiv = styled.div`
   position: fixed;
@@ -151,9 +152,20 @@ export default function Winner(props) {
         </h1>
       </div>
       <div className="leaderboards">
-        <Leaderboard players={props.rank.overall} title="Overall leaderboard" />
-        <Leaderboard players={props.rank.team1} title={`Team ${teams[0].name}`} color={teams[0].color} />
-        <Leaderboard players={props.rank.team2} title={`Team ${teams[1].name}`} color={teams[1].color} />
+        <Leaderboard
+          players={topPlayers(props.rank.overall, SHOW_TOP_WINNER)}
+          title={`Overall top ${SHOW_TOP_WINNER}`}
+        />
+        <Leaderboard
+          players={topPlayers(props.rank.team1, SHOW_TOP_WINNER)}
+          title={`Team ${teams[0].name} top ${SHOW_TOP_WINNER}`}
+          color={teams[0].color}
+        />
+        <Leaderboard
+          players={topPlayers(props.rank.team2, SHOW_TOP_WINNER)}
+          title={`Team ${teams[1].name} top ${SHOW_TOP_WINNER}`}
+          color={teams[1].color}
+        />
       </div>
     </WinnerDiv>
   );

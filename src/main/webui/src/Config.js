@@ -27,6 +27,9 @@ export async function loadConfig() {
 export const TAP_POWER = 15; // in MW
 export const NB_TAP_NEEDED_PER_USER = 100;
 export const SHOW_TOP = 5;
+// The winner popup's leaderboards cap at this many rows per column, so a race with hundreds of
+// players doesn't render a list nobody scrolls. Separate from SHOW_TOP, which caps the sidebar.
+export const SHOW_TOP_WINNER = 10;
 
 // Mobile app
 export const ENABLE_TAPPING = true;
