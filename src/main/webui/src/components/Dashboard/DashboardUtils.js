@@ -1,4 +1,6 @@
-import { TEAMS_CONFIG } from '../../Config';
+// The explicit .js extension keeps this module loadable by the Node test runner, which resolves
+// imports strictly; Vite accepts it too.
+import { TEAMS_CONFIG } from '../../Config.js';
 
 // Race statuses from the server, mapped to the names the dashboard controls use
 const STATUSES = {
@@ -15,6 +17,17 @@ export function sortTeams(team) {
     }
     return b.generated - a.generated;
   });
+}
+
+/**
+ * The players sorted by generated power, best first, capped to count. The winner popup shows the
+ * top few instead of the whole field, so a large race doesn't render a 1000-row list.
+ * Returns a new array and never mutates the input, which the live race state also uses.
+ */
+export function topPlayers(players, count) {
+  return [...players]
+    .sort((a, b) => b.generated - a.generated || a.name.localeCompare(b.name))
+    .slice(0, count);
 }
 
 /**
