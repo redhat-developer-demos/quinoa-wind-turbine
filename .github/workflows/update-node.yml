@@ -1,0 +1,91 @@
+name: Update Node.js pin
+
+# Quinoa installs the Node and npm versions pinned in application.properties, which Dependabot doesn't track.
+# This job opens a PR when a newer release exists on the same Node major line. Moving to a new major is manual.
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  PROPERTIES_FILE: src/main/resources/application.properties
+
+jobs:
+  update-node:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Find the latest release on the pinned Node line
+        id: versions
+        run: |
+          current_node=$(sed -n 's/^quarkus\.quinoa\.package-manager-install\.node-version=//p' "$PROPERTIES_FILE")
+          current_npm=$(sed -n 's/^quarkus\.quinoa\.package-manager-install\.npm-version=//p' "$PROPERTIES_FILE")
+          if ! [[ "$current_node" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$current_npm" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Could not read the pinned Node and npm versions from $PROPERTIES_FILE"
+            exit 1
+          fi
+          major=${current_node%%.*}
+
+          # index.json lists releases newest first. Take the newest LTS release of the pinned major.
+          release=$(curl -fsSL --proto '=https' --tlsv1.2 --max-time 30 https://nodejs.org/dist/index.json \
+            | jq -c --arg prefix "v${major}." \
+                '[.[] | select((.version | startswith($prefix)) and .lts != false)] | first')
+          latest_node=$(jq -r '.version // empty | ltrimstr("v")' <<< "$release")
+          latest_npm=$(jq -r '.npm // empty' <<< "$release")
+          if ! [[ "$latest_node" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$latest_npm" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::No LTS release found for Node ${major}.x"
+            exit 1
+          fi
+
+          echo "current: node $current_node, npm $current_npm"
+          echo "latest:  node $latest_node, npm $latest_npm"
+          {
+            echo "current_node=$current_node"
+            echo "latest_node=$latest_node"
+            echo "latest_npm=$latest_npm"
+            if [ "$current_node" = "$latest_node" ] && [ "$current_npm" = "$latest_npm" ]; then
+              echo "changed=false"
+            else
+              echo "changed=true"
+            fi
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open a pull request
+        if: steps.versions.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURRENT_NODE: ${{ steps.versions.outputs.current_node }}
+          LATEST_NODE: ${{ steps.versions.outputs.latest_node }}
+          LATEST_NPM: ${{ steps.versions.outputs.latest_npm }}
+        run: |
+          branch="chore/node-${LATEST_NODE}"
+
+          if git ls-remote --exit-code --heads origin "$branch" > /dev/null; then
+            echo "Branch $branch already exists, skipping."
+            exit 0
+          fi
+
+          sed -i \
+            -e "s/^\(quarkus\.quinoa\.package-manager-install\.node-version=\).*/\1${LATEST_NODE}/" \
+            -e "s/^\(quarkus\.quinoa\.package-manager-install\.npm-version=\).*/\1${LATEST_NPM}/" \
+            "$PROPERTIES_FILE"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add "$PROPERTIES_FILE"
+          git commit -m "chore: update Node.js to ${LATEST_NODE} and npm to ${LATEST_NPM}"
+          git push origin "$branch"
+
+          gh pr create \
+            --base main \
+            --head "$branch" \
+            --title "chore: update Node.js to ${LATEST_NODE}" \
+            --body "Updates the Node.js and npm versions that Quinoa installs, from ${CURRENT_NODE} to ${LATEST_NODE} (npm ${LATEST_NPM}). Opened by the scheduled \`Update Node.js pin\` workflow."
