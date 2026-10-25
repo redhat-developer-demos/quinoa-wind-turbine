@@ -187,6 +187,11 @@ curl -s "https://$HOST/q/health/ready"
 curl -s "https://$HOST/api/config"
 ```
 
+The route is source-balanced (`haproxy.router.openshift.io/balance=source`, set through
+`quarkus.openshift.route.annotations`). MCP sessions live in the replica that created them, so
+without it a request can land on a replica that doesn't know the session and MCP clients fall back
+to re-initializing, which adds a hidden round trip to most tool calls.
+
 ## Keycloak for the admin MCP tools
 
 The read-only MCP tools at `/mcp` need no login. The admin tools at `/admin/mcp` start, pause and
