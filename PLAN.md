@@ -275,7 +275,8 @@ detects on port 11434 and reuses instead of starting a container.
 ## Assets and roles
 
 - `redhat-developer-demos/quinoa-wind-turbine` — spine; game, MCP server, AI
-  commentary, OpenShift deploy. Quarkus 3.40.1, LC4J 1.14.1, quarkus-mcp-server 2.0.3.
+  commentary, OpenShift deploy. Quarkus 3.40.1.1, LC4J 1.15.0.CR1 through the
+  quarkus-langchain4j-bom, quarkus-mcp-server 2.0.3, Quinoa 2.9.3.
 - `kdubois/mcp-demo/netatmo` — typed tools deep-dive, McpAssured tests, OIDC admin
   tools. Knative/k8s manifests exist.
 - `kdubois/mcp-demo/homebot` — MCP client + browser-as-MCP-client, JSON-RPC trace
@@ -304,10 +305,11 @@ detects on port 11434 and reuses instead of starting a container.
 - reShapr import fails → benchmark slide carries the point alone.
 - Talk runs long → cut order: Act 4 (already optional) → compress Act 3 netatmo depth →
   quarkus-flow was already cut (third orchestration story).
-- Version mismatch on stage: wind-turbine (LC4J 1.14.1) and a2a lab (1.15.0.CR1) are
-  close enough to present as one stack, but align wind-turbine to 1.15.x before building
-  `A2ACommentator`; jev-laya is on 2.0.0.Beta1 — only shown if Act 4 happens, framed as
-  bleeding edge.
+- Version mismatch on stage: resolved — wind-turbine is aligned to the a2a lab's LC4J
+  1.15.0.CR1 (imported through the quarkus-langchain4j-bom; both test suites and a live
+  race verified after the upgrade, Ollama provider path included). 1.15.0.CR1 is the
+  newest 1.x release; 2.0.0.Beta1 pairs with Quarkus 4 Beta and stays reserved for
+  jev-laya, framed as bleeding edge.
 - "Zero code changes" honesty: the prod profile must differ from dev in config only —
   build race-ops and the wind-turbine changes that way from day one.
 
