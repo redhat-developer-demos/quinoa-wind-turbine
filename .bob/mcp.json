@@ -5,8 +5,10 @@
       "alwaysAllow": [
         "get_leaderboard",
         "get_player",
-        "get_race_state"
-      ]
+        "get_race_state",
+        "get_hall_of_fame"
+      ],
+      "disabled": false
     },
     "wind-turbine-admin": {
       "url": "http://localhost:8080/admin/mcp",
@@ -29,7 +31,8 @@
       "alwaysAllow": [
         "get_race_state",
         "get_leaderboard",
-        "get_player"
+        "get_player",
+        "get_hall_of_fame"
       ]
     },
     "wind-turbine-admin-cluster": {
