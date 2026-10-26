@@ -136,7 +136,7 @@ The app is an MCP server, so an agent such as IBM Bob, Claude Code, Codex or goo
 | Server | URL | Login | Tools |
 |---|---|---|---|
 | `wind-turbine-race` | `/mcp` | none | `get_race_state`, `get_leaderboard`, `get_player`, `get_hall_of_fame` |
-| `wind-turbine-admin` | `/admin/mcp` | `developer` / `developer` | the same, plus `start_race`, `pause_race`, `reset_race`, `boost_team`, `list_preset_themes`, `apply_theme`, and, with AI on, `suggest_team_names` and `generate_theme` |
+| `wind-turbine-admin` | `/admin/mcp` | `developer` / `developer` | the same, plus `start_race`, `pause_race`, `reset_race`, `boost_team`, `reset_hall_of_fame`, `list_preset_themes`, `apply_theme`, and, with AI on, `suggest_team_names` and `generate_theme` |
 
 Both are listed in [`.mcp.json`](.mcp.json) (and [`.bob/mcp.json`](.bob/mcp.json) for Bob). Claude Code offers them when you open the repository.
 
@@ -144,6 +144,14 @@ To use the admin tools in dev mode, start the app with OIDC on. Keycloak Dev Ser
 
 ```bash
 GAME_OIDC_ENABLED=true ./mvnw quarkus:dev
+```
+
+OIDC is the `quarkus.oidc.tenant-enabled` property, so a system property does the same job. That's
+the form a code assistant passes through the Quarkus Agent MCP, whose `quarkus_start` takes extra
+command-line arguments but no environment variables:
+
+```bash
+./mvnw quarkus:dev -Dquarkus.oidc.tenant-enabled=true
 ```
 
 In your code assistant, run `/mcp`, pick `wind-turbine-admin` (or `wind-turbine-admin-cluster`), choose Authenticate and log in as `developer`. Only you can do this step, because it opens a browser.

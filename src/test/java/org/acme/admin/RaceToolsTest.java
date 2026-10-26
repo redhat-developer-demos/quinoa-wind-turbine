@@ -40,7 +40,7 @@ class RaceToolsTest {
     private static final List<String> READ_TOOLS =
         List.of("get_race_state", "get_leaderboard", "get_player", "get_hall_of_fame");
     private static final List<String> ADMIN_TOOLS = List.of("start_race", "pause_race", "reset_race", "boost_team",
-        "list_preset_themes", "apply_theme", "suggest_team_names", "generate_theme");
+        "list_preset_themes", "apply_theme", "suggest_team_names", "generate_theme", "reset_hall_of_fame");
 
     @Test
     void readToolsNeedNoLogin() {
@@ -157,6 +157,11 @@ class RaceToolsTest {
             .toolsCall("generate_theme", Map.of("prompt", "a retro arcade tournament"), response -> {
                 assertTrue(response.isError(), () -> response.firstContent().asText().text());
                 assertTrue(response.firstContent().asText().text().contains("AI is disabled"),
+                    () -> response.firstContent().asText().text());
+            })
+            .toolsCall("reset_hall_of_fame", response -> {
+                assertFalse(response.isError(), () -> response.firstContent().asText().text());
+                assertTrue(response.firstContent().asText().text().toLowerCase().contains("hall of fame"),
                     () -> response.firstContent().asText().text());
             })
             .thenAssertResults();

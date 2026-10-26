@@ -32,4 +32,12 @@ public class HallOfFameResource {
     public List<HallOfFameEntry> all() {
         return store.all().stream().limit(maxEntries).toList();
     }
+
+    /**
+     * Deletes every stored race and returns how many were removed. The admin MCP tool calls it; the REST route stays
+     * read-only, so nobody can wipe an event's history without the admin token.
+     */
+    public int clear() {
+        return store.clear();
+    }
 }
