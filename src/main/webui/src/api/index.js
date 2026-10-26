@@ -5,3 +5,4 @@ export * as sensors from './Sensors';
 
 export * as raceApi from './RaceApi';
 export * as hallOfFameApi from './HallOfFameApi';
+export * as themeApi from './ThemeApi';

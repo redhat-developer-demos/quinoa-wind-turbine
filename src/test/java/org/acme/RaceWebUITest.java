@@ -119,6 +119,16 @@ public class RaceWebUITest {
             assertThat(ticker).isEmpty();
             assertThat(page.getByText("won the game", new Page.GetByTextOptions().setExact(false))).hasCount(0);
             page.screenshot(new Page.ScreenshotOptions().setPath(Paths.get("target/test-screenshots/commentary-reset.png")));
+
+            // Between races the operator restyles from the theme panel, and every client switches
+            // together through the theme event.
+            page.locator("[data-testid='theme-toggle']").click();
+            page.locator("[data-testid='theme-panel'] button",
+                new Page.LocatorOptions().setHasText("Ferrari vs Mercedes")).click();
+            await().atMost(Duration.ofSeconds(10)).until(() -> "Ferrari".equals(
+                given().get("/api/config").then().extract().path("teams[0].name")));
+            assertThat(page.getByText("Team Ferrari")).isVisible();
+            page.screenshot(new Page.ScreenshotOptions().setPath(Paths.get("target/test-screenshots/theme-applied.png")));
         } catch (RuntimeException | AssertionError failure) {
             System.err.println("Dashboard URL: " + page.url() + "; content: " + page.locator("body").innerText());
             page.screenshot(new Page.ScreenshotOptions().setPath(Paths.get("target/test-screenshots/commentary-failure.png")));

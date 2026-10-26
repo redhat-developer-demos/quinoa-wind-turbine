@@ -5,6 +5,7 @@ import LeftBar from './LeftBar';
 import RaceTrack from './RaceTrack';
 import Winner from './Winner';
 import HallOfFame from './HallOfFame';
+import ThemePanel from './ThemePanel';
 import CommentaryTicker from './CommentaryTicker';
 import { RACE_ANIMATION_MS } from './RaceAnimation';
 import { useSetTheme } from '../../ThemeContext';
@@ -63,6 +64,7 @@ function Dashboard(props) {
         && (commentary.trigger !== 'finish' || winnerShown) ? commentary : undefined} />
       {winnerShown && <Winner rank={rank} />}
       {status === 'initial' && !offline && <HallOfFame />}
+      {!offline && <ThemePanel />}
     </div>
   );
 }
