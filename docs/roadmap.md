@@ -148,14 +148,12 @@ returns a valid and an invalid theme, and an endpoint test that applies a preset
   about 2048 tokens and 12 to 36 seconds per line, so it times out into the template. Use a fast
   non-reasoning model and keep those variables out of the shell when you want `.env` to win.
 - A new pod reads `game-events` from the latest offset, so a pod that starts mid-race reports status
-  `empty` until the next event. The leaderboard and theme features both read their state from
-  Infinispan to avoid this; apply the same to game status if it becomes a problem.
+  `empty` until the next event. The leaderboard reads its state from Infinispan to avoid this, but the
+  active theme lives in memory, so a pod that starts after a theme change shows the configured default
+  until the next theme event. Apply the same Infinispan approach to game status and the theme if it
+  becomes a problem.
 - Set `quarkus.http.auth.session.encryption-key` from a secret. Each pod otherwise encrypts the login
   cookie with its own key, so with five replicas a dashboard session only works on the pod that
   created it, including `/ws/dashboard`.
-- Turn on `processing.guarantee=exactly_once_v2` for the cluster profiles so a Streams crash at the
-  finish can't emit `finish` twice. Dev Services Kafka stays at-least-once.
-- `GameLoader` assigns player IDs from 0, the same range the users counter hands to phones, so a bot
-  and a phone can collide. Give the loader IDs that real phones don't get.
 - The socket tests hang in the dev-mode test runner (`devui-testing_runTest`) but pass under
   `./mvnw test`.

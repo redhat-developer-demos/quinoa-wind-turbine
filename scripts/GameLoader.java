@@ -42,6 +42,12 @@ class GameLoader implements Callable<Integer> {
     private static final Random R = new Random();
     private static final int MAX_ATTEMPTS = 60;
 
+    // Real phones get ids from the users counter, which counts up from 0, so the loader takes ids
+    // from the top of the name-list range instead and a bot can never share a name with a phone.
+    // Must stay below the 151,671 names in src/main/resources/names (getNameById throws above it),
+    // which leaves room for about 1,600 bots. Raise it if the name list grows.
+    private static final int BOT_ID_BASE = 150_000;
+
 
     @Parameters(index = "0", description = "The url", defaultValue = "http://localhost:8080")
     private URL url;
@@ -143,7 +149,8 @@ class GameLoader implements Callable<Integer> {
      */
     void assign(Vertx vertx, WebClient client, int port, boolean ssl, int index, int attempt, List<JsonObject> users,
                 Set<String> names, CountDownLatch latchLogin) {
-        client.request(HttpMethod.POST, port, url.getHost(), "/api/game/assign/" + index + "?team=" + (index % 2 + 1))
+        client.request(HttpMethod.POST, port, url.getHost(),
+                        "/api/game/assign/" + (BOT_ID_BASE + index) + "?team=" + (index % 2 + 1))
                 .ssl(ssl)
                 .expect(ResponsePredicate.SC_SUCCESS)
                 .send()
