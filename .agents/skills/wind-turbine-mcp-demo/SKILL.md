@@ -16,6 +16,9 @@ The app is an MCP server with two endpoints, configured in `.mcp.json` (Claude C
 teams in race order with `distance` in percent of the track, and the players sorted by generated
 power. Team 1 is Mountains and team 2 is Beach.
 
+The admin login needs dev mode started with `GAME_OIDC_ENABLED=true`. If Bob's registration fails with
+`Policy 'Trusted Hosts' rejected request`, run `scripts/open-dev-registration.sh` and retry the login.
+
 ## Running against a cluster deployment
 
 The `.mcp.json` / `.bob/mcp.json` URLs point at `localhost:8080` for dev mode. To drive a deployment

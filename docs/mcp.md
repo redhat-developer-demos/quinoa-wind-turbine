@@ -30,7 +30,20 @@ To log in, run `/mcp` in Claude Code, pick `wind-turbine-admin`, choose Authenti
 
 ## Bob
 
-With the project's URL-only [`.bob/mcp.json`](../.bob/mcp.json), Bob uses OAuth dynamic client registration instead of `mcp-agent`. The dev realm accepts anonymous registration and applies the `wind-turbine-audience` client scope to new clients. Keycloak asks the operator to consent during browser login. Dev Services uses port 8181 so its authorization server URL stays the same across restarts. Restart dev mode after changing the realm file so Keycloak imports the new policy; an already running container keeps its old realm configuration.
+With the project's URL-only [`.bob/mcp.json`](../.bob/mcp.json), Bob uses OAuth dynamic client registration instead of `mcp-agent`. The dev realm accepts anonymous registration and applies the `wind-turbine-audience` client scope to new clients. Keycloak asks the operator to consent during browser login. Dev Services uses port 8181 so its authorization server URL stays the same across restarts, and the service name `wind-turbine`, so it gets its own container rather than another Quarkus project's Keycloak when container reuse is enabled. Restart dev mode after changing the realm file so Keycloak imports the new policy; an already running container keeps its old realm configuration.
+
+If registration fails with `Policy 'Trusted Hosts' rejected request to client-registration service`,
+the dev realm kept Keycloak's default Trusted Hosts policy. Keycloak adds it to realms created from
+its template, the realm file doesn't declare one, and Keycloak refuses the policy with both checks
+off, so the realm file can't turn it off. Run the script instead:
+
+```bash
+scripts/open-dev-registration.sh
+```
+
+It reads the realm from the running app's metadata, deletes the policy and registers a throwaway
+client to check the result, then deletes that client. Pass the app URL if it isn't
+`http://localhost:8080`. The dashboard login and the read-only server work without this.
 
 If Bob returns to `Needs auth` after browser login and Quarkus logs `The JWT is no longer valid`, compare `date -u` with `podman machine ssh date -u`. A Podman VM clock behind the host makes new Keycloak tokens appear expired to Quarkus. Run `podman machine ssh sudo chronyc -a burst 4/4`, check the clocks again, then use `Reset auth` and `Authenticate` in Bob.
 
