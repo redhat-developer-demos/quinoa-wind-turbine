@@ -19,6 +19,7 @@ import static io.restassured.RestAssured.given;
 import static io.restassured.http.ContentType.JSON;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -111,8 +112,8 @@ class ThemeAiTest {
         given().cookie(session).contentType(JSON).body(Map.of("prompt", "a seafood festival"))
             .post("/api/theme/suggest-names")
             .then().statusCode(200)
-            .body("team1", org.hamcrest.Matchers.equalTo("Clams"))
-            .body("team2", org.hamcrest.Matchers.equalTo("Mussels"));
+            .body("teams[0].name", equalTo("Clams"))
+            .body("teams[1].name", equalTo("Mussels"));
 
         awaitTeamNames("Clams", "Mussels");
         // The names changed, the preset's colors stayed.

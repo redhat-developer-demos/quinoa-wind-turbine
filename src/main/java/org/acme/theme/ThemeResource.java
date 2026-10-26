@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.acme.game.GameConfig;
-import org.acme.theme.RaceTheme.ThemeTeam;
 
 /**
  * Admin control over the race theme. The paths are pinned to the form login in application.properties,
@@ -27,12 +26,10 @@ import org.acme.theme.RaceTheme.ThemeTeam;
 public class ThemeResource {
 
     private final ThemeService themes;
-    private final ThemeGeneratorAi generator;
     private final GameConfig config;
 
-    public ThemeResource(ThemeService themes, ThemeGeneratorAi generator, GameConfig config) {
+    public ThemeResource(ThemeService themes, GameConfig config) {
         this.themes = themes;
-        this.generator = generator;
         this.config = config;
     }
 
@@ -88,11 +85,7 @@ public class ThemeResource {
         }
         RaceTheme theme;
         try {
-            ThemeGeneratorAi.GeneratedTheme generated = generator.theme(prompt.prompt());
-            List<ThemeTeam> teams = generated.teams().stream()
-                .map(t -> new ThemeTeam(t.id(), t.name(), t.color(), t.car(), null))
-                .toList();
-            theme = new RaceTheme("ai", generated.name(), teams, null);
+            theme = themes.generate(prompt.prompt());
         } catch (RuntimeException e) {
             return Response.status(502).entity(Map.of("errors",
                 List.of("The model did not return a usable theme"))).build();
@@ -117,19 +110,15 @@ public class ThemeResource {
         if (prompt == null || prompt.prompt() == null || prompt.prompt().isBlank()) {
             return badPrompt();
         }
-        ThemeGeneratorAi.TeamNames names;
+        RaceTheme theme;
         try {
-            names = generator.suggestNames(prompt.prompt());
+            theme = themes.suggestNames(prompt.prompt());
         } catch (RuntimeException e) {
             return Response.status(502).entity(Map.of("errors",
                 List.of("The model did not return usable team names"))).build();
         }
-        List<ThemeTeam> teams = themes.current().teams().stream()
-            .map(t -> new ThemeTeam(t.id(), t.id() == 1 ? names.team1() : names.team2(),
-                t.color(), t.car(), t.accent(), t.logo()))
-            .toList();
-        List<String> errors = themes.apply(new RaceTheme("custom", "Custom", teams, null));
-        return errors.isEmpty() ? Response.ok(names).build() : applied(errors);
+        List<String> errors = themes.apply(theme);
+        return errors.isEmpty() ? Response.ok(theme).build() : applied(errors);
     }
 
     private Response aiDisabled() {
