@@ -14,18 +14,26 @@ import jakarta.ws.rs.core.Response;
 import java.util.List;
 import java.util.Map;
 
+import org.acme.game.GameConfig;
+import org.acme.theme.RaceTheme.ThemeTeam;
+
 /**
  * Admin control over the race theme. The paths are pinned to the form login in application.properties,
  * so the dashboard uses them with its operator session. Applying a theme returns 204 on success or 422
- * with the validation errors, in which case the current theme stays.
+ * with the validation errors, in which case the current theme stays. The AI endpoints need
+ * {@code game.ai.enabled} and answer 503 without it.
  */
 @Path("theme")
 public class ThemeResource {
 
     private final ThemeService themes;
+    private final ThemeGeneratorAi generator;
+    private final GameConfig config;
 
-    public ThemeResource(ThemeService themes) {
+    public ThemeResource(ThemeService themes, ThemeGeneratorAi generator, GameConfig config) {
         this.themes = themes;
+        this.generator = generator;
+        this.config = config;
     }
 
     @GET
@@ -61,10 +69,86 @@ public class ThemeResource {
         return applied(themes.apply(theme));
     }
 
+    /**
+     * Generates a full theme from a prompt with the LLM, validates it and applies it. The current
+     * track is kept; a theme the model returns but the validator rejects answers 422 like a manual
+     * entry, and output that cannot be parsed at all answers 502.
+     */
+    @POST
+    @Path("generate")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RolesAllowed("admin")
+    public Response generate(ThemePrompt prompt) {
+        if (!config.ai().enabled()) {
+            return aiDisabled();
+        }
+        if (prompt == null || prompt.prompt() == null || prompt.prompt().isBlank()) {
+            return badPrompt();
+        }
+        RaceTheme theme;
+        try {
+            ThemeGeneratorAi.GeneratedTheme generated = generator.theme(prompt.prompt());
+            List<ThemeTeam> teams = generated.teams().stream()
+                .map(t -> new ThemeTeam(t.id(), t.name(), t.color(), t.car(), null))
+                .toList();
+            theme = new RaceTheme("ai", generated.name(), teams, null);
+        } catch (RuntimeException e) {
+            return Response.status(502).entity(Map.of("errors",
+                List.of("The model did not return a usable theme"))).build();
+        }
+        List<String> errors = themes.apply(theme);
+        return errors.isEmpty() ? Response.ok(theme).build() : applied(errors);
+    }
+
+    /**
+     * The light AI path: suggests two team names from an event or location prompt and applies them
+     * onto the current colors, cars and track, so a booth can localize the teams in one call.
+     */
+    @POST
+    @Path("suggest-names")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RolesAllowed("admin")
+    public Response suggestNames(ThemePrompt prompt) {
+        if (!config.ai().enabled()) {
+            return aiDisabled();
+        }
+        if (prompt == null || prompt.prompt() == null || prompt.prompt().isBlank()) {
+            return badPrompt();
+        }
+        ThemeGeneratorAi.TeamNames names;
+        try {
+            names = generator.suggestNames(prompt.prompt());
+        } catch (RuntimeException e) {
+            return Response.status(502).entity(Map.of("errors",
+                List.of("The model did not return usable team names"))).build();
+        }
+        List<ThemeTeam> teams = themes.current().teams().stream()
+            .map(t -> new ThemeTeam(t.id(), t.id() == 1 ? names.team1() : names.team2(),
+                t.color(), t.car(), t.accent(), t.logo()))
+            .toList();
+        List<String> errors = themes.apply(new RaceTheme("custom", "Custom", teams, null));
+        return errors.isEmpty() ? Response.ok(names).build() : applied(errors);
+    }
+
+    private Response aiDisabled() {
+        return Response.status(503).entity(Map.of("errors",
+            List.of("AI is disabled; set game.ai.enabled=true to use it"))).build();
+    }
+
+    private Response badPrompt() {
+        return Response.status(422).entity(Map.of("errors",
+            List.of("A prompt is required, such as a city, event or audience"))).build();
+    }
+
     private Response applied(List<String> errors) {
         if (errors.isEmpty()) {
             return Response.noContent().build();
         }
         return Response.status(422).entity(Map.of("errors", errors)).build();
+    }
+
+    public record ThemePrompt(String prompt) {
     }
 }
