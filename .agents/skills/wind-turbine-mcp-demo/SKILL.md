@@ -153,6 +153,11 @@ Use `apply_theme(presetId="...")` when matching:
 - `"pink-black"`: Hot Pink vs Midnight
 - `"citrus"`: Orange vs Lime
 
+### AI Themes
+With AI on (`GAME_AI_ENABLED=true`) the admin server has two more tools. Both work between races only, and both report an error when the answer fails validation, in which case the current theme stays:
+- `suggest_team_names(prompt="a seafood festival in Lisbon")` keeps the current colors, cars and track and only swaps the team names. Use it for localizing a demo fast.
+- `generate_theme(prompt="a retro arcade tournament")` designs the names, colors and cars.
+
 ### Custom Themes
 Pass a full `theme` object to `apply_theme(theme={...})`.
 - **Allowed cars**: `"car-red"`, `"car-blue-convertible"`, `"car-classic-black"`, `"car-grey"`, `"car-orange"`, `"car-barbie"`.
