@@ -97,7 +97,7 @@ To restyle the race without a restart, apply a theme between races. A theme sets
 
 > List the preset themes and apply one.
 
-An admin can also restyle from the dashboard's theme panel (presets, team names and colors), or send a full theme with `POST /api/theme`. With `game.ai.enabled=true`, two more endpoints use a model: `POST /api/theme/suggest-names` localizes the team names for an event or location onto the current colors, and `POST /api/theme/generate` returns and applies a full theme. A generated theme is validated first, so a bad answer keeps the current look.
+An admin can also restyle from the dashboard's theme panel (presets, team names and colors), or send a full theme with `POST /api/theme`. With `game.ai.enabled=true`, two more endpoints use a model: `POST /api/theme/suggest-names` localizes the team names for an event or location onto the current colors, and `POST /api/theme/generate` returns and applies a full theme. A generated theme is validated first, so a bad answer keeps the current look. An MCP client gets the same two paths as the `suggest_team_names` and `generate_theme` tools.
 
 The race length is set on the server:
 
@@ -136,7 +136,7 @@ The app is an MCP server, so an agent such as IBM Bob, Claude Code, Codex or goo
 | Server | URL | Login | Tools |
 |---|---|---|---|
 | `wind-turbine-race` | `/mcp` | none | `get_race_state`, `get_leaderboard`, `get_player`, `get_hall_of_fame` |
-| `wind-turbine-admin` | `/admin/mcp` | `developer` / `developer` | the same, plus `start_race`, `pause_race`, `reset_race`, `boost_team`, `list_preset_themes`, `apply_theme` |
+| `wind-turbine-admin` | `/admin/mcp` | `developer` / `developer` | the same, plus `start_race`, `pause_race`, `reset_race`, `boost_team`, `list_preset_themes`, `apply_theme`, and, with AI on, `suggest_team_names` and `generate_theme` |
 
 Both are listed in [`.mcp.json`](.mcp.json) (and [`.bob/mcp.json`](.bob/mcp.json) for Bob). Claude Code offers them when you open the repository.
 

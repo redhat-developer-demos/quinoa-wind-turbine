@@ -40,7 +40,7 @@ class RaceToolsTest {
     private static final List<String> READ_TOOLS =
         List.of("get_race_state", "get_leaderboard", "get_player", "get_hall_of_fame");
     private static final List<String> ADMIN_TOOLS = List.of("start_race", "pause_race", "reset_race", "boost_team",
-        "list_preset_themes", "apply_theme");
+        "list_preset_themes", "apply_theme", "suggest_team_names", "generate_theme");
 
     @Test
     void readToolsNeedNoLogin() {
@@ -145,6 +145,21 @@ class RaceToolsTest {
             .toolsCall("pause_race", response -> assertEquals("Race paused", response.firstContent().asText().text()))
             .thenAssertResults();
         await().atMost(Duration.ofSeconds(10)).until(() -> state().status() == Status.PAUSED);
+
+        // The AI theme tools exist on the admin server but AI is off in this profile, so they explain that
+        // instead of calling a model.
+        client.when()
+            .toolsCall("suggest_team_names", Map.of("prompt", "a seafood festival"), response -> {
+                assertTrue(response.isError(), () -> response.firstContent().asText().text());
+                assertTrue(response.firstContent().asText().text().contains("AI is disabled"),
+                    () -> response.firstContent().asText().text());
+            })
+            .toolsCall("generate_theme", Map.of("prompt", "a retro arcade tournament"), response -> {
+                assertTrue(response.isError(), () -> response.firstContent().asText().text());
+                assertTrue(response.firstContent().asText().text().contains("AI is disabled"),
+                    () -> response.firstContent().asText().text());
+            })
+            .thenAssertResults();
         client.disconnect();
     }
 

@@ -33,14 +33,16 @@ public class ThemeService {
     private final PresetThemes presets;
     private final ObjectMapper mapper;
     private final GameConfig config;
+    private final ThemeGeneratorAi generator;
 
     public ThemeService(GameResource game, ThemeValidator validator, PresetThemes presets,
-                        ObjectMapper mapper, GameConfig config) {
+                        ObjectMapper mapper, GameConfig config, ThemeGeneratorAi generator) {
         this.game = game;
         this.validator = validator;
         this.presets = presets;
         this.mapper = mapper;
         this.config = config;
+        this.generator = generator;
         this.current.set(defaultTheme());
     }
 
@@ -98,6 +100,31 @@ public class ThemeService {
         }
         game.sendTheme(theme);
         return List.of();
+    }
+
+    /**
+     * Generates a full theme from a prompt. It throws when the model output cannot be read at all;
+     * the result still goes through {@link #apply(RaceTheme)}, so a bad theme keeps the current one.
+     */
+    public RaceTheme generate(String prompt) {
+        ThemeGeneratorAi.GeneratedTheme generated = generator.theme(prompt);
+        List<ThemeTeam> teams = generated.teams().stream()
+            .map(t -> new ThemeTeam(t.id(), t.name(), t.color(), t.car(), null))
+            .toList();
+        return new RaceTheme("ai", generated.name(), teams, null);
+    }
+
+    /**
+     * The light AI path: suggests two team names for an event or location and keeps the current
+     * colors, cars and track, so the known look stays and only the names change.
+     */
+    public RaceTheme suggestNames(String prompt) {
+        ThemeGeneratorAi.TeamNames names = generator.suggestNames(prompt);
+        List<ThemeTeam> teams = current().teams().stream()
+            .map(t -> new ThemeTeam(t.id(), t.id() == 1 ? names.team1() : names.team2(),
+                t.color(), t.car(), t.accent(), t.logo()))
+            .toList();
+        return new RaceTheme("custom", "Custom", teams, null);
     }
 
     private RaceTheme defaultTheme() {

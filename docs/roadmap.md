@@ -104,10 +104,12 @@ Status: built. The `RaceTheme` model, `ThemeValidator`, `PresetThemes`, `ThemeSe
 `/api/theme` endpoints, the `apply_theme` and `list_preset_themes` MCP tools, and live switching of
 team names, colors and cars across every client through a `theme` game event are all in. The
 dashboard carries a theme panel for presets and team editing, and the AI path is complete:
-`ThemeGeneratorAi` runs on its own named model config and offers both team-name suggestions from an
-event or location prompt (applied onto the current colors and track) and full-theme generation,
-with every answer validated before it applies. Themes switch only between races. Cars are tinted from
-the team color and accent, so a re-skin uses the existing sprites. The active theme lives in memory:
+`ThemeGeneratorAi` runs on its own named model config, backed by the `suggest_team_names` and
+`generate_theme` MCP tools and the `POST /api/theme/suggest-names` and `/api/theme/generate`
+endpoints. It offers both team-name suggestions from an event or location prompt (applied onto the
+current colors and track) and full-theme generation, with every answer validated before it applies.
+Themes switch only between races. Cars are tinted from the team color and accent, so a re-skin uses
+the existing sprites. The active theme lives in memory:
 a pod that starts after a theme change shows the configured default until the next theme event.
 
 An admin applies a theme between races that changes team names, colors, car sprites, background

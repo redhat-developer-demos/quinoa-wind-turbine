@@ -172,6 +172,48 @@ public class RaceTools {
         return errors.isEmpty() ? "Applied theme" : "Theme rejected: " + String.join("; ", errors);
     }
 
+    @McpServer(ADMIN_SERVER)
+    @Tool(name = "suggest_team_names", description = "Uses AI to name the two teams after an event, location or crowd, "
+        + "keeping the current colors, cars and track. The light theme path. Between races only, and needs "
+        + "game.ai.enabled.")
+    RaceTheme suggestTeamNames(
+        @ToolArg(description = "The event, location or audience to name the teams for, such as "
+            + "'a seafood festival in Lisbon'") String prompt) {
+        return aiTheme(prompt, true);
+    }
+
+    @McpServer(ADMIN_SERVER)
+    @Tool(name = "generate_theme", description = "Uses AI to design and apply a full theme from a prompt: both team "
+        + "names, colors and cars. Every answer is validated, and a rejected theme keeps the current one. Between "
+        + "races only, and needs game.ai.enabled.")
+    RaceTheme generateTheme(
+        @ToolArg(description = "What the theme is for, such as 'a retro arcade tournament' or 'a space expo for kids'")
+        String prompt) {
+        return aiTheme(prompt, false);
+    }
+
+    private RaceTheme aiTheme(String prompt, boolean namesOnly) {
+        if (!config.ai().enabled()) {
+            throw new ToolCallException("AI is disabled; set game.ai.enabled=true to use it");
+        }
+        if (prompt == null || prompt.isBlank()) {
+            throw new ToolCallException("Pass a prompt, such as a city, event or audience");
+        }
+        RaceTheme theme;
+        try {
+            theme = namesOnly ? themes.suggestNames(prompt) : themes.generate(prompt);
+        } catch (RuntimeException e) {
+            throw new ToolCallException(namesOnly
+                ? "The model did not return usable team names"
+                : "The model did not return a usable theme");
+        }
+        List<String> errors = themes.apply(theme);
+        if (!errors.isEmpty()) {
+            throw new ToolCallException("Theme rejected: " + String.join("; ", errors));
+        }
+        return theme;
+    }
+
     private Uni<String> send(String type, String done) {
         return game.sendGameEvent(new GameEvent(type)).replaceWith(done);
     }
