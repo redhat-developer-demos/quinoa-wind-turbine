@@ -5,13 +5,23 @@ The app is also an MCP server, so an agent such as Claude Code or goose can read
 `/mcp` needs no login. It has the tools `get_race_state`, `get_leaderboard`, `get_player` and `get_hall_of_fame`, and the resource `race://current`, which sends an update notification to subscribers every time the race changes.
 
 `/admin/mcp` has the same tools and resource, plus `start_race`, `pause_race`, `reset_race`,
-`boost_team`, and the theme tools `list_preset_themes` and `apply_theme`. It
+`boost_team`, `reset_hall_of_fame`, and the theme tools `list_preset_themes` and `apply_theme`. It
 needs a bearer token with the `admin` role from the `wind-turbine` Keycloak realm. Enable OIDC
 explicitly to use it. For local development:
 
 ```bash
 GAME_OIDC_ENABLED=true ./mvnw quarkus:dev
 ```
+
+That variable only feeds the `quarkus.oidc.tenant-enabled` property, so passing the property itself
+works the same and needs no environment change:
+
+```bash
+./mvnw quarkus:dev -Dquarkus.oidc.tenant-enabled=true
+```
+
+This is how a code assistant enables it through the Quarkus Agent MCP. `quarkus_start` accepts
+`extraArgs` but no environment variables, and the argument survives `quarkus_restart`.
 
 Keycloak Dev Services then imports [`wind-turbine-realm.json`](../src/main/resources/keycloak/wind-turbine-realm.json),
 with the user `developer` / `developer`. With OIDC enabled, a request without a token gets a 401

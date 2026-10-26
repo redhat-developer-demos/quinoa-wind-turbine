@@ -34,7 +34,7 @@ die() { echo "error: $*" >&2; exit 1; }
 json() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)" 2>/dev/null; }
 
 metadata=$(curl -fsS "$APP_URL/.well-known/oauth-protected-resource/admin/mcp" 2>/dev/null) \
-    || die "no OAuth metadata at $APP_URL. Start dev mode with GAME_OIDC_ENABLED=true."
+    || die "no OAuth metadata at $APP_URL. Start dev mode with OIDC on: GAME_OIDC_ENABLED=true ./mvnw quarkus:dev, or -Dquarkus.oidc.tenant-enabled=true."
 
 realm_url=$(printf '%s' "$metadata" | json "d['authorization_servers'][0]") \
     || die "the app doesn't advertise an authorization server. Is OIDC enabled?"

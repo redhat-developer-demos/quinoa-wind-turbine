@@ -1,6 +1,7 @@
 package org.acme.halloffame;
 
 import io.quarkus.test.junit.QuarkusTest;
+import jakarta.inject.Inject;
 import org.acme.game.PowerResource.Power;
 import org.acme.race.RaceState.Status;
 import org.junit.jupiter.api.Test;
@@ -24,22 +25,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @QuarkusTest
 class HallOfFameResourceTest {
 
+    @Inject
+    HallOfFameStore store;
+
     @Test
     void finishedRaceAppears() {
-        String raceId = resetToNewRace();
-        GameResource.User ada = assign(1);
-        assign(2);
-        await().atMost(Duration.ofSeconds(10)).until(() -> state().players().size() == 2);
-
-        sendEvent(event("start"));
-        await().atMost(Duration.ofSeconds(10)).until(() -> state().status() == Status.STARTED);
-
-        // Team 1 has one player, so it needs 1500 power (tap-power 15 x taps-needed 100 x 1 player) to finish.
-        // Each power event is capped at 200, so send enough events to cross the line.
-        for (int i = 0; i < 8; i++) {
-            sendPower(new Power(200, ada.name(), 1));
-        }
-        await().atMost(Duration.ofSeconds(30)).until(() -> state().status() == Status.FINISHED);
+        GameResource.User ada = finishARace();
+        String raceId = state().raceId();
 
         HallOfFameEntry entry = await().atMost(Duration.ofSeconds(30))
             .until(() -> hallOfFame().stream().filter(e -> e.raceId().equals(raceId)).findFirst().orElse(null),
@@ -57,6 +49,40 @@ class HallOfFameResourceTest {
         // The race is reset but never started or finished, so it produces no FINISHED snapshot and must not appear.
         assertFalse(hallOfFame().stream().anyMatch(e -> e.raceId().equals(raceId)),
             "a race that never finished must not be in the hall of fame");
+    }
+
+    @Test
+    void clearEmptiesTheHallOfFame() {
+        finishARace();
+        String raceId = state().raceId();
+        await().atMost(Duration.ofSeconds(30))
+            .until(() -> hallOfFame().stream().anyMatch(e -> e.raceId().equals(raceId)));
+
+        int removed = store.clear();
+
+        assertTrue(removed >= 1, "the finish should have been stored before the clear");
+        assertTrue(hallOfFame().isEmpty(), "the hall of fame should be empty after a clear");
+    }
+
+    /**
+     * Resets, starts and finishes a race with one player on team 1, and returns that player. Team 1 has one player, so
+     * it needs 1500 power (tap-power 15 x taps-needed 100) to finish; each power event is capped at 200, hence the eight
+     * events.
+     */
+    private static GameResource.User finishARace() {
+        resetToNewRace();
+        GameResource.User player = assign(1);
+        assign(2);
+        await().atMost(Duration.ofSeconds(10)).until(() -> state().players().size() == 2);
+
+        sendEvent(event("start"));
+        await().atMost(Duration.ofSeconds(10)).until(() -> state().status() == Status.STARTED);
+
+        for (int i = 0; i < 8; i++) {
+            sendPower(new Power(200, player.name(), 1));
+        }
+        await().atMost(Duration.ofSeconds(30)).until(() -> state().status() == Status.FINISHED);
+        return player;
     }
 
     private static String resetToNewRace() {

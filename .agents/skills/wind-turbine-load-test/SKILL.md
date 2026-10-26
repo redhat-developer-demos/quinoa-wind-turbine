@@ -12,7 +12,7 @@ This skill guides you through executing load simulation and analyzing runtime me
 ### 1. Ensure the Application is Running in Dev Mode
 Use the Quarkus Agent MCP tool:
 - Check status: `quarkus_status`
-- If not running: Call `quarkus_start`
+- If not running: Call `quarkus_start` with `extraArgs: "-Dquarkus.oidc.tenant-enabled=true"`, so the run matches the normal OIDC-on dev mode and the admin MCP server works
 
 Verify the app is accessible at `http://localhost:8080`.
 

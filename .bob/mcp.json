@@ -20,7 +20,8 @@
         "start_race",
         "apply_theme",
         "boost_team",
-        "get_hall_of_fame"
+        "get_hall_of_fame",
+        "reset_hall_of_fame"
       ]
     },
     "wind-turbine-race-cluster": {
@@ -40,7 +41,8 @@
         "start_race",
         "pause_race",
         "reset_race",
-        "boost_team"
+        "boost_team",
+        "reset_hall_of_fame"
       ]
     }
   }

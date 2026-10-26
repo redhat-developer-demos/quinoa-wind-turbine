@@ -94,6 +94,17 @@ public class RaceTools {
             .orElseThrow(() -> new ToolCallException("No player named " + name + " in the current race"));
     }
 
+    @McpServer(ADMIN_SERVER)
+    @Tool(name = "reset_hall_of_fame", description = "Deletes every finished race from the hall of fame, so a new "
+        + "event starts with an empty one. The current race is not touched, and dashboards show the empty hall the "
+        + "next time they load it.")
+    String resetHallOfFame() {
+        int removed = hallOfFame.clear();
+        return removed == 0
+            ? "Hall of fame already empty"
+            : "Cleared " + removed + (removed == 1 ? " race" : " races") + " from the hall of fame";
+    }
+
     @McpServer(McpServer.DEFAULT)
     @McpServer(ADMIN_SERVER)
     @Tool(name = "get_hall_of_fame", description = "Returns past finished races, most recent first: the winning team, "

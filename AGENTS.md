@@ -67,13 +67,13 @@ Code lives in feature packages under `src/main/java/org/acme/`, and tests mirror
   * WebSockets Next doesn't cancel the `Multi` returned by `@OnOpen` when the connection closes, so every per-connection stream goes through `PlayerSocket.whileOpen`.
 * **MCP server:** [`RaceTools.java`](src/main/java/org/acme/admin/RaceTools.java) defines tools on two servers.
   * `/mcp` (default server, no login): `get_race_state`, `get_leaderboard`, `get_player`, `get_hall_of_fame`, and the resource `race://current`, which notifies subscribers on every race update.
-  * `/admin/mcp` (server `admin`): the same, plus `start_race`, `pause_race`, `reset_race`, `boost_team`, `list_preset_themes`, `apply_theme`, and, when AI is enabled, `suggest_team_names` and `generate_theme`. An HTTP permission requires a bearer token with the `admin` role. It isn't `@RolesAllowed` on the tools, because MCP clients only start their OAuth login on a 401.
+  * `/admin/mcp` (server `admin`): the same, plus `start_race`, `pause_race`, `reset_race`, `boost_team`, `reset_hall_of_fame`, `list_preset_themes`, `apply_theme`, and, when AI is enabled, `suggest_team_names` and `generate_theme`. An HTTP permission requires a bearer token with the `admin` role. It isn't `@RolesAllowed` on the tools, because MCP clients only start their OAuth login on a 401.
   * Tokens come from the Keycloak realm `wind-turbine` (`src/main/resources/keycloak/wind-turbine-realm.json`, imported by Keycloak Dev Services). Users `developer` (admin) and `player`; clients `wind-turbine` (the app) and `mcp-agent` (public, PKCE, redirect `http://localhost:33418/callback`, direct grants in dev only). The app requires the audience `wind-turbine`. Dev Services uses the container name `wind-turbine`, so it creates its own container instead of attaching to another project's Keycloak when container reuse is enabled; the realm in a shared container doesn't match the file.
-  * Protected resource metadata: `/.well-known/oauth-protected-resource/admin/mcp`. OIDC is off by default in every mode. Enable admin MCP with `GAME_OIDC_ENABLED=true`; dev mode then starts Keycloak Dev Services, while deployments also need `GAME_OIDC_URL`. The dashboard's form login and read-only MCP work without Keycloak. Token tests enable OIDC through their own test profile.
+  * Protected resource metadata: `/.well-known/oauth-protected-resource/admin/mcp`. OIDC is off by default in every mode. Enable admin MCP with `GAME_OIDC_ENABLED=true` or the same setting as a system property, `-Dquarkus.oidc.tenant-enabled=true`; dev mode then starts Keycloak Dev Services, while deployments also need `GAME_OIDC_URL`. The dashboard's form login and read-only MCP work without Keycloak. Token tests enable OIDC through their own test profile.
   * On a cluster, a Quarkus redeploy replaces the deployment and drops variables set with `oc set env`, so re-apply `GAME_OIDC_ENABLED`/`GAME_OIDC_URL` after each redeploy. For an MCP agent that registers a client dynamically (Bob), the `wind-turbine` realm must carry the client-registration policies and `wind-turbine-audience` default scope from [`realm-import.yaml`](src/main/kubernetes/keycloak/realm-import.yaml) and no "Trusted Hosts" policy; a realm imported before those keeps Keycloak's strict default and rejects registration, and re-import is additive, so recreate it fresh. See the `wind-turbine-mcp-demo` skill for driving a cluster deployment.
   * Locally, a dev realm can keep Keycloak's default "Trusted Hosts" client-registration policy, which the repo realm file doesn't declare, and then Bob's registration fails with `Policy 'Trusted Hosts' rejected request`. Keycloak refuses that policy with both checks off, so the file can't disable it; run [`scripts/open-dev-registration.sh`](scripts/open-dev-registration.sh) to delete it from the running realm.
   * The form-login paths (`/dashboard`, `/ws/dashboard`, `/api/game/event`) are pinned to the form mechanism, so anonymous requests still redirect to `/login`. Because of that, `@TestSecurity` doesn't reach them; tests log in with `AdminSession.login()`.
-* **Hall of fame:** `HallOfFameWriter` persists each finished race to an Infinispan cache (one writer across replicas, elected over partition 0 of `race-progress` like the commentator), `HallOfFameStore` reads and writes it as JSON, and `HallOfFameResource` serves `GET /api/hall-of-fame`. The dashboard shows it between races.
+* **Hall of fame:** `HallOfFameWriter` persists each finished race to an Infinispan cache (one writer across replicas, elected over partition 0 of `race-progress` like the commentator), `HallOfFameStore` reads and writes it as JSON and clears it for the admin `reset_hall_of_fame` tool, and `HallOfFameResource` serves `GET /api/hall-of-fame`. The dashboard shows it between races.
 * **Themes:** `ThemeService` holds the active theme and applies a new one between races (enforced: mid-race applies are rejected) by broadcasting a `theme` game event, so every replica and client switches together. `RaceTheme`/`ThemeValidator`/`PresetThemes` define and check the re-skin (team names, colors, cars); `ThemeResource` is the admin `POST /api/theme` plus presets, and, with `game.ai.enabled`, `POST /api/theme/suggest-names` and `/api/theme/generate` backed by `ThemeGeneratorAi` on its own named model config (`quarkus.langchain4j.openai.theme.*`); `UiConfigResource` serves the active theme and the AI flag. On the frontend, `ThemeContext.jsx` holds the live theme, `ThemePanel.jsx` is the operator's between-races control, and `RaceTrack.jsx` draws either the painted default image (with hand-drawn lane paths) or a generated SVG track from `LanePath.js`.
 * **Frontend Single Page App:** [`src/main/webui/`](src/main/webui/)
   * `src/main/webui/src/components/Dashboard/`: Main operator race screen with live track, leaderboard, and play/reset controls. It renders the server's race state and doesn't compute the race itself.
@@ -84,9 +84,17 @@ Code lives in feature packages under `src/main/java/org/acme/`, and tests mirror
 ## 3. Essential Commands & Development Workflow
 
 ### Starting Dev Mode
-* **For AI Agents:** Use the **Quarkus Agent MCP** tool `quarkus_start` to manage dev mode and connect to Dev MCP tools automatically. Check status with `quarkus_status` and stop with `quarkus_stop`.
-* A plain dev start runs without Keycloak (faster startup, one less container). When the user asks to start the game for the full demo experience, make sure dev mode runs with `GAME_OIDC_ENABLED=true` so the admin MCP server is available; see the MCP demo skill.
-* **For Developers (CLI):** Run `./mvnw quarkus:dev`.
+
+OIDC is off unless something switches it on, and both ways of switching it on set the same property. Keep it on for normal work so Keycloak Dev Services spin up and the admin MCP server (`/admin/mcp`) is available. A plain start skips Keycloak and disables the admin tools — never do this unless explicitly asked for a minimal/no-auth start.
+
+* **For AI Agents:** `quarkus_start` takes no environment variables, but its `extraArgs` parameter reaches the JVM and Quarkus reads system properties, so start with `extraArgs: "-Dquarkus.oidc.tenant-enabled=true"`. The server keeps the argument with the instance, so `quarkus_restart` and dev-mode reloads stay authenticated too. Check status with `quarkus_status`, read logs with `quarkus_logs`, stop with `quarkus_stop`.
+* **For Developers (CLI):** Run `GAME_OIDC_ENABLED=true ./mvnw quarkus:dev`, or `./mvnw quarkus:dev -Dquarkus.oidc.tenant-enabled=true`.
+* `extraArgs` is split on whitespace, so a value containing a space can't go through it. Nothing in this project needs one; if something does, set the environment variable in the process that launches the Quarkus Agent MCP server instead.
+
+> **CRITICAL — always verify OIDC is active after every start or restart:**
+> After `quarkus_start` or `quarkus_stop` + `quarkus_start`, confirm OIDC loaded by running:
+> `curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8080/admin/mcp`
+> The response **must be `401`**. A `403` means the app started **without** the OIDC flag — Keycloak Dev Services did not spin up. If you see 403, stop immediately with `quarkus_stop` and restart with `GAME_OIDC_ENABLED=true ./mvnw quarkus:dev` via CLI (the env var is the most reliable path). Do **not** attempt multiple `quarkus_start` retries with different profiles or args — they all ignore the env var and will fail the same way.
 
 **Endpoints:**
 * Player View: `http://localhost:8080/`
@@ -97,8 +105,8 @@ Code lives in feature packages under `src/main/java/org/acme/`, and tests mirror
 To run load tests and analyze system behavior:
 
 1. **Start the application:**
-   * Agent: Call MCP tool `quarkus_start`
-   * CLI: Run `./mvnw quarkus:dev`
+   * Agent: Call MCP tool `quarkus_start` with `extraArgs: "-Dquarkus.oidc.tenant-enabled=true"`
+   * CLI: Run `GAME_OIDC_ENABLED=true ./mvnw quarkus:dev`
 2. **Execute the load generator (JBang):**
    ```bash
    jbang scripts/GameLoader.java http://localhost:8080 --players 12 --clicks 600 --power 10 --interval 75 --ws
@@ -150,7 +158,11 @@ To run load tests and analyze system behavior:
   ```
   For sdkman users: `command` = `~/.sdkman/candidates/jbang/current/bin/jbang` (expand `~` to your home dir), `JAVA_HOME` = `~/.sdkman/candidates/java/current`.
 * **Load Testing Skill:** [`.agents/skills/wind-turbine-load-test/SKILL.md`](.agents/skills/wind-turbine-load-test/SKILL.md:1) provides automated procedures for running traffic simulations with JBang, starting races, and analyzing Prometheus metrics.
-* **MCP Demo Skill:** [`.agents/skills/wind-turbine-mcp-demo/SKILL.md`](.agents/skills/wind-turbine-mcp-demo/SKILL.md:1) covers driving a race through the game's MCP servers: the login steps only the user can do, getting simulated players in with `GameLoader --ws`, pacing a race for a 50% milestone, and an HTTP fallback without MCP tools. When asked to start the game, start dev mode with `GAME_OIDC_ENABLED=true` (a plain start skips Keycloak, but the full demo needs the admin MCP server), check the admin MCP login first, and if it hasn't happened, tell the user to authenticate and wait for their confirmation instead of working around it.
+* **MCP Demo Skill:** [`.agents/skills/wind-turbine-mcp-demo/SKILL.md`](.agents/skills/wind-turbine-mcp-demo/SKILL.md:1) covers driving a race through the game's MCP servers.
+
+> **MANDATORY — activate the MCP demo skill before every race:**
+> Whenever the user asks to start, run, load players, demo, or watch a race, call `use_skill("wind-turbine-mcp-demo")` **before taking any action**. Do not skip this even if you think you remember the rules — the skill contains critical race-running instructions (polling loop, secret Ferrari boost at 65%, IBM logo on Ferrari, OIDC verification) that must be re-read every time. Skipping the skill activation is the direct cause of missed boosts, missing logos, no live updates, and improper race flow.
+
 * Skills live in `.agents/skills/`. `.claude/skills` is a symlink to it, so Claude Code finds the same skills as agents that read `.agents/`.
 
 ### Quarkus Extension & MCP Conventions

@@ -82,6 +82,18 @@ public class HallOfFameStore {
             .toList();
     }
 
+    /**
+     * Deletes every race stored when the clear starts and returns how many were removed: the key snapshot's size, since
+     * the Hot Rod client doesn't ask for return values, so {@code remove} reports null even when it deletes. Each key is
+     * removed individually rather than with {@code clear}, so a finish recorded while the clear runs survives it: only
+     * races that were already stored get deleted. The writer only ever adds entries, so the snapshot count is exact.
+     */
+    int clear() {
+        Set<String> keys = new HashSet<>(cache.keySet());
+        keys.forEach(cache::remove);
+        return keys.size();
+    }
+
     private HallOfFameEntry parse(String json) {
         try {
             return mapper.readValue(json, HallOfFameEntry.class);
