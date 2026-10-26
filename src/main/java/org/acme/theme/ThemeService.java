@@ -83,13 +83,18 @@ public class ThemeService {
     }
 
     /**
-     * Validates and applies a theme. On success it broadcasts the theme to every replica and client
-     * and returns an empty list; otherwise it returns the validation errors and changes nothing.
+     * Validates and applies a theme. Switching is only allowed between races, so a restyle never
+     * lands mid-race. On success it broadcasts the theme to every replica and client and returns
+     * an empty list; otherwise it returns the validation errors and changes nothing.
      */
     public List<String> apply(RaceTheme theme) {
         List<String> errors = validator.validate(theme, config.teams().size());
         if (!errors.isEmpty()) {
             return errors;
+        }
+        String status = game.status().type();
+        if (GameEvent.START.equals(status) || GameEvent.PAUSE.equals(status)) {
+            return List.of("Themes can only be applied between races");
         }
         game.sendTheme(theme);
         return List.of();

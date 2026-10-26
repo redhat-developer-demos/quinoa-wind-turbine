@@ -18,13 +18,13 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class OpenAiStub implements QuarkusTestResourceLifecycleManager {
-    static final BlockingQueue<Request> REQUESTS = new LinkedBlockingQueue<>();
+    public static final BlockingQueue<Request> REQUESTS = new LinkedBlockingQueue<>();
     private static final AtomicReference<Response> RESPONSE = new AtomicReference<>();
     private final ObjectMapper mapper = new ObjectMapper();
     private HttpServer server;
     private ExecutorService executor;
 
-    static void respond(int status, String text, long delayMs) {
+    public static void respond(int status, String text, long delayMs) {
         REQUESTS.clear();
         RESPONSE.set(new Response(status, text, delayMs));
     }
@@ -42,7 +42,13 @@ public class OpenAiStub implements QuarkusTestResourceLifecycleManager {
                 "quarkus.langchain4j.openai.base-url", "http://127.0.0.1:" + server.getAddress().getPort() + "/v1/",
                 "quarkus.langchain4j.openai.api-key", "fake-key",
                 "quarkus.langchain4j.openai.chat-model.model-name", "test-model",
-                "quarkus.langchain4j.openai.timeout", "3s");
+                "quarkus.langchain4j.openai.timeout", "3s",
+                // The theme generator runs on its own named model, pointed at the same stub.
+                "quarkus.langchain4j.openai.theme.base-url",
+                "http://127.0.0.1:" + server.getAddress().getPort() + "/v1/",
+                "quarkus.langchain4j.openai.theme.api-key", "fake-key",
+                "quarkus.langchain4j.openai.theme.chat-model.model-name", "test-model",
+                "quarkus.langchain4j.openai.theme.timeout", "3s");
         } catch (IOException e) {
             throw new IllegalStateException("Cannot start local OpenAI stub", e);
         }
@@ -80,7 +86,8 @@ public class OpenAiStub implements QuarkusTestResourceLifecycleManager {
         REQUESTS.clear();
     }
 
-    record Request(String method, String path, String authorization, String body, CompletableFuture<Void> completed) {
+    public record Request(String method, String path, String authorization, String body,
+                          CompletableFuture<Void> completed) {
     }
 
     private record Response(int status, String text, long delayMs) {
