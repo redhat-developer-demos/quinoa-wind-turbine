@@ -14,7 +14,7 @@
     <quarkus.platform.version>3.40.1.1</quarkus.platform.version>
     <quarkus-quinoa.version>2.9.3</quarkus-quinoa.version>
     <quarkus-mcp-server.version>2.0.3</quarkus-mcp-server.version>
-    <quarkus-langchain4j.version>1.15.0.CR1</quarkus-langchain4j.version>
+    <quarkus-langchain4j.version>2.0.0.Beta1</quarkus-langchain4j.version>
     <surefire-plugin.version>3.6.0</surefire-plugin.version>
   </properties>
   <dependencyManagement>
