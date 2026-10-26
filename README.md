@@ -97,7 +97,7 @@ To restyle the race without a restart, apply a theme between races. A theme sets
 
 > List the preset themes and apply one.
 
-An admin can also send a full theme with `POST /api/theme`.
+An admin can also restyle from the dashboard's theme panel (presets, team names and colors), or send a full theme with `POST /api/theme`. With `game.ai.enabled=true`, two more endpoints use a model: `POST /api/theme/suggest-names` localizes the team names for an event or location onto the current colors, and `POST /api/theme/generate` returns and applies a full theme. A generated theme is validated first, so a bad answer keeps the current look.
 
 The race length is set on the server:
 
