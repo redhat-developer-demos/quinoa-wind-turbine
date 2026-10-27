@@ -48,6 +48,9 @@ class ThemeValidatorTest {
         assertTrue(validator.validate(theme(
             new ThemeTeam(1, "Falcons", "#c8102e", "car-red", null, "ibm"),
             team(2, "Peaches", "#ffa270", "car-orange")), 2).isEmpty());
+        assertTrue(validator.validate(theme(
+            new ThemeTeam(1, "Falcons", "#c8102e", "car-red", null, "redhat"),
+            team(2, "Peaches", "#ffa270", "car-orange")), 2).isEmpty());
         assertFalse(validator.validate(theme(
             new ThemeTeam(1, "Falcons", "#c8102e", "car-red", null, "<script>"),
             team(2, "Peaches", "#ffa270", "car-orange")), 2).isEmpty());

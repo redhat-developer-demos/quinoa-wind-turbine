@@ -15,6 +15,13 @@ const LOGOS = {
       IBM
     </text>
   ),
+  redhat: (
+    <text transform="translate(17.2 52) rotate(-90)" textAnchor="middle" dominantBaseline="central"
+      fontFamily="'Red Hat Display', 'Arial Black', Helvetica, sans-serif" fontWeight="900" fontSize="10"
+      textLength="52" lengthAdjust="spacingAndGlyphs" fill="#ee0000">
+      RED HAT
+    </text>
+  ),
 };
 
 // The 250 × 104 drawing fits the track's 50 × 28 car box, pointing right and centered at (25, 14).
