@@ -350,17 +350,18 @@ The profile sets `QUARKUS_PROFILE=confluent` on the deployment and reads the boo
 API key from the secret, so the same image runs against Confluent Cloud with no code or serializer
 change. Verify it with the same race as the Strimzi path.
 
-Confluent Cloud brokers use publicly trusted certificates, so remove the four `%confluent.*.ssl.truststore.*`
-lines and the three `%confluent.quarkus.openshift.*confluent-ca*` lines from `application.properties`
-before deploying to Cloud; those exist for the self-managed path below, which has a private CA.
+Confluent Cloud brokers use publicly trusted certificates, so the `confluent` profile sets no
+truststore. The self-managed path below has a private CA and adds the truststore lines and the
+`confluent-ca` mount back to the profile.
 
 ### Self-managed Confluent Platform
 
 A self-managed Confluent Platform cluster uses the same `confluent` profile, with two differences from
 Cloud: the brokers usually present a private CA, so the client needs that CA in a truststore, and they
-don't auto-create topics, so you create the five topics yourself. The profile already mounts a
-`confluent-ca` secret as a PEM truststore and skips none of the SASL settings, so most of this is
-providing the CA and the credentials.
+don't auto-create topics, so you create the five topics yourself. Add the four
+`%confluent.*.ssl.truststore.*` lines and the three `%confluent.quarkus.openshift.*confluent-ca*`
+mount lines to the `confluent` profile in `application.properties` (they trust a `confluent-ca`
+secret mounted as a PEM truststore), so most of this is providing the CA and the credentials.
 
 Get the broker CA. If you have host access, copy it (for example
 `/var/lib/confluent-access/kafka-ca.crt`); otherwise pull it from the broker's TLS chain, since the
@@ -398,8 +399,8 @@ oc project wind-turbine-confluent
   -Dquarkus.container-image.group=wind-turbine-confluent
 ```
 
-The `confluent` profile mounts the `confluent-ca` secret at `/mnt/confluent-ca` and points the Kafka
-and Kafka Streams clients at it as a PEM truststore. The broker leaf cert includes the broker IP in
+The profile lines added above mount the `confluent-ca` secret at `/mnt/confluent-ca` and point the
+Kafka and Kafka Streams clients at it as a PEM truststore. The broker leaf cert includes the broker IP in
 its SAN, so hostname verification stays on. Verify with the same race as the Strimzi path.
 
 ## Clean up
