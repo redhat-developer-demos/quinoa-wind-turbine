@@ -259,5 +259,26 @@
         <quarkus.package.jar.enabled>false</quarkus.package.jar.enabled>
       </properties>
     </profile>
+    <!-- Cluster deploy against Confluent Cloud. The quarkus.* properties ride the POM's
+         build-system-properties path into the augmentation, which is immune to the flaky
+         system-property propagation that intermittently produced prod-default OpenShift
+         manifests (no Route, one replica, no env) when the same flags were passed as -D. -->
+    <profile>
+      <id>confluent-deploy</id>
+      <properties>
+        <quarkus.profile>confluent</quarkus.profile>
+        <quarkus.container-image.registry>image-registry.openshift-image-registry.svc:5000</quarkus.container-image.registry>
+        <quarkus.container-image.group>wind-turbine</quarkus.container-image.group>
+        <quarkus.openshift.env.vars.game-oidc-enabled>true</quarkus.openshift.env.vars.game-oidc-enabled>
+        <quarkus.openshift.env.vars.game-oidc-url>https://sso.apps.ocp.485fj.sandbox1374.opentlc.com/realms/wind-turbine</quarkus.openshift.env.vars.game-oidc-url>
+        <quarkus.openshift.env.vars.game-ai-enabled>true</quarkus.openshift.env.vars.game-ai-enabled>
+        <quarkus.openshift.env.mapping.openai-api-key.from-secret>commentary-openai</quarkus.openshift.env.mapping.openai-api-key.from-secret>
+        <quarkus.openshift.env.mapping.openai-api-key.with-key>OPENAI_API_KEY</quarkus.openshift.env.mapping.openai-api-key.with-key>
+        <quarkus.openshift.env.mapping.openai-model.from-secret>commentary-openai</quarkus.openshift.env.mapping.openai-model.from-secret>
+        <quarkus.openshift.env.mapping.openai-model.with-key>OPENAI_MODEL</quarkus.openshift.env.mapping.openai-model.with-key>
+        <quarkus.openshift.env.mapping.openai-base-url.from-secret>commentary-openai</quarkus.openshift.env.mapping.openai-base-url.from-secret>
+        <quarkus.openshift.env.mapping.openai-base-url.with-key>OPENAI_BASE_URL</quarkus.openshift.env.mapping.openai-base-url.with-key>
+      </properties>
+    </profile>
   </profiles>
 </project>
