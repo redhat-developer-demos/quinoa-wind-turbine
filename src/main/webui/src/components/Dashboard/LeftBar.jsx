@@ -6,6 +6,7 @@ import { Trophy, CloudOffline } from '@styled-icons/ionicons-outline';
 import { Plug, Reset } from '@styled-icons/boxicons-regular';
 import { gameApi, powerApi } from '../../api';
 import StopWatch from './StopWatch';
+import QrJoin from './QrJoin';
 import { SHOW_TOP } from '../../Config';
 import { useTheme } from '../../ThemeContext';
 import { sortTeams, getContrastColor } from './DashboardUtils';
@@ -234,6 +235,7 @@ export default function LeftBar(props) {
       </Teams>
       <StopWatch time={props.time} setTime={props.setTime} running={props.status === 'started'} />
       <StyledControl winner={winner} status={props.status} />
+      <QrJoin />
     </LeftBarDiv>
   );
 }
