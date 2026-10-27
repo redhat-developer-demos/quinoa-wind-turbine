@@ -37,6 +37,11 @@ public class PresetThemes {
             + "L 105 260 Q 90 195 150 160 L 280 110 Q 310 90 350 110 L 420 130 Q 480 130 530 100 L 590 60 Q 610 40 640 40 "
             + "Q 690 80 705 115 Q 710 180 710 320 "));
 
+    // The painted Atlanta track: the park loop around Centennial Park, the Georgia Aquarium and the
+    // World of Coca-Cola. The render keeps the parkland loop, so it reuses the same two lane paths.
+    private static final Track ATLANTA = new Track("atlanta-track.jpeg",
+        new ViewBox(777, 518), null, null, PARKLAND.lanes());
+
     public List<RaceTheme> all() {
         return List.of(
             new RaceTheme("classic", "Mountains vs Beach", List.of(
@@ -45,6 +50,9 @@ public class PresetThemes {
            new RaceTheme("ferrari-mercedes", "Ferrari vs Mercedes", List.of(
                new ThemeTeam(1, "Ferrari", "#dc0000", "car-red", "#ffffff", "ibm"),
                new ThemeTeam(2, "Mercedes", "#c0c7cc", "car-grey", "#00d2be")), SWISS_ALPS),
+           new RaceTheme("atlanta", "Aquarium vs Coca-Cola", List.of(
+               new ThemeTeam(1, "Aquarium", "#29b6f6", "car-blue-convertible", "#ffffff"),
+               new ThemeTeam(2, "Coca-Cola", "#dc0000", "car-red", "#ffffff")), ATLANTA),
            new RaceTheme("forest-sun", "Forest vs Sun", List.of(
                new ThemeTeam(1, "Forest", "#2e7d32", "car-grey", "#fdd835"),
                new ThemeTeam(2, "Sunshine", "#fdd835", "car-orange", "#2e7d32")), null),
