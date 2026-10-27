@@ -33,6 +33,23 @@
         <type>pom</type>
         <scope>import</scope>
       </dependency>
+      <!-- Overrides the Quarkus BOM's Kafka clients (4.2.1) per the Confluent Cloud Kafka Streams
+           upgrade guide: 4.3.0 has a critical RocksDB native memory leak, fixed from 4.3.1 on. -->
+      <dependency>
+        <groupId>org.apache.kafka</groupId>
+        <artifactId>kafka-streams</artifactId>
+        <version>4.3.2</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.kafka</groupId>
+        <artifactId>kafka-clients</artifactId>
+        <version>4.3.2</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.kafka</groupId>
+        <artifactId>kafka-streams-test-utils</artifactId>
+        <version>4.3.2</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
   <dependencies>
