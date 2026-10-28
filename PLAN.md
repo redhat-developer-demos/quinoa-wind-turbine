@@ -351,6 +351,12 @@ to the rehearsal cluster.
    tools, so the route must be protected before it is deployed — same OIDC as the
    dashboard, or a route restricted to the operator (decide at deploy time; localhost
    dev is fine). Done when the Act 6 sequence runs on a cluster end to end.
+   **Done** (rehearsal cluster, commit `1b61829`): path route under the game's host,
+   confidential `race-ops` Keycloak client (Admin API, since realm re-import adds
+   nothing to an existing realm), director started two heats on the join plateau,
+   theme proposals approved through `/ops` re-skinned the game, kill beat clean at
+   0 replicas. One caveat: the approval endpoints on the cluster are currently
+   unprotected (open item below).
 6. **reShapr.** Local Docker Compose, import wind-turbine `/q/openapi`, one Custom
    Tool, an agent calling it, our own before/after token count. Done when the number
    is measured, not quoted.
