@@ -171,3 +171,23 @@ When adding or modifying Quarkus capabilities:
 2. **Consult Skills:** Call `quarkus_skills` before implementing new features to review configuration properties and architectural patterns.
 3. **Dev MCP Tools:** Use `quarkus_callTool` with `devui-testing_runTests` or `devui-testing_runTest` for running tests in dev mode.
 4. **Never run `mvn clean` while dev mode is active:** It deletes `target/test-classes` and breaks the live test runner.
+
+## 6. Known issues
+
+Carried over from the retired feature roadmap (`docs/roadmap.md`, deleted once all three
+features shipped); only still-true items remain.
+
+- **The active theme lives in memory per pod** (`ThemeService` holds an
+  `AtomicReference`): a pod that starts after a theme change serves the configured
+  default until the next theme event. All running pods switch together on the
+  broadcast; only restarts lose it.
+- **A pod that starts mid-race reports status `empty`**: the `game-events-in` consumer
+  starts at the `latest` offset (earliest only in tests), so game status stays empty
+  until the next event arrives. The leaderboard avoids this by reading from Infinispan.
+- **The socket tests hang in the dev-mode test runner** (`devui-testing_runTest`) but
+  pass under `./mvnw test`. Use the Maven runner for `PlayerSocketTest` and
+  `DashboardSocketTest`.
+
+The former session-encryption-key and hosted-commentary-verification issues are fixed:
+the key now comes from the `game-session` secret, and hosted commentary is verified
+end to end on the cluster.
