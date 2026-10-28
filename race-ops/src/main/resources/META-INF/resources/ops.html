@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>race-ops</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0; padding: 24px; background: #1c1c1c; color: #eee;
+      font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    h1 { font-size: 1.1rem; letter-spacing: 0.08em; text-transform: uppercase; color: #9ad; margin: 0 0 16px; }
+    h1 .dot { color: #6c6; }
+    h1 .dot.off { color: #c66; }
+    table { border-collapse: collapse; margin-bottom: 24px; }
+    th, td { padding: 4px 14px 4px 0; text-align: right; }
+    th:first-child, td:first-child { text-align: left; }
+    th { color: #888; font-weight: normal; text-transform: uppercase; font-size: 0.75rem; }
+    td.rate { color: #9ad; }
+    #events { list-style: none; margin: 0; padding: 0; max-width: 60rem; }
+    #events li { padding: 3px 0; border-bottom: 1px solid #2e2e2e; white-space: nowrap; }
+    #events time { color: #777; margin-right: 12px; }
+    #empty { color: #777; }
+  </style>
+</head>
+<body>
+  <h1>race-ops <span id="dot" class="dot off">&#9679;</span></h1>
+  <table>
+    <thead>
+      <tr><th>team</th><th>pos</th><th>tappers</th><th>active</th><th>stalled</th><th>engagement</th><th>power</th><th>distance</th></tr>
+    </thead>
+    <tbody id="teams"><tr><td colspan="8" id="empty">waiting for a race snapshot…</td></tr></tbody>
+  </table>
+  <ul id="events"></ul>
+  <script>
+    const dot = document.getElementById('dot');
+    const teamsBody = document.getElementById('teams');
+    const eventsList = document.getElementById('events');
+
+    function render(update) {
+      dot.classList.remove('off');
+      const engagement = update.engagement;
+      if (engagement && engagement.teams && engagement.teams.length) {
+        teamsBody.innerHTML = engagement.teams.map(t => `<tr>
+          <td>team ${t.team}</td><td>${t.position}</td><td>${t.tappers}</td>
+          <td>${t.active}</td><td>${t.stalled}</td>
+          <td class="rate">${Math.round(t.engagementRate * 100)}%</td>
+          <td>${t.power}</td><td>${t.distance.toFixed(1)}%</td></tr>`).join('');
+      }
+      const events = update.recentEvents || update.events || [];
+      for (const event of events.slice().reverse()) {
+        prepend(event);
+      }
+    }
+
+    function prepend(event) {
+      const li = document.createElement('li');
+      const time = document.createElement('time');
+      time.textContent = new Date(event.at).toLocaleTimeString();
+      li.append(time, document.createTextNode(event.type + ' — ' + event.detail));
+      eventsList.prepend(li);
+      while (eventsList.children.length > 50) {
+        eventsList.lastChild.remove();
+      }
+    }
+
+    fetch('/api/ops/state')
+      .then(r => r.json())
+      .then(state => { if (state.recentEvents && state.recentEvents.length) render(state); })
+      .catch(() => {});
+    const source = new EventSource('/api/ops/stream');
+    source.onopen = () => dot.classList.remove('off');
+    source.onerror = () => dot.classList.add('off');
+    source.onmessage = e => render(JSON.parse(e.data));
+  </script>
+</body>
+</html>

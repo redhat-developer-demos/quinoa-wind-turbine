@@ -100,6 +100,7 @@ OIDC is off unless something switches it on, and both ways of switching it on se
 * Player View: `http://localhost:8080/`
 * Dashboard: `http://localhost:8080/dashboard`
 * Dev UI: `http://localhost:8080/q/dev/`
+* race-ops (the director subproject, own pom): dev mode on `http://localhost:8081/`, ops page at `/ops.html`, build and test with `./mvnw -f race-ops/pom.xml ...`. See [race-ops/README.md](race-ops/README.md).
 
 ### Load Testing & Performance Analysis
 To run load tests and analyze system behavior:

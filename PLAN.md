@@ -316,7 +316,10 @@ to the rehearsal cluster.
    wrapper; MCP client; `race://current` subscription with the event filter; engagement
    analytics as plain code; stub tests with recorded snapshots, no game import (checked
    by a test). Done when a dev race shows filtered events and engagement stats with
-   zero model calls.
+   zero model calls. Done 2026-10-28: 15/15 tests, three live GameLoader races through
+   the quarkus-langchain4j-mcp subscription (milestones, lead changes, finish events,
+   mid-race engagement, zero model calls). One caveat, see risks: live reload while
+   connected kills dev mode (extension bug, to report upstream).
 3. **The director agent.** LLM decisions over the admin toolset, OIDC token handling —
    spike first: dev direct grant locally, a confidential client with the `admin` role
    on the cluster, and a token lifetime that survives a talk. Policy split between
@@ -369,6 +372,11 @@ to the rehearsal cluster.
   Ollama fallback for a fully local run; pre-recorded video last.
 - Director fails or misbehaves → its actions are approval-gated and the manual
   controls already exist, so the show continues by hand. Rehearse the kill.
+- race-ops dev mode dies on live reload while the MCP client is connected (found
+  2026-10-28): the quarkus-langchain4j-mcp transport's close() blocks on the open
+  subsidiary SSE channel during the reload's shutdown tasks, and the dev process exits.
+  Reloads while disconnected and production are unaffected; report upstream and restart
+  dev mode instead of hot-reloading race-ops mid-connection until fixed.
 - OIDC token expires mid-talk → refresh or a long-lived token, resolved in the item-3
   spike.
 - Act 6 cluster fails → what is lost is the audience QR and live play. Fall back to

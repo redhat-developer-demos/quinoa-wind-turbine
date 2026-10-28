@@ -1,0 +1,63 @@
+# race-ops
+
+The race director application for the Race Day demo (see [../PLAN.md](../PLAN.md)). It runs the
+event so the presenter doesn't have to: watch the race, decide when it starts, propose boosts
+when a team falls behind, restyle teams between heats.
+
+This is a subproject of `quinoa-wind-turbine` with its own pom, built with the repository's
+wrapper. It knows the game only through its MCP server and never imports game classes
+(`NoGameImportsTest` fails the build if it ever does).
+
+## What is in this slice
+
+- **MCP client** (`quarkus-langchain4j-mcp`, named client `race`) pointing at the game's
+  read-only `/mcp` server. Subscribes to the `race://current` resource; updates arrive as
+  `McpResourceUpdatedEvent` CDI events over the streamable transport's subsidiary channel,
+  each followed by a `resources/read` of the snapshot.
+- **Event filter** (`RaceEventFilter`): the ~4 snapshots per second mid-race reduce to the
+  moments worth acting on — lifecycle transitions, 25/50/75% milestones, lead changes.
+- **Engagement analytics** (`EngagementAnalytics`): per team, who is tapping and who quit.
+  Team distance is the average power per tapping player, so headcount is fair but quitters
+  are not; this is the director's fairness instrument. Pure code, no model.
+- **Ops surface** (`/api/ops/stream` SSE, `/api/ops/state`, `/ops` page).
+
+The director agent (LLM decisions over the admin MCP tools, approval console) is the next
+slice; see the plan's remaining-work list.
+
+## Running
+
+```bash
+# terminal 1: the game (dev mode, port 8080)
+GAME_OIDC_ENABLED=true ./mvnw quarkus:dev
+
+# terminal 2: race-ops (dev mode, port 8081)
+./mvnw -f race-ops/pom.xml quarkus:dev
+```
+
+Then open http://localhost:8081/ops.html and start a race (dashboard Play button, GameLoader, or
+an MCP client). The console shows filtered events and the engagement table; a live SSE
+indicator turns green when the game connection is up.
+
+No test in this project talks to a server or a model. The watcher is off in tests
+(`%test.race-ops.watcher-enabled=false`); the filter and analytics are pure functions tested
+against constructed snapshots.
+
+## Known limitation: live reload while connected
+
+A dev-mode live reload of race-ops while the MCP client is connected to the game kills the
+dev process (silent exit, maven reports "Dev mode process did not complete successfully").
+Reloads while disconnected work fine, and production is unaffected.
+
+Cause: `QuarkusStreamableHttpMcpTransport.close()` in quarkus-langchain4j-mcp 1.15.0.CR1
+(identical in 2.0.0.Beta1) blocks on `httpClient.close()` while the subsidiary SSE channel
+is an in-flight request, and the extension's shutdown task runs it during the reload.
+Verified by isolation: touch a module file with the game down (client never connected) and
+the reload survives; with the game up (channel open) the process dies within seconds of the
+file change. Until this is fixed upstream, stop and restart race-ops dev mode instead of
+hot-reloading it while a race connection is live.
+
+## Stack
+
+Quarkus 3.40.1.1, quarkus-langchain4j 1.15.0.CR1 (same line as the game and the a2a lab),
+Java 25. The MCP protocol negotiates to 2026-07-28 against the game's quarkus-mcp-server 2.x,
+falling back to the older resource-subscription protocol when needed.
