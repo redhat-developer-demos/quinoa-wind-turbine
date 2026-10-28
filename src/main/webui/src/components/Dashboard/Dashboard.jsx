@@ -7,6 +7,7 @@ import Winner from './Winner';
 import HallOfFame from './HallOfFame';
 import ThemePanel from './ThemePanel';
 import CommentaryTicker from './CommentaryTicker';
+import DirectorConsole from './DirectorConsole';
 import { RACE_ANIMATION_MS } from './RaceAnimation';
 import { useSetTheme } from '../../ThemeContext';
 
@@ -62,6 +63,7 @@ function Dashboard(props) {
         onFinishCrossed={(team) => { if (team === rank.winner) setShowWinner(true); }} />
       <CommentaryTicker commentary={commentary && commentary.raceId === race?.raceId
         && (commentary.trigger !== 'finish' || winnerShown) ? commentary : undefined} />
+      <DirectorConsole />
       {winnerShown && <Winner rank={rank} />}
       {status === 'initial' && !offline && <HallOfFame />}
       {!offline && <ThemePanel />}

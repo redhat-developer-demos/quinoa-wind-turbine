@@ -42,6 +42,8 @@ public interface GameConfig {
 
     Ai ai();
 
+    Ops ops();
+
     Commentary commentary();
 
     Modifiers modifiers();
@@ -66,6 +68,19 @@ public interface GameConfig {
     interface Ai {
         @WithDefault("false")
         boolean enabled();
+    }
+
+    /**
+     * The race-ops director console on the dashboard: where to find the director's state and
+     * proposals. Off by default; a deployment points it at the race-ops route (same host, so a
+     * path prefix, or a full URL for a separate origin).
+     */
+    interface Ops {
+        @WithDefault("false")
+        boolean enabled();
+
+        @WithDefault("http://localhost:8081")
+        String url();
     }
 
     interface HallOfFame {

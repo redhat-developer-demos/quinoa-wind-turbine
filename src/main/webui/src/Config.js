@@ -10,6 +10,9 @@ export const IS_TOUCH_DEVICE = (('ontouchstart' in window)
 export let TEAMS_CONFIG = [];
 // The active theme's track from the server, or null to use the dashboard's default track.
 export let CURRENT_TRACK = null;
+// Where the race-ops director lives, or null when the console stays off. A path prefix when
+// race-ops is routed under this app's own host, a full URL for a separate origin.
+export let OPS_URL = null;
 
 export async function loadConfig() {
   const response = await fetch('/api/config');
@@ -21,6 +24,7 @@ export async function loadConfig() {
   }
   TEAMS_CONFIG = config.teams;
   CURRENT_TRACK = config.track || null;
+  OPS_URL = config.opsUrl || null;
 }
 
 // Dashboard

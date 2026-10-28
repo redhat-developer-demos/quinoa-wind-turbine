@@ -51,6 +51,16 @@ join the director started the race itself; in a second run one team was sabotage
 versus Ice, blazing orange against freezing blue", and approving it re-skinned the field
 to Blaze and Frost.
 
+## The console on the dashboard
+
+The game's dashboard carries the director console: a status line and the approval cards for
+boost and theme proposals, rendered by `DirectorConsole.jsx` under the commentary ticker. It
+is the only deliberate change to the game (`game.ops.enabled`, off by default, on in dev with
+`game.ops.url` pointing at race-ops), and it is a pure client of race-ops: when race-ops is
+down, its polls fail and the console removes itself — the race continues from the game's own
+state and the manual controls. race-ops allows the game's origin cross-origin in dev; a
+deployment routes race-ops under the game's own host so the fetch is same-origin.
+
 ## Running
 
 ```bash

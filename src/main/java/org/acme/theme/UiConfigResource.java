@@ -28,9 +28,10 @@ public class UiConfigResource {
         List<Team> teams = themes.current().teams().stream()
             .map(t -> new Team(t.id(), t.name(), t.color(), t.car(), t.accent(), t.logo()))
             .toList();
-        return new UiConfig(teams, config.ai().enabled(), themes.current().track());
+        return new UiConfig(teams, config.ai().enabled(), themes.current().track(),
+            config.ops().enabled() ? config.ops().url() : null);
     }
 
-    public record UiConfig(List<Team> teams, boolean aiEnabled, RaceTheme.Track track) {}
+    public record UiConfig(List<Team> teams, boolean aiEnabled, RaceTheme.Track track, String opsUrl) {}
     public record Team(int id, String name, String color, String car, String accent, String logo) {}
 }

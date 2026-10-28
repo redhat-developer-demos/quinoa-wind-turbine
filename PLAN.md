@@ -337,7 +337,14 @@ to the rehearsal cluster.
    config-gated, default off; a `/ops` page served by race-ops as the dev surface and
    second-screen option; path-based route under the game's host to avoid CORS. Done
    when the kill beat works: director dies, console empties, ticker continues, manual
-   controls take over.
+   controls take over. Done 2026-10-28: `DirectorConsole.jsx` under the commentary
+   ticker, gated by `game.ops.enabled`/`game.ops.url` served from `/api/config`;
+   race-ops allows the game's origin in dev. Verified live: a heat's theme proposal
+   appeared as a card, the cross-origin approve (exactly the browser's fetch) applied
+   the theme, and killing race-ops left the game's status, dashboard and commentary
+   stream untouched while the console's polls went dead. The `/ops` page remains the
+   dev surface; the browser-side rendering is verified by the module compiling and
+   the API contract, one visual check on a real screen pending.
 5. **Deploy race-ops.** One replica (five would mean five directors); the MCP URL
    points at the source-balanced route so session stickiness holds across the game's
    five pods; the model secret is reused. The approval endpoints drive admin-scoped
