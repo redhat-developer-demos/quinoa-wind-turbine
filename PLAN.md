@@ -324,7 +324,12 @@ to the rehearsal cluster.
    spike first: dev direct grant locally, a confidential client with the `admin` role
    on the cluster, and a token lifetime that survives a talk. Policy split between
    what it may do alone and what needs approval. Done when a rehearsal race runs
-   start to finish with the presenter only approving.
+   start to finish with the presenter only approving. Progress 2026-10-28: the token
+   path and the start rule are in and verified live (password grant against the dev
+   Keycloak, bearer on the admin MCP client, `RaceDirector` starting the race itself
+   on the join plateau — nobody pressed start). Remaining: the OidcClient refresh
+   across a talk-length session, boost and theme proposals with approval cards, and
+   the cluster's confidential client.
 4. **The console.** Status line and approval cards in the dashboard webui,
    config-gated, default off; a `/ops` page served by race-ops as the dev surface and
    second-screen option; path-based route under the game's host to avoid CORS. Done

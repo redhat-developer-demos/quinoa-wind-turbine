@@ -21,8 +21,23 @@ wrapper. It knows the game only through its MCP server and never imports game cl
   are not; this is the director's fairness instrument. Pure code, no model.
 - **Ops surface** (`/api/ops/stream` SSE, `/api/ops/state`, `/ops` page).
 
-The director agent (LLM decisions over the admin MCP tools, approval console) is the next
-slice; see the plan's remaining-work list.
+The director agent's next pieces (boost and theme proposals, approval-gated on the
+console) are the remaining slice; see the plan's remaining-work list.
+
+## The director
+
+`RaceDirector` runs the event between races: when both teams have at least the minimum
+players and the field has been quiet for the join plateau (defaults: 2 players, 20 s), it
+starts the race through the game's admin MCP server. It holds its own OIDC token
+(`quarkus-oidc-client`, direct grant against the dev Keycloak; a deployment overrides with
+a confidential client carrying the `admin` role), and every power it has is the admin toolset
+in `AdminRaceClient`: start, pause, reset, boost, team names, themes. The director is off by
+default (`race-ops.director-enabled=false`, on in dev). Boost and theme proposals with
+approval cards on the console are the next slice; see the plan's remaining-work list.
+
+Verified live: 12 GameLoader players joined, nobody pressed start, and 20 s after the last
+join the director started the race itself ("Director started race-0 (field of 12 stable for
+20s): Race started").
 
 ## Running
 

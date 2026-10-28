@@ -29,4 +29,26 @@ public interface RaceOpsConfig {
      */
     @WithDefault("5")
     int analyticsWindowSeconds();
+
+    /**
+     * The director acts on the game through the admin MCP tools. Off by default: nothing
+     * starts or restyles the race unless this is on.
+     */
+    @WithDefault("false")
+    boolean directorEnabled();
+
+    /**
+     * Both teams need at least this many registered players before the director may
+     * start the race.
+     */
+    @WithDefault("2")
+    int minPlayersPerTeam();
+
+    /**
+     * The join plateau: the race starts when the field has been unchanged for this many
+     * seconds. The wall-clock backstop for a huge room comes from the run-of-show, not
+     * from this app.
+     */
+    @WithDefault("20")
+    int plateauSeconds();
 }

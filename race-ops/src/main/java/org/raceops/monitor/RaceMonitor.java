@@ -1,6 +1,7 @@
 package org.raceops.monitor;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 import org.raceops.RaceOpsConfig;
 import org.raceops.analytics.EngagementAnalytics;
@@ -23,12 +24,14 @@ public class RaceMonitor {
 
     private final OpsBroadcaster broadcaster;
     private final RaceOpsConfig config;
+    private final Event<RaceSnapshotEvent> snapshotEvent;
     private final ArrayDeque<RaceSnapshot> window = new ArrayDeque<>();
 
     @Inject
-    public RaceMonitor(OpsBroadcaster broadcaster, RaceOpsConfig config) {
+    public RaceMonitor(OpsBroadcaster broadcaster, RaceOpsConfig config, Event<RaceSnapshotEvent> snapshotEvent) {
         this.broadcaster = broadcaster;
         this.config = config;
+        this.snapshotEvent = snapshotEvent;
     }
 
     public synchronized void onSnapshot(RaceSnapshot snapshot) {
@@ -57,5 +60,6 @@ public class RaceMonitor {
         } else {
             broadcaster.publish(new OpsUpdate(events, report, System.currentTimeMillis()));
         }
+        snapshotEvent.fireAsync(new RaceSnapshotEvent(snapshot, List.copyOf(window)));
     }
 }
