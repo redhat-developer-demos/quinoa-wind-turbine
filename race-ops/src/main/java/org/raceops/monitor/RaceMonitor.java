@@ -41,17 +41,17 @@ public class RaceMonitor {
         if (snapshot == null || snapshot.raceId() == null) {
             return;
         }
-        currentRace.update(snapshot.raceId());
         RaceSnapshot prev = window.peekLast();
-        // Snapshots can arrive out of order across reconnections; stale ones are dropped.
-        if (prev != null && prev.raceId().equals(snapshot.raceId())
-            && snapshot.updatedAt() <= prev.updatedAt()) {
+        // Snapshots can arrive out of order across reconnections; stale ones are dropped —
+        // unless the race was reborn, which resets updatedAt and must not be dropped.
+        if (prev != null && !isNewRace(prev, snapshot) && snapshot.updatedAt() <= prev.updatedAt()) {
             return;
         }
-        if (prev == null || !prev.raceId().equals(snapshot.raceId())) {
+        if (prev == null || isNewRace(prev, snapshot)) {
             window.clear();
         }
         window.addLast(snapshot);
+        currentRace.update(snapshot.raceId());
         long windowMs = config.analyticsWindowSeconds() * 1000L;
         while (window.size() > 1 && snapshot.updatedAt() - window.peekFirst().updatedAt() > windowMs) {
             window.pollFirst();
@@ -65,5 +65,17 @@ public class RaceMonitor {
             broadcaster.publish(new OpsUpdate(events, report, System.currentTimeMillis()));
         }
         snapshotEvent.fireAsync(new RaceSnapshotEvent(snapshot, List.copyOf(window)));
+    }
+
+    /**
+     * A snapshot starts a new race when its id differs, or when a race that already started
+     * is back in WAITING: within one game instance that never happens, so it means a reset
+     * or a restarted game — and the id counter resets with a fresh instance, so the id can
+     * even be one this app has seen before. The reborn race carries a fresh (often zero)
+     * updatedAt, which the staleness check would otherwise wrongly drop as out of order.
+     */
+    static boolean isNewRace(RaceSnapshot prev, RaceSnapshot snapshot) {
+        return !prev.raceId().equals(snapshot.raceId())
+            || ("WAITING".equals(snapshot.status()) && !"WAITING".equals(prev.status()));
     }
 }

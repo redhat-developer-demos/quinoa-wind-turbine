@@ -39,7 +39,12 @@ public final class StartPolicy {
             return Decision.wait("no snapshots yet");
         }
         RaceSnapshot latest = window.get(window.size() - 1);
-        for (RaceSnapshot.Team team : latest.teams() == null ? List.<RaceSnapshot.Team>of() : latest.teams()) {
+        if (latest.teams() == null || latest.teams().isEmpty()) {
+            // A fresh game's first WAITING snapshot carries no teams yet; an empty loop
+            // below would pass the minimum check and start a playerless race.
+            return Decision.wait("no teams in the race state yet");
+        }
+        for (RaceSnapshot.Team team : latest.teams()) {
             int players = Math.max(team.players(), latest.teamPlayers(team.id()).size());
             if (players < minPlayersPerTeam) {
                 return Decision.wait("team " + team.id() + " has " + players + " players, needs " + minPlayersPerTeam);

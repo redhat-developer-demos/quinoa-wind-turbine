@@ -8,6 +8,8 @@ import io.quarkiverse.langchain4j.mcp.runtime.McpClientName;
 import io.quarkiverse.langchain4j.mcp.runtime.McpResourceUpdatedEvent;
 import io.quarkus.logging.Log;
 import io.quarkus.runtime.Startup;
+import io.quarkus.scheduler.Scheduled;
+import io.smallrye.mutiny.Uni;
 import io.quarkus.runtime.StartupEvent;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -19,6 +21,7 @@ import org.raceops.monitor.RaceMonitor;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * The read path of the watcher: subscribes to the game's race resource over MCP and feeds
@@ -39,6 +42,7 @@ public class RaceWatcher {
     private final ObjectMapper mapper;
     private final ExecutorService reader = Executors.newSingleThreadExecutor(
         Thread.ofVirtual().name("race-ops-reader").factory());
+    private final AtomicInteger pollFailures = new AtomicInteger();
 
     public RaceWatcher(@McpClientName("race") McpClient race, RaceMonitor monitor, RaceOpsConfig config,
                        ObjectMapper mapper) {
@@ -63,7 +67,7 @@ public class RaceWatcher {
                 Log.infof("Subscribed to %s", config.resourceUri());
                 // Catch up on the current state: a quiet race produces no notifications,
                 // so without this read a restart would stay blind until something changes.
-                RaceSnapshot current = read();
+                RaceSnapshot current = read(true);
                 if (current != null) {
                     monitor.onSnapshot(current);
                 }
@@ -97,14 +101,48 @@ public class RaceWatcher {
             return;
         }
         reader.execute(() -> {
-            RaceSnapshot snapshot = read();
+            RaceSnapshot snapshot = read(true);
             if (snapshot != null) {
                 monitor.onSnapshot(snapshot);
             }
         });
     }
 
-    private RaceSnapshot read() {
+    /**
+     * The polling fallback under the subscription. Notifications carry every update while
+     * they flow, but the subscription is tied to the MCP session and dies with it — a game
+     * restart leaves this app blind even though the transport reconnects. A quiet read
+     * every few seconds heals that: the monitor drops snapshots it has already seen, so
+     * the poll costs nothing while notifications work, and after a failure a successful
+     * read re-subscribes to bring the notifications back.
+     */
+    @Scheduled(every = "5s")
+    void pollFallback() {
+        if (!config.watcherEnabled()) {
+            return;
+        }
+        reader.execute(() -> {
+            RaceSnapshot snapshot = read(false);
+            if (snapshot == null) {
+                if (pollFailures.incrementAndGet() == 1) {
+                    Log.warnf("Cannot read %s on the poll fallback, will keep retrying every few seconds",
+                        config.resourceUri());
+                }
+                return;
+            }
+            if (pollFailures.getAndSet(0) > 0) {
+                Log.infof("%s readable again, re-subscribing to restore notifications", config.resourceUri());
+                try {
+                    subscribe();
+                } catch (Exception e) {
+                    Log.warnf(e, "Re-subscribe failed, the poll keeps the state fresh and retries with the next poll");
+                }
+            }
+            monitor.onSnapshot(snapshot);
+        });
+    }
+
+    private RaceSnapshot read(boolean logFailures) {
         try {
             McpReadResourceResult result = race.readResource(config.resourceUri());
             if (result.contents() == null || result.contents().isEmpty()) {
@@ -118,7 +156,9 @@ public class RaceWatcher {
             }
             return mapper.readValue(contents.text(), RaceSnapshot.class);
         } catch (Exception e) {
-            Log.warnf(e, "Cannot read %s", config.resourceUri());
+            if (logFailures) {
+                Log.warnf(e, "Cannot read %s", config.resourceUri());
+            }
             return null;
         }
     }

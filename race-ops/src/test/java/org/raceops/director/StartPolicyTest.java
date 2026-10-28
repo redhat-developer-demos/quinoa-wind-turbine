@@ -28,6 +28,15 @@ class StartPolicyTest {
     }
 
     @Test
+    void aSnapshotWithoutTeamsWaits() {
+        // A fresh game's first WAITING snapshot has no teams; that must not start a race.
+        RaceSnapshot empty = new RaceSnapshot("race-0", "WAITING", 0, NOW - 60_000, null, List.of(), List.of());
+        var decision = StartPolicy.shouldStart(List.of(empty), 2, 20, NOW);
+        assertFalse(decision.start());
+        assertTrue(decision.reason().contains("no teams"), decision.reason());
+    }
+
+    @Test
     void missingPlayersWaits() {
         var decision = StartPolicy.shouldStart(List.of(waiting(NOW, team(1, 3), team(2, 1))), 2, 20, NOW);
         assertFalse(decision.start());

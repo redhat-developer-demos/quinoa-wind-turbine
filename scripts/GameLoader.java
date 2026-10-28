@@ -55,6 +55,9 @@ class GameLoader implements Callable<Integer> {
     @Option(names = {"-p", "--players"}, description = "The amount of players to assign", defaultValue = "50")
     private int players;
 
+    @Option(names = {"--id-offset"}, description = "Offset added to the bot id base, so a second loader run adds new players instead of re-registering the same ids (useful for mid-race joins)", defaultValue = "0")
+    private int idOffset;
+
     @Option(names = {"-c", "--clicks"}, description = "Safety cap on click batches per player; over WebSockets the loader "
             + "stops when the race finishes. Each click is a random 1..power (about power/2), so finishing needs roughly "
             + "3000/power batches.", defaultValue = "500")
@@ -150,7 +153,7 @@ class GameLoader implements Callable<Integer> {
     void assign(Vertx vertx, WebClient client, int port, boolean ssl, int index, int attempt, List<JsonObject> users,
                 Set<String> names, CountDownLatch latchLogin) {
         client.request(HttpMethod.POST, port, url.getHost(),
-                        "/api/game/assign/" + (BOT_ID_BASE + index) + "?team=" + (index % 2 + 1))
+                        "/api/game/assign/" + (BOT_ID_BASE + idOffset + index) + "?team=" + (index % 2 + 1))
                 .ssl(ssl)
                 .expect(ResponsePredicate.SC_SUCCESS)
                 .send()
