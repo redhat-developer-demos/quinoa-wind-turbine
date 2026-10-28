@@ -49,7 +49,9 @@ join the director started the race itself; in a second run one team was sabotage
 15% behind, the director proposed boosting it, and approving the card executed
 "Applied x2.5 to team 1 for 30s"; and after a finished heat the director proposed "Fire
 versus Ice, blazing orange against freezing blue", and approving it re-skinned the field
-to Blaze and Frost.
+to Blaze and Frost. The same sequence runs on the OpenShift cluster through the deployed
+director (race started on the join plateau, theme proposal approved through the `/ops`
+path route, kill beat with the game healthy at 0 race-ops replicas).
 
 ## The console on the dashboard
 
@@ -78,6 +80,27 @@ indicator turns green when the game connection is up.
 No test in this project talks to a server or a model. The watcher is off in tests
 (`%test.race-ops.watcher-enabled=false`); the filter and analytics are pure functions tested
 against constructed snapshots.
+
+## Cluster deployment
+
+`scripts/deploy-openshift.sh` deploys race-ops next to the game when OIDC is on: one replica
+(five would mean five directors racing to start and restyle), everything served under
+`quarkus.http.root-path=/ops` because OpenShift routes do not rewrite paths — a path route
+carries `/ops` on the game's own host to the race-ops service, so the dashboard's console
+fetch is same-origin. The director authenticates with a confidential `race-ops` Keycloak
+client through a client-credentials grant; the script creates that client through Keycloak's
+Admin API when the realm predates it, because a realm re-import adds nothing to an existing
+realm (Keycloak skips it wholesale).
+
+Two traps in that wiring, both hit and fixed:
+
+- The grant's enum value is `client`, not `client_credentials`
+  (`quarkus.oidc-client.grant.type=client`).
+- The secret must reach `quarkus.oidc-client.credentials.secret`, env
+  `QUARKUS_OIDC_CLIENT_CREDENTIALS_SECRET`. Mapping an env var to
+  `credentials.client-secret` sets the config *group* (its value lives at `.value`), so the
+  OIDC client authenticates with no secret at all and Keycloak answers
+  `invalid_client_credentials`.
 
 ## Known limitation: live reload while connected
 

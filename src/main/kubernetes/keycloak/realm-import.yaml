@@ -33,6 +33,10 @@ objects:
           secret:
             name: game-admin
             key: password
+        RACE_OPS_CLIENT_SECRET:
+          secret:
+            name: race-ops-client
+            key: secret
       realm:
         realm: wind-turbine
         enabled: true
@@ -126,6 +130,12 @@ objects:
                 temporary: false
             realmRoles:
               - admin
+          # The service account of the race-ops client below; its client-credentials tokens
+          # carry the admin role, which is every power the director has over the game.
+          - username: service-account-race-ops
+            enabled: true
+            realmRoles:
+              - admin
         clients:
           - clientId: wind-turbine
             name: Wind turbine race
@@ -148,6 +158,26 @@ objects:
               - "+"
             attributes:
               pkce.code.challenge.method: S256
+            protocolMappers:
+              - name: wind-turbine-audience
+                protocol: openid-connect
+                protocolMapper: oidc-audience-mapper
+                consentRequired: false
+                config:
+                  included.client.audience: wind-turbine
+                  id.token.claim: "false"
+                  access.token.claim: "true"
+                  introspection.token.claim: "true"
+          - clientId: race-ops
+            name: Race director
+            description: Confidential client for the race-ops director application, authenticating
+              as a service account with the admin role
+            enabled: true
+            publicClient: false
+            standardFlowEnabled: false
+            directAccessGrantsEnabled: false
+            serviceAccountsEnabled: true
+            secret: ${RACE_OPS_CLIENT_SECRET}
             protocolMappers:
               - name: wind-turbine-audience
                 protocol: openid-connect

@@ -1,0 +1,33 @@
+# The director's path route: the game's own host carries /ops to the race-ops service, so the
+# dashboard's console fetch is same-origin and race-ops needs no CORS and no host of its own.
+# OpenShift routes do not rewrite paths, which is why race-ops serves everything under /ops
+# (quarkus.http.root-path=/ops in the openshift-cluster profile).
+#
+#   oc process -f src/main/kubernetes/race-ops-route.yaml -p GAME_HOST=<game route host> | oc apply -f -
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: race-ops-route
+parameters:
+  - name: GAME_HOST
+    description: Host of the game's route; the director lives under the same host at /ops.
+    required: true
+objects:
+  - apiVersion: route.openshift.io/v1
+    kind: Route
+    metadata:
+      name: race-ops
+    spec:
+      host: ${GAME_HOST}
+      path: /ops
+      to:
+        kind: Service
+        name: race-ops
+        weight: 100
+      port:
+        # The service port name, not the container port: the quarkus-openshift service exposes
+        # http (80 -> the app's configured port), and the route must target that.
+        targetPort: http
+      tls:
+        termination: edge
+        insecureEdgeTerminationPolicy: Redirect

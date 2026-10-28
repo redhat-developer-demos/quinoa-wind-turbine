@@ -85,9 +85,12 @@ GAME_ADMIN_PASSWORD=$(existing_secret game-admin password)
 GAME_ADMIN_PASSWORD=${GAME_ADMIN_PASSWORD:-$(openssl rand -hex 8)}
 SESSION_ENCRYPTION_KEY=$(existing_secret game-session encryption-key)
 SESSION_ENCRYPTION_KEY=${SESSION_ENCRYPTION_KEY:-$(openssl rand -hex 16)}
+RACE_OPS_CLIENT_SECRET=$(existing_secret race-ops-client secret)
+RACE_OPS_CLIENT_SECRET=${RACE_OPS_CLIENT_SECRET:-$(openssl rand -hex 16)}
 oc process -f src/main/kubernetes/secrets.yaml \
   -p GAME_ADMIN_PASSWORD="$GAME_ADMIN_PASSWORD" \
   -p SESSION_ENCRYPTION_KEY="$SESSION_ENCRYPTION_KEY" \
+  -p RACE_OPS_CLIENT_SECRET="$RACE_OPS_CLIENT_SECRET" \
   | oc apply -n "$NAMESPACE" -f -
 
 log "Infinispan (existing password is kept)"
@@ -117,6 +120,11 @@ else
     --from-literal=password="$GAME_ADMIN_PASSWORD" --dry-run=client -o yaml \
     | oc apply -n "$KEYCLOAK_NAMESPACE" -f -
 
+  # And the race-ops client secret, so the confidential client and the deployment always match.
+  oc create secret generic race-ops-client -n "$KEYCLOAK_NAMESPACE" \
+    --from-literal=secret="$RACE_OPS_CLIENT_SECRET" --dry-run=client -o yaml \
+    | oc apply -n "$KEYCLOAK_NAMESPACE" -f -
+
   # A finished import stays as it is. Re-applying it would change nothing, and reimporting the realm
   # would invalidate the cached OAuth client of any MCP agent.
   import_done=$(oc get keycloakrealmimport wind-turbine -n "$KEYCLOAK_NAMESPACE" \
@@ -129,6 +137,61 @@ else
     oc wait --for=jsonpath='{.status.conditions[?(@.type=="Done")].status}'=True \
       --timeout=240s keycloakrealmimport/wind-turbine -n "$KEYCLOAK_NAMESPACE"
   fi
+
+  # A realm imported before the race-ops client existed is missing it, and Keycloak's
+  # single-file import skips existing realms wholesale, so re-applying the CR adds nothing
+  # (the import job logs "Realm already exists. Import skipped"). Create the client through
+  # the Admin API instead: additive, and no re-authentication for MCP agents that registered
+  # their own clients dynamically.
+  if [ "$import_done" = True ]; then
+    KC_ADMIN_USER=$(oc get secret keycloak-initial-admin -n "$KEYCLOAK_NAMESPACE" \
+      -o jsonpath='{.data.username}' | base64 -d)
+    KC_ADMIN_PASSWORD=$(oc get secret keycloak-initial-admin -n "$KEYCLOAK_NAMESPACE" \
+      -o jsonpath='{.data.password}' | base64 -d)
+    KC_TOKEN=$(curl -fsS "https://$KC_HOST/realms/master/protocol/openid-connect/token" \
+      -d grant_type=password -d client_id=admin-cli \
+      -d username="$KC_ADMIN_USER" -d password="$KC_ADMIN_PASSWORD" \
+      | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4) || true
+    RACE_OPS_CLIENT_IN_REALM=""
+    if [ -n "$KC_TOKEN" ]; then
+      RACE_OPS_CLIENT_IN_REALM=$(curl -fsS -H "Authorization: Bearer $KC_TOKEN" \
+        "https://$KC_HOST/admin/realms/wind-turbine/clients?clientId=race-ops" | grep -o '"id"' || true)
+    fi
+    if [ -z "$RACE_OPS_CLIENT_IN_REALM" ]; then
+      log "Creating the race-ops client in the existing realm (Admin API, additive)"
+      RACE_OPS_CLIENT_JSON=$(cat <<EOF
+{"clientId":"race-ops","name":"Race director","enabled":true,"publicClient":false,
+"standardFlowEnabled":false,"directAccessGrantsEnabled":false,"serviceAccountsEnabled":true,
+"secret":"$RACE_OPS_CLIENT_SECRET",
+"protocolMappers":[{"name":"wind-turbine-audience","protocol":"openid-connect",
+"protocolMapper":"oidc-audience-mapper","consentRequired":false,
+"config":{"included.client.audience":"wind-turbine","id.token.claim":"false",
+"access.token.claim":"true","introspection.token.claim":"true"}}]}
+EOF
+)
+      curl -fsS -o /dev/null -H "Authorization: Bearer $KC_TOKEN" -H "Content-Type: application/json" \
+        -X POST "https://$KC_HOST/admin/realms/wind-turbine/clients" \
+        -d "$RACE_OPS_CLIENT_JSON" || die "could not create the race-ops Keycloak client"
+      # Creating the client with service accounts also creates its service-account user;
+      # that user needs the admin role, which is every power the director has over the game.
+      SA_USER_ID=""
+      for attempt in 1 2 3 4 5; do
+        SA_USER_ID=$(curl -fsS -H "Authorization: Bearer $KC_TOKEN" \
+          "https://$KC_HOST/admin/realms/wind-turbine/users?username=service-account-race-ops" \
+          | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+        [ -n "$SA_USER_ID" ] && break
+        sleep 2
+      done
+      [ -n "$SA_USER_ID" ] || die "the race-ops service account user did not appear in Keycloak"
+      ADMIN_ROLE_ID=$(curl -fsS -H "Authorization: Bearer $KC_TOKEN" \
+        "https://$KC_HOST/admin/realms/wind-turbine/roles/admin" \
+        | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+      curl -fsS -o /dev/null -H "Authorization: Bearer $KC_TOKEN" -H "Content-Type: application/json" \
+        -X POST "https://$KC_HOST/admin/realms/wind-turbine/users/$SA_USER_ID/role-mappings/realm" \
+        -d "{\"id\":\"$ADMIN_ROLE_ID\",\"name\":\"admin\"}" \
+        || die "could not grant the admin role to the race-ops service account"
+    fi
+  fi
 fi
 
 # The s2i build replaces the Deployment, which drops variables set with `oc set env`. Baking the OIDC
@@ -138,12 +201,16 @@ if [ "$OIDC_ENABLED" = true ]; then
   OIDC_ARGS="$OIDC_ARGS -Dquarkus.openshift.env.vars.game-oidc-url=$KC_URL"
 fi
 
+# The dashboard's director console: on when OIDC is (the console is pointless without the admin
+# tools), reached same-origin through the path route that carries /ops to race-ops.
+OPS_ARGS="-Dquarkus.openshift.env.vars.game-ops-enabled=$OIDC_ENABLED -Dquarkus.openshift.env.vars.game-ops-url=/ops"
+
 log "Build and deploy the app"
 # $OIDC_ARGS is unquoted on purpose: it holds several -D options, and none contains a space.
 ./mvnw package -Dquarkus.profile=openshift-cluster -Dquarkus.kubernetes.deploy=true -DskipTests \
   -Dquarkus.container-image.registry="$REGISTRY" \
   -Dquarkus.container-image.group="$NAMESPACE" \
-  $OIDC_ARGS
+  $OIDC_ARGS $OPS_ARGS
 
 # The s2i build runs asynchronously, so a failed build does not fail the Maven deploy above; the
 # rollout below would then just re-deploy the previous image and this script would report success.
@@ -158,6 +225,54 @@ oc wait --for=condition=Complete "$BUILD" -n "$NAMESPACE" --timeout=900s \
 
 log "Wait for the rollout"
 oc rollout status deployment/quinoa-wind-turbine -n "$NAMESPACE" --timeout=600s
+
+# The build replaced the Deployment, so the model credentials applied with oc set env are gone.
+# Re-apply them to both deployments; without them the commentary falls back to template lines.
+if oc get secret commentary-openai -n "$NAMESPACE" >/dev/null 2>&1; then
+  log "Model credentials from secret commentary-openai"
+  oc set env deployment/quinoa-wind-turbine -n "$NAMESPACE" --from=secret/commentary-openai
+  # game.ai.enabled gates the game's own commentary; the token and endpoint come from the secret.
+  oc set env deployment/quinoa-wind-turbine -n "$NAMESPACE" GAME_AI_ENABLED=true
+else
+  log "WARNING: no secret commentary-openai; the game and the director run without a model"
+fi
+
+if [ "$OIDC_ENABLED" = true ]; then
+  log "Build and deploy race-ops"
+  APP_HOST=$(oc get route quinoa-wind-turbine -n "$NAMESPACE" -o jsonpath='{.spec.host}')
+  # The director talks to the game through its source-balanced route, so the MCP sessions stay
+  # on one of the five pods. OIDC comes from the same Keycloak as the game's admin login.
+  ./mvnw -f race-ops/pom.xml package -Dquarkus.profile=openshift-cluster \
+    -Dquarkus.kubernetes.deploy=true -DskipTests \
+    -Dquarkus.container-image.registry="$REGISTRY" \
+    -Dquarkus.container-image.group="$NAMESPACE" \
+    -Dquarkus.openshift.env.vars.quarkus-langchain4j-mcp-race-url="https://$APP_HOST/mcp" \
+    -Dquarkus.openshift.env.vars.quarkus-langchain4j-mcp-race-admin-url="https://$APP_HOST/admin/mcp" \
+    -Dquarkus.openshift.env.vars.quarkus-oidc-client-auth-server-url="$KC_URL" \
+    -Dquarkus.openshift.env.vars.race-ops-ai-enabled=true
+
+  log "Wait for the race-ops image build"
+  ROPS_BUILD=$(oc get builds -n "$NAMESPACE" -l buildconfig=race-ops \
+    --sort-by=.metadata.creationTimestamp -o name | tail -1)
+  [ -n "$ROPS_BUILD" ] || die "no race-ops build was triggered by the deploy"
+  oc wait --for=condition=Complete "$ROPS_BUILD" -n "$NAMESPACE" --timeout=900s \
+    || die "race-ops image build $ROPS_BUILD did not complete; check 'oc logs $ROPS_BUILD -n $NAMESPACE'"
+
+  log "Wait for the race-ops rollout"
+  oc rollout status deployment/race-ops -n "$NAMESPACE" --timeout=600s
+
+  if oc get secret commentary-openai -n "$NAMESPACE" >/dev/null 2>&1; then
+    oc set env deployment/race-ops -n "$NAMESPACE" --from=secret/commentary-openai
+  fi
+
+  # The director's path route: the game's host carries /ops to the race-ops service, so the
+  # dashboard console fetches it same-origin.
+  log "Director route under the game's host"
+  oc process -f src/main/kubernetes/race-ops-route.yaml -p GAME_HOST="$APP_HOST" \
+    | oc apply -n "$NAMESPACE" -f -
+else
+  log "OIDC is off; skipping race-ops (the director needs the admin tools)"
+fi
 
 APP_HOST=$(oc get route quinoa-wind-turbine -n "$NAMESPACE" -o jsonpath='{.spec.host}')
 log "Health check https://$APP_HOST/q/health/ready"
