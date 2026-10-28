@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { raceApi } from '../../api';
 import { elapsedNow, toDashboardModel } from './DashboardUtils';
+import styled from 'styled-components';
 import LeftBar from './LeftBar';
 import RaceTrack from './RaceTrack';
 import Winner from './Winner';
@@ -61,14 +62,41 @@ function Dashboard(props) {
       <LeftBar teams={teams} time={time} setTime={setTime} status={offline ? 'offline' : status} rank={shownRank} />
       <RaceTrack distances={teams.map((t) => t.distance)}
         onFinishCrossed={(team) => { if (team === rank.winner) setShowWinner(true); }} />
-      <CommentaryTicker commentary={commentary && commentary.raceId === race?.raceId
-        && (commentary.trigger !== 'finish' || winnerShown) ? commentary : undefined} />
-      <DirectorConsole />
+      {/* One column, so the console always sits below the ticker however many lines the
+          commentary wraps to; a fixed-position console under a fixed-position ticker would
+          overlap whenever the ticker grows. */}
+      <TopStrip>
+        <CommentaryTicker commentary={commentary && commentary.raceId === race?.raceId
+          && (commentary.trigger !== 'finish' || winnerShown) ? commentary : undefined} />
+        <DirectorConsole />
+      </TopStrip>
       {winnerShown && <Winner rank={rank} />}
       {status === 'initial' && !offline && <HallOfFame />}
       {!offline && <ThemePanel />}
     </div>
   );
 }
+
+const TopStrip = styled.div`
+  position: fixed;
+  top: 16px;
+  left: 374px;
+  right: 24px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  pointer-events: none;
+
+  /* The strip itself never blocks the track; interactive children opt back in. */
+  > * {
+    pointer-events: none;
+  }
+
+  > * > * {
+    pointer-events: auto;
+  }
+`;
 
 export default Dashboard;

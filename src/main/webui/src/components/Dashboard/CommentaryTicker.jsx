@@ -1,11 +1,10 @@
 import React from 'react';
 import styled from 'styled-components';
 
+// Sits in the dashboard's top strip, below the commentary ticker. A long commentary line
+// wraps and grows the ticker, and the strip's column flow keeps this under it.
 const Ticker = styled.div`
-  position: fixed;
-  top: 16px;
-  left: 374px;
-  right: 24px;
+  align-self: stretch;
   padding: 12px 18px;
   box-sizing: border-box;
   border: 1px solid #666;
@@ -17,9 +16,7 @@ const Ticker = styled.div`
   overflow-wrap: anywhere;
 
   &:empty {
-    padding: 0;
-    border: 0;
-    background: none;
+    display: none;
   }
 `;
 

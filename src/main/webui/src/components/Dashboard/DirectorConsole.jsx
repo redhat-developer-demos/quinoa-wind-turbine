@@ -103,22 +103,15 @@ export default function DirectorConsole() {
   }
 }
 
-// Under the commentary ticker, over the track's top-left corner: the eye is already there,
-// and the right edge belongs to the theme panel.
+// In the dashboard's top strip, flowing under the commentary ticker. The cards take their
+// content width so a long message wraps inside the card instead of stretching across the
+// track; the right edge belongs to the theme panel.
 const Console = styled.div`
-  position: fixed;
-  top: 74px;
-  left: 374px;
-  width: min(420px, 40vw);
-  z-index: 5;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
-  pointer-events: none;
-
-  > * {
-    pointer-events: auto;
-  }
+  max-width: min(420px, 40vw);
 `;
 
 const Status = styled.div`
