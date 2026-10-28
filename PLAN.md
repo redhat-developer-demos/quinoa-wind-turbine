@@ -375,8 +375,9 @@ to the rehearsal cluster.
 - race-ops dev mode dies on live reload while the MCP client is connected (found
   2026-10-28): the quarkus-langchain4j-mcp transport's close() blocks on the open
   subsidiary SSE channel during the reload's shutdown tasks, and the dev process exits.
-  Reloads while disconnected and production are unaffected; report upstream and restart
-  dev mode instead of hot-reloading race-ops mid-connection until fixed.
+  Reloads while disconnected and production are unaffected; issue draft ready to file in
+  [race-ops/UPSTREAM-ISSUE.md](race-ops/UPSTREAM-ISSUE.md), restart dev mode instead of
+  hot-reloading race-ops mid-connection until fixed.
 - OIDC token expires mid-talk → refresh or a long-lived token, resolved in the item-3
   spike.
 - Act 6 cluster fails → what is lost is the audience QR and live play. Fall back to
