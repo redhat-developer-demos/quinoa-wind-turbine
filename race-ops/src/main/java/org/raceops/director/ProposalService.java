@@ -99,6 +99,7 @@ public class ProposalService {
     private String execute(Proposal proposal) {
         return switch (proposal.type()) {
             case Proposal.BOOST -> admin.boost(proposal.team(), proposal.multiplier(), proposal.seconds());
+            case Proposal.THEME -> admin.applyPresetTheme(proposal.presetId());
             default -> throw new IllegalArgumentException("Unknown proposal type " + proposal.type());
         };
     }

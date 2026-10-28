@@ -39,6 +39,13 @@ public class RaceDirector {
     private final AtomicReference<String> startedRaceId = new AtomicReference<>();
     /** Races this director already proposed a boost for; one proposal per race keeps the console calm. */
     private final java.util.Set<String> boostedRaceIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    /** Finished races the director already proposed a theme for. */
+    private final java.util.Set<String> themedRaceIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    /**
+     * The theme currently on the field, from this director's own proposals; starts at the
+     * game's boot default. Proposals avoid it, so approving a card always re-skins.
+     */
+    private volatile String currentTheme = "classic";
 
     @Inject
     public RaceDirector(AdminRaceClient admin, RaceOpsConfig config, ProposalService proposals,
@@ -68,6 +75,7 @@ public class RaceDirector {
         latest = event;
         evaluate();
         considerBoost(event);
+        considerTheme(event);
     }
 
     /**
@@ -137,6 +145,49 @@ public class RaceDirector {
     }
 
     /**
+     * Between heats: when a race finishes, propose the theme for the next one. The game
+     * only restyles between races, which is exactly this window; if the operator approves
+     * after the next race already started, the game rejects it and the card records the
+     * error. The model picks from the presets the game actually offers, with a rotating
+     * deterministic fallback when it is off or fails.
+     */
+    private void considerTheme(RaceSnapshotEvent event) {
+        if (!config.directorEnabled() || !proposals.pending().isEmpty()) {
+            return;
+        }
+        RaceSnapshot snapshot = event.snapshot();
+        RaceSnapshot prev = event.window().size() > 1
+            ? event.window().get(event.window().size() - 2) : null;
+        boolean justFinished = "FINISHED".equals(snapshot.status())
+            && prev != null && !"FINISHED".equals(prev.status());
+        if (!justFinished || !themedRaceIds.add(snapshot.raceId())) {
+            return;
+        }
+        try {
+            List<AdminRaceClient.ThemeOption> options = admin.listThemes();
+            Proposal fallback = DirectorDecisions.themeFallback(options, snapshot.raceId(),
+                Math.floorMod(snapshot.raceId().hashCode(), 97), currentTheme);
+            Proposal proposal = fallback;
+            if (ai.isPresent() && config.aiEnabled()) {
+                try {
+                    var engagement = EngagementAnalytics.analyze(
+                        event.window().isEmpty() ? null : event.window().get(0), snapshot);
+                    DirectorAi.ThemeAdvice advice = ai.get()
+                        .suggestTheme(DirectorDecisions.themeFacts(snapshot, engagement, options, currentTheme));
+                    proposal = DirectorDecisions.theme(advice, options, snapshot.raceId(), currentTheme, fallback);
+                } catch (Exception e) {
+                    Log.warnf(e, "Director model failed for the theme suggestion, using the fallback");
+                }
+            }
+            proposals.propose(proposal);
+            currentTheme = proposal.presetId();
+            Log.infof("Director proposes theme %s for the next heat: %s", proposal.presetId(), proposal.message());
+        } catch (Exception e) {
+            Log.warnf(e, "Director could not build a theme proposal");
+        }
+    }
+
+    /**
      * The model decides when it is on; the fallback is deterministic. Either way the
      * answer is clamped to the trailing team and sane parameters before it becomes a
      * proposal.
@@ -147,7 +198,7 @@ public class RaceDirector {
                 DirectorAi.BoostAdvice boostAdvice = ai.get()
                     .advise(DirectorDecisions.raceFacts(snapshot, engagement, situation));
                 if (boostAdvice != null && boostAdvice.propose()) {
-                    return DirectorDecisions.sanitize(boostAdvice, situation, snapshot);
+                    return DirectorDecisions.advice(boostAdvice, situation, snapshot);
                 }
                 Log.info("Director model declined to propose a boost");
             } catch (Exception e) {

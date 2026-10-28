@@ -324,16 +324,15 @@ to the rehearsal cluster.
    spike first: dev direct grant locally, a confidential client with the `admin` role
    on the cluster, and a token lifetime that survives a talk. Policy split between
    what it may do alone and what needs approval. Done when a rehearsal race runs
-   start to finish with the presenter only approving. Progress 2026-10-28: the token
-   path and the start rule are in and verified live (password grant against the dev
-   Keycloak, bearer on the admin MCP client, `RaceDirector` starting the race itself
-   on the join plateau — nobody pressed start). Boost proposals with approval cards
-   are in and verified with the fallback path (a sabotaged team fell 15% behind, the
-   director proposed boosting it, the operator approved, the boost executed through
-   the admin toolset). Remaining: the model-backed proposal message (the empty-answer
-   fix, reasoning-effort=none, is in config but the live check was cut short by a
-   podman outage and a port conflict), theme proposals between races, the OidcClient
-   refresh across a talk-length session, and the cluster's confidential client.
+   start to finish with the presenter only approving. Done 2026-10-28: token path
+   (TokensHelper caches and refreshes), start rule on the join plateau, boost
+   proposals with diagnosis and approval cards, and theme proposals between heats —
+   the model picks from the presets the game actually offers, avoiding the theme
+   already on, and approving the card re-skins the field (verified live: "Fire
+   versus Ice, blazing orange against freezing blue" → Blaze and Frost). The
+   fallback paths are deterministic. Remaining: the cluster's confidential client
+   (dev uses the direct grant), and a talk-length refresh check under rehearsal
+   conditions.
 4. **The console.** Status line and approval cards in the dashboard webui,
    config-gated, default off; a `/ops` page served by race-ops as the dev surface and
    second-screen option; path-based route under the game's host to avoid CORS. Done

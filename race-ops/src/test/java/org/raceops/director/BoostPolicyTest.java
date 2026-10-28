@@ -65,7 +65,7 @@ class BoostPolicyTest {
         BoostPolicy.Situation situation = new BoostPolicy.Situation(1, 20, 0.4);
         // The model tries to boost the leading team with an absurd multiplier and duration.
         DirectorAi.BoostAdvice rogue = new DirectorAi.BoostAdvice(true, 2, 99, 3600, "  ");
-        Proposal proposal = DirectorDecisions.sanitize(rogue, situation, snapshot);
+        Proposal proposal = DirectorDecisions.advice(rogue, situation, snapshot);
         assertEquals(1, proposal.team());
         assertEquals(3.0, proposal.multiplier());
         assertEquals(60, proposal.seconds());

@@ -96,7 +96,9 @@
       dismiss.onclick = () => decide(proposal.id, 'dismiss');
       const meta = document.createElement('div');
       meta.className = 'meta';
-      meta.textContent = `team ${proposal.team} × ${proposal.multiplier} for ${proposal.seconds}s`;
+      meta.textContent = proposal.type === 'theme'
+        ? `theme: ${proposal.presetId}`
+        : `team ${proposal.team} × ${proposal.multiplier} for ${proposal.seconds}s`;
       card.append(message, approve, dismiss, meta);
       return card;
     }

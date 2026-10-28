@@ -31,4 +31,21 @@ public interface DirectorAi {
      */
     record BoostAdvice(boolean propose, int team, double multiplier, int seconds, String message) {
     }
+
+    @SystemMessage("""
+        You are the director of a multiplayer race. A heat just finished, and you propose the theme
+        for the next heat: team names, colors and cars for the two teams. Pick one preset from the
+        list you are given, and never the current theme — the point is a visible change. Answer with
+        JSON only, no markdown: {"presetId": "<one id from the list>", "message": "<one sentence,
+        plain words, at most 25 words, selling the next heat>"}.
+        Never mention models or JSON.
+        """)
+    ThemeAdvice suggestTheme(@UserMessage String themeFacts);
+
+    /**
+     * The model's answer. Validated against the real preset list by
+     * {@link DirectorDecisions#theme} before use.
+     */
+    record ThemeAdvice(String presetId, String message) {
+    }
 }
