@@ -341,8 +341,10 @@ to the rehearsal cluster.
    controls take over.
 5. **Deploy race-ops.** One replica (five would mean five directors); the MCP URL
    points at the source-balanced route so session stickiness holds across the game's
-   five pods; the model secret is reused. Done when the Act 6 sequence runs on a
-   cluster end to end.
+   five pods; the model secret is reused. The approval endpoints drive admin-scoped
+   tools, so the route must be protected before it is deployed — same OIDC as the
+   dashboard, or a route restricted to the operator (decide at deploy time; localhost
+   dev is fine). Done when the Act 6 sequence runs on a cluster end to end.
 6. **reShapr.** Local Docker Compose, import wind-turbine `/q/openapi`, one Custom
    Tool, an agent calling it, our own before/after token count. Done when the number
    is measured, not quoted.
@@ -404,6 +406,14 @@ to the rehearsal cluster.
   build race-ops and the wind-turbine changes that way from day one.
 
 ## Open items
+
+- Manual test before rehearsals: restart the game while race-ops runs, and confirm the
+  MCP subscription recovers (the transport reconnects the subsidiary channel; whether
+  the subscription survives a server restart is unverified). Related: race ids reuse
+  after a game restart because the counter resets — the director clears its start and
+  boost guards when a started race reappears in WAITING, covered by unit tests, worth
+  one live confirmation.
+- Approve/dismiss endpoint protection on the cluster (see remaining work item 5).
 
 - Cluster for the talk: provision fresh (the sandbox cluster is throwaway, rehearsal
   only). Still to decide: ROSA/ARO/self-managed, and who pays for it. Longest lead

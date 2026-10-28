@@ -73,22 +73,51 @@
     }
 
     function renderProposals(pending) {
-      proposalsDiv.innerHTML = pending.map(p => `
-        <div class="proposal" data-id="${p.proposal.id}">
-          <p>${p.proposal.message}</p>
-          <button class="approve" onclick="decide('${p.proposal.id}', 'approve')">approve</button>
-          <button onclick="decide('${p.proposal.id}', 'dismiss')">dismiss</button>
-          <div class="meta">team ${p.proposal.team} &times; ${p.proposal.multiplier} for ${p.proposal.seconds}s</div>
-        </div>`).join('');
+      proposalsDiv.replaceChildren();
+      for (const p of pending) {
+        proposalsDiv.append(proposalCard(p.proposal));
+      }
+    }
+
+    // The message and the result come from a model and a tool; they are rendered as text,
+    // never as HTML.
+    function proposalCard(proposal) {
+      const card = document.createElement('div');
+      card.className = 'proposal';
+      card.dataset.id = proposal.id;
+      const message = document.createElement('p');
+      message.textContent = proposal.message;
+      const approve = document.createElement('button');
+      approve.className = 'approve';
+      approve.textContent = 'approve';
+      approve.onclick = () => decide(proposal.id, 'approve');
+      const dismiss = document.createElement('button');
+      dismiss.textContent = 'dismiss';
+      dismiss.onclick = () => decide(proposal.id, 'dismiss');
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = `team ${proposal.team} × ${proposal.multiplier} for ${proposal.seconds}s`;
+      card.append(message, approve, dismiss, meta);
+      return card;
     }
 
     function renderRecent(recent) {
-      recentList.innerHTML = recent.map(p => {
+      const items = [];
+      for (const p of recent) {
+        const li = document.createElement('li');
         const meta = `team ${p.proposal.team}, ${p.proposal.type}`;
-        if (p.status === 'EXECUTED') return `<li class="executed">approved — ${meta} — ${p.result || ''}</li>`;
-        if (p.status === 'FAILED') return `<li class="failed">failed — ${meta} — ${p.result || ''}</li>`;
-        return `<li>dismissed — ${meta}</li>`;
-      }).join('');
+        if (p.status === 'EXECUTED') {
+          li.className = 'executed';
+          li.textContent = `approved — ${meta} — ${p.result || ''}`;
+        } else if (p.status === 'FAILED') {
+          li.className = 'failed';
+          li.textContent = `failed — ${meta} — ${p.result || ''}`;
+        } else {
+          li.textContent = `dismissed — ${meta}${p.result ? ' — ' + p.result : ''}`;
+        }
+        items.push(li);
+      }
+      recentList.replaceChildren(...items);
     }
 
     async function decide(id, action) {

@@ -7,7 +7,6 @@ import dev.langchain4j.mcp.client.McpTextResourceContents;
 import io.quarkiverse.langchain4j.mcp.runtime.McpClientName;
 import io.quarkiverse.langchain4j.mcp.runtime.McpResourceUpdatedEvent;
 import io.quarkus.logging.Log;
-import io.quarkus.logging.Log;
 import io.quarkus.runtime.Startup;
 import io.quarkus.runtime.StartupEvent;
 import jakarta.annotation.PreDestroy;

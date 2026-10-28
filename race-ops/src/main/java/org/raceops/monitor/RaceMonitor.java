@@ -25,19 +25,23 @@ public class RaceMonitor {
     private final OpsBroadcaster broadcaster;
     private final RaceOpsConfig config;
     private final Event<RaceSnapshotEvent> snapshotEvent;
+    private final CurrentRace currentRace;
     private final ArrayDeque<RaceSnapshot> window = new ArrayDeque<>();
 
     @Inject
-    public RaceMonitor(OpsBroadcaster broadcaster, RaceOpsConfig config, Event<RaceSnapshotEvent> snapshotEvent) {
+    public RaceMonitor(OpsBroadcaster broadcaster, RaceOpsConfig config, Event<RaceSnapshotEvent> snapshotEvent,
+                       CurrentRace currentRace) {
         this.broadcaster = broadcaster;
         this.config = config;
         this.snapshotEvent = snapshotEvent;
+        this.currentRace = currentRace;
     }
 
     public synchronized void onSnapshot(RaceSnapshot snapshot) {
         if (snapshot == null || snapshot.raceId() == null) {
             return;
         }
+        currentRace.update(snapshot.raceId());
         RaceSnapshot prev = window.peekLast();
         // Snapshots can arrive out of order across reconnections; stale ones are dropped.
         if (prev != null && prev.raceId().equals(snapshot.raceId())

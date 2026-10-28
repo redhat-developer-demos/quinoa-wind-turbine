@@ -2,6 +2,7 @@ package org.raceops.director;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import org.raceops.mcp.AdminRaceClient;
+import org.raceops.monitor.CurrentRace;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -14,6 +15,10 @@ import java.util.Optional;
  * Holds the director's proposals and carries them through their lifecycle: pending until
  * the operator approves or dismisses on the console, then executed (or failed) through
  * the admin toolset. One pending proposal at a time keeps the console readable.
+ *
+ * Approving a proposal for a race that has already ended rejects it instead: a card left
+ * open across a reset or a finish must not boost the next race. The MCP call runs outside
+ * the lock, so a slow game cannot stall the state endpoint.
  */
 @ApplicationScoped
 public class ProposalService {
@@ -21,10 +26,12 @@ public class ProposalService {
     private static final int RECENT_LIMIT = 10;
 
     private final AdminRaceClient admin;
+    private final CurrentRace currentRace;
     private final Map<String, ProposalView> proposals = new LinkedHashMap<>();
 
-    public ProposalService(AdminRaceClient admin) {
+    public ProposalService(AdminRaceClient admin, CurrentRace currentRace) {
         this.admin = admin;
+        this.currentRace = currentRace;
     }
 
     /**
@@ -39,23 +46,34 @@ public class ProposalService {
         return true;
     }
 
-    public synchronized Optional<ProposalView> approve(String id) {
-        ProposalView view = proposals.get(id);
-        if (view == null || !view.status().equals(Status.PENDING)) {
-            return Optional.ofNullable(view);
+    public Optional<ProposalView> approve(String id) {
+        Proposal taken;
+        synchronized (this) {
+            ProposalView view = proposals.get(id);
+            if (view == null || !view.status().equals(Status.PENDING)) {
+                return Optional.ofNullable(view);
+            }
+            Proposal proposal = view.proposal();
+            String race = currentRace.raceId();
+            if (race != null && !proposal.raceId().equals(race)) {
+                ProposalView stale = new ProposalView(proposal, Status.DISMISSED,
+                    "Rejected: " + proposal.raceId() + " already ended", System.currentTimeMillis());
+                proposals.put(id, stale);
+                return Optional.of(stale);
+            }
+            proposals.put(id, new ProposalView(proposal, Status.DECIDING, null, 0));
+            taken = proposal;
         }
-        Proposal proposal = view.proposal();
+        ProposalView decided;
         try {
-            String result = switch (proposal.type()) {
-                case Proposal.BOOST -> admin.boost(proposal.team(), proposal.multiplier(), proposal.seconds());
-                default -> throw new IllegalArgumentException("Unknown proposal type " + proposal.type());
-            };
-            view = new ProposalView(proposal, Status.EXECUTED, result, System.currentTimeMillis());
+            decided = new ProposalView(taken, Status.EXECUTED, execute(taken), System.currentTimeMillis());
         } catch (Exception e) {
-            view = new ProposalView(proposal, Status.FAILED, e.getMessage(), System.currentTimeMillis());
+            decided = new ProposalView(taken, Status.FAILED, e.getMessage(), System.currentTimeMillis());
         }
-        proposals.put(id, view);
-        return Optional.of(view);
+        synchronized (this) {
+            proposals.put(id, decided);
+        }
+        return Optional.of(decided);
     }
 
     public synchronized Optional<ProposalView> dismiss(String id) {
@@ -78,6 +96,13 @@ public class ProposalService {
             .toList();
     }
 
+    private String execute(Proposal proposal) {
+        return switch (proposal.type()) {
+            case Proposal.BOOST -> admin.boost(proposal.team(), proposal.multiplier(), proposal.seconds());
+            default -> throw new IllegalArgumentException("Unknown proposal type " + proposal.type());
+        };
+    }
+
     private void trim() {
         Deque<String> decided = new ArrayDeque<>();
         proposals.forEach((id, view) -> {
@@ -90,7 +115,7 @@ public class ProposalService {
         }
     }
 
-    public enum Status {PENDING, EXECUTED, DISMISSED, FAILED}
+    public enum Status {PENDING, DECIDING, EXECUTED, DISMISSED, FAILED}
 
     /**
      * A proposal with its current status, as the console sees it.

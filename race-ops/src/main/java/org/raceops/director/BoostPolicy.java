@@ -49,6 +49,8 @@ public final class BoostPolicy {
         if (leader.distance() < EARLIEST || leader.distance() > LATEST) {
             return Optional.empty();
         }
+        // The trailing team is every team that is not the leader — correct for the two-team
+        // race the game runs today; with more teams this should pick the last one instead.
         RaceSnapshot.Team trailing = snapshot.teams().stream()
             .filter(t -> t.id() != leader.id())
             .findFirst().orElse(null);

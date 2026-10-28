@@ -45,7 +45,13 @@ public class AdminRaceClient {
      * @param seconds how long the effect lasts, null for the configured default
      */
     public String boost(int team, double multiplier, Integer seconds) {
-        return call("boost_team", Map.of("team", team, "multiplier", multiplier, "seconds", seconds));
+        Map<String, Object> arguments = new java.util.HashMap<>();
+        arguments.put("team", team);
+        arguments.put("multiplier", multiplier);
+        if (seconds != null) {
+            arguments.put("seconds", seconds);
+        }
+        return call("boost_team", arguments);
     }
 
     public String suggestTeamNames(String prompt) {

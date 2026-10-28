@@ -50,12 +50,35 @@ public class RaceDirector {
     }
 
     void onSnapshot(@ObservesAsync RaceSnapshotEvent event) {
+        // Async observers can run out of order; never let an older snapshot win.
+        RaceSnapshotEvent seen = latest;
+        if (seen != null && event.snapshot().updatedAt() < seen.snapshot().updatedAt()) {
+            return;
+        }
         String raceId = event.snapshot().raceId();
-        // A reset brings a new race id; the old start no longer counts.
+        // A reset brings a new race id; the old start no longer counts. A started race
+        // never returns to WAITING within one game instance, but the counter behind race
+        // ids resets with a fresh instance, so the same id can come back — clear the
+        // guards then, or the director would refuse to run the restarted game.
+        if (gameRestarted(event.snapshot(), startedRaceId.get())) {
+            startedRaceId.set(null);
+            boostedRaceIds.clear();
+        }
         startedRaceId.updateAndGet(started -> started != null && !started.equals(raceId) ? null : started);
         latest = event;
         evaluate();
         considerBoost(event);
+    }
+
+    /**
+     * @return true when a snapshot shows the race this director already started back in
+     *         WAITING, which only happens after a game restart reset the race-id counter
+     */
+    static boolean gameRestarted(RaceSnapshot snapshot, String startedRaceId) {
+        return startedRaceId != null
+            && "WAITING".equals(snapshot.status())
+            && snapshot.raceId() != null
+            && snapshot.raceId().equals(startedRaceId);
     }
 
     @Scheduled(every = "3s")

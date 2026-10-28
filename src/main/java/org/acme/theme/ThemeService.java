@@ -18,8 +18,8 @@ import org.acme.game.GameResource;
  * Holds the active theme and applies new ones. An applied theme is broadcast as a theme game event,
  * so every replica updates its own copy from the event and all connected clients switch together.
  * The current theme lives in memory and is seeded from the configured teams on startup; a pod that
- * starts after a theme change shows the default until the next theme event (see the roadmap note on
- * late-joining pods).
+ * starts after a theme change shows the default until the next theme event (a known issue recorded
+ * in AGENTS.md).
  */
 @ApplicationScoped
 @Startup
