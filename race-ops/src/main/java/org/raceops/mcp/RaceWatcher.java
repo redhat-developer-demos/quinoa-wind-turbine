@@ -62,6 +62,12 @@ public class RaceWatcher {
             try {
                 subscribe();
                 Log.infof("Subscribed to %s", config.resourceUri());
+                // Catch up on the current state: a quiet race produces no notifications,
+                // so without this read a restart would stay blind until something changes.
+                RaceSnapshot current = read();
+                if (current != null) {
+                    monitor.onSnapshot(current);
+                }
                 return;
             } catch (Exception e) {
                 long delay = Math.min(2000L * attempt, 30_000L);

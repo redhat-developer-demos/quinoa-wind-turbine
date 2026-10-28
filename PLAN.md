@@ -327,9 +327,13 @@ to the rehearsal cluster.
    start to finish with the presenter only approving. Progress 2026-10-28: the token
    path and the start rule are in and verified live (password grant against the dev
    Keycloak, bearer on the admin MCP client, `RaceDirector` starting the race itself
-   on the join plateau — nobody pressed start). Remaining: the OidcClient refresh
-   across a talk-length session, boost and theme proposals with approval cards, and
-   the cluster's confidential client.
+   on the join plateau — nobody pressed start). Boost proposals with approval cards
+   are in and verified with the fallback path (a sabotaged team fell 15% behind, the
+   director proposed boosting it, the operator approved, the boost executed through
+   the admin toolset). Remaining: the model-backed proposal message (the empty-answer
+   fix, reasoning-effort=none, is in config but the live check was cut short by a
+   podman outage and a port conflict), theme proposals between races, the OidcClient
+   refresh across a talk-length session, and the cluster's confidential client.
 4. **The console.** Status line and approval cards in the dashboard webui,
    config-gated, default off; a `/ops` page served by race-ops as the dev surface and
    second-screen option; path-based route under the game's host to avoid CORS. Done

@@ -28,16 +28,24 @@ console) are the remaining slice; see the plan's remaining-work list.
 
 `RaceDirector` runs the event between races: when both teams have at least the minimum
 players and the field has been quiet for the join plateau (defaults: 2 players, 20 s), it
-starts the race through the game's admin MCP server. It holds its own OIDC token
-(`quarkus-oidc-client`, direct grant against the dev Keycloak; a deployment overrides with
-a confidential client carrying the `admin` role), and every power it has is the admin toolset
-in `AdminRaceClient`: start, pause, reset, boost, team names, themes. The director is off by
-default (`race-ops.director-enabled=false`, on in dev). Boost and theme proposals with
-approval cards on the console are the next slice; see the plan's remaining-work list.
+starts the race through the game's admin MCP server. During the race it proposes boosts
+for a team that falls far enough behind (default 15% of the track, mid-race only), with
+the diagnosis of why; the proposal waits on the console (`/ops.html`) for a human to
+approve or dismiss, and only approval executes it through the admin toolset. The advice
+message comes from the model when `race-ops.ai-enabled` is on (same hosted endpoint as the
+game), with a deterministic fallback otherwise — and the model never gets the last word:
+the proposal is clamped to the trailing team and sane parameters no matter what it says.
+
+The director holds its own OIDC token (`quarkus-oidc-client`, direct grant against the dev
+Keycloak; a deployment overrides with a confidential client carrying the `admin` role),
+and every power it has is the admin toolset in `AdminRaceClient`: start, pause, reset,
+boost, team names, themes. The director is off by default (`race-ops.director-enabled`,
+on in dev).
 
 Verified live: 12 GameLoader players joined, nobody pressed start, and 20 s after the last
-join the director started the race itself ("Director started race-0 (field of 12 stable for
-20s): Race started").
+join the director started the race itself; in a second run one team was sabotaged, fell
+15% behind, the director proposed boosting it, and approving the card executed
+"Applied x2.5 to team 1 for 30s".
 
 ## Running
 

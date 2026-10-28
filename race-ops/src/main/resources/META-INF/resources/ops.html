@@ -22,10 +22,27 @@
     #events li { padding: 3px 0; border-bottom: 1px solid #2e2e2e; white-space: nowrap; }
     #events time { color: #777; margin-right: 12px; }
     #empty { color: #777; }
+    .proposal {
+      border: 1px solid #9ad; border-radius: 6px; background: #16222c; padding: 12px 16px;
+      max-width: 44rem; margin-bottom: 12px;
+    }
+    .proposal p { margin: 0 0 10px; }
+    .proposal button {
+      font: inherit; cursor: pointer; border-radius: 4px; border: 1px solid #888;
+      background: #2c3e50; color: #eee; padding: 4px 14px; margin-right: 8px;
+    }
+    .proposal button.approve { border-color: #6c6; color: #6c6; }
+    .proposal button:disabled { opacity: 0.5; cursor: default; }
+    .proposal .meta { color: #888; font-size: 0.8rem; margin-top: 8px; }
+    #recent { list-style: none; padding: 0; max-width: 60rem; color: #999; }
+    #recent li { padding: 2px 0; }
+    #recent .executed { color: #6c6; }
+    #recent .failed { color: #c66; }
   </style>
 </head>
 <body>
   <h1>race-ops <span id="dot" class="dot off">&#9679;</span></h1>
+  <div id="proposals"></div>
   <table>
     <thead>
       <tr><th>team</th><th>pos</th><th>tappers</th><th>active</th><th>stalled</th><th>engagement</th><th>power</th><th>distance</th></tr>
@@ -33,12 +50,57 @@
     <tbody id="teams"><tr><td colspan="8" id="empty">waiting for a race snapshot…</td></tr></tbody>
   </table>
   <ul id="events"></ul>
+  <ul id="recent"></ul>
   <script>
     const dot = document.getElementById('dot');
     const teamsBody = document.getElementById('teams');
     const eventsList = document.getElementById('events');
+    const proposalsDiv = document.getElementById('proposals');
+    const recentList = document.getElementById('recent');
+    let lastEventAt = 0;
 
-    function render(update) {
+    function renderState(state) {
+      const race = state.race || {};
+      if (race.engagement && race.engagement.teams && race.engagement.teams.length) {
+        teamsBody.innerHTML = race.engagement.teams.map(t => `<tr>
+          <td>team ${t.team}</td><td>${t.position}</td><td>${t.tappers}</td>
+          <td>${t.active}</td><td>${t.stalled}</td>
+          <td class="rate">${Math.round(t.engagementRate * 100)}%</td>
+          <td>${t.power}</td><td>${t.distance.toFixed(1)}%</td></tr>`).join('');
+      }
+      renderProposals(state.pending || []);
+      renderRecent(state.recentProposals || []);
+    }
+
+    function renderProposals(pending) {
+      proposalsDiv.innerHTML = pending.map(p => `
+        <div class="proposal" data-id="${p.proposal.id}">
+          <p>${p.proposal.message}</p>
+          <button class="approve" onclick="decide('${p.proposal.id}', 'approve')">approve</button>
+          <button onclick="decide('${p.proposal.id}', 'dismiss')">dismiss</button>
+          <div class="meta">team ${p.proposal.team} &times; ${p.proposal.multiplier} for ${p.proposal.seconds}s</div>
+        </div>`).join('');
+    }
+
+    function renderRecent(recent) {
+      recentList.innerHTML = recent.map(p => {
+        const meta = `team ${p.proposal.team}, ${p.proposal.type}`;
+        if (p.status === 'EXECUTED') return `<li class="executed">approved — ${meta} — ${p.result || ''}</li>`;
+        if (p.status === 'FAILED') return `<li class="failed">failed — ${meta} — ${p.result || ''}</li>`;
+        return `<li>dismissed — ${meta}</li>`;
+      }).join('');
+    }
+
+    async function decide(id, action) {
+      const card = document.querySelector(`.proposal[data-id="${id}"]`);
+      if (card) card.querySelectorAll('button').forEach(b => b.disabled = true);
+      try {
+        await fetch(`/api/ops/proposals/${id}/${action}`, { method: 'POST' });
+      } catch (e) { console.error(e); }
+      refresh();
+    }
+
+    function renderUpdate(update) {
       dot.classList.remove('off');
       const engagement = update.engagement;
       if (engagement && engagement.teams && engagement.teams.length) {
@@ -48,13 +110,14 @@
           <td class="rate">${Math.round(t.engagementRate * 100)}%</td>
           <td>${t.power}</td><td>${t.distance.toFixed(1)}%</td></tr>`).join('');
       }
-      const events = update.recentEvents || update.events || [];
-      for (const event of events.slice().reverse()) {
+      for (const event of (update.events || []).slice().reverse()) {
         prepend(event);
       }
     }
 
     function prepend(event) {
+      if (event.at <= lastEventAt && eventsList.firstChild) return;
+      lastEventAt = Math.max(lastEventAt, event.at);
       const li = document.createElement('li');
       const time = document.createElement('time');
       time.textContent = new Date(event.at).toLocaleTimeString();
@@ -65,14 +128,22 @@
       }
     }
 
-    fetch('/api/ops/state')
-      .then(r => r.json())
-      .then(state => { if (state.recentEvents && state.recentEvents.length) render(state); })
-      .catch(() => {});
+    async function refresh() {
+      try {
+        const r = await fetch('/api/ops/state');
+        renderState(await r.json());
+        dot.classList.remove('off');
+      } catch (e) {
+        dot.classList.add('off');
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 2000);
     const source = new EventSource('/api/ops/stream');
     source.onopen = () => dot.classList.remove('off');
     source.onerror = () => dot.classList.add('off');
-    source.onmessage = e => render(JSON.parse(e.data));
+    source.onmessage = e => renderUpdate(JSON.parse(e.data));
   </script>
 </body>
 </html>

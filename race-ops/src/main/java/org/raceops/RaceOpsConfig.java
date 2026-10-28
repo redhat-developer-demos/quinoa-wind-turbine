@@ -51,4 +51,19 @@ public interface RaceOpsConfig {
      */
     @WithDefault("20")
     int plateauSeconds();
+
+    /**
+     * The director's advice model. Off by default and in every test; when off (or when
+     * the call fails), proposals fall back to the deterministic template.
+     */
+    @WithDefault("false")
+    boolean aiEnabled();
+
+    /**
+     * How far behind, in percent of the track, a team must be before the director
+     * considers proposing a boost. Only counts between a quarter and three quarters of
+     * the race, so nobody is boosted during the opening noise or the final sprint.
+     */
+    @WithDefault("15")
+    int boostDeficitPercent();
 }
