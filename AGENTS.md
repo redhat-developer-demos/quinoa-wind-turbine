@@ -106,8 +106,10 @@ OIDC is off unless something switches it on, and both ways of switching it on se
 To run load tests and analyze system behavior:
 
 1. **Start the application:**
-   * Agent: Call MCP tool `quarkus_start` with `extraArgs: "-Dquarkus.oidc.tenant-enabled=true"`
-   * CLI: Run `GAME_OIDC_ENABLED=true ./mvnw quarkus:dev`
+   * Agent: Call MCP tool `quarkus_start` with `extraArgs: "-Dquarkus.oidc.tenant-enabled=true -Dquarkus.http.host=0.0.0.0"`
+   * CLI: Run `GAME_OIDC_ENABLED=true ./mvnw quarkus:dev -Dquarkus.http.host=0.0.0.0`
+   * `-Dquarkus.http.host=0.0.0.0` is needed when the reShapr containers must reach the
+     game (see [`reshapr/README.md`](reshapr/README.md)); plain localhost works otherwise.
 2. **Execute the load generator (JBang):**
    ```bash
    jbang scripts/GameLoader.java http://localhost:8080 --players 12 --clicks 600 --power 10 --interval 75 --ws

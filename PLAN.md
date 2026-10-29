@@ -395,6 +395,13 @@ to the rehearsal cluster.
      endpoint only if the game's own UI needs it, an MCP tool only if agents need it.
    - **Open decisions for rehearsal:** `/api/cheat` stays open as the governance beat
      vs gated; pre-built plans with a Web UI walkthrough vs live click-through.
+
+   **Status** (2026-10-29): the schema, the two endpoints, the scripted setup
+   (`scripts/reshapr-setup.sh`), the momentum Custom Tool (`reshapr/`), the
+   measurement agent (`scripts/reshapr-measure.sh`) and the protocol spike are done.
+   First measured run: 18 raw tools / 3848 tokens vs 1 tool / 734 tokens for the same
+   question — 81% fewer. Remaining: homebot as the live visual, byte-count sanity
+   numbers, and the rehearsal decisions above.
 7. **Stage readiness.** Provision the fresh cluster; run and pre-warm
    `scripts/deploy-openshift.sh`; deploy a Jaeger collector and set OTel sampling to 1
    (the exporter currently points at a service that doesn't exist); load-test 500 and

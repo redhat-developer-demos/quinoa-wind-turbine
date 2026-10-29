@@ -1,0 +1,62 @@
+# The reshaped face of the Wind Turbine Racer API: one agent-oriented tool instead of the raw
+# 18-operation translation. The script orchestrates the race state and leaderboard reads in
+# parallel (both stay callable even though the plan hides them) and returns a compact momentum
+# summary: the leader, the gap, who is actually tapping, and the top players.
+#
+#   reshapr attach -f reshapr/get-race-momentum.yaml --output json
+apiVersion: reshapr.io/v1alpha1
+kind: CustomTools
+service:
+  name: Wind Turbine Racer
+  version: '1.0'
+customTools:
+  get_race_momentum:
+    description: The state of the race in one call - the leading team, the gap between the
+      teams in percent of the track, how many players are actually tapping on each team, and
+      the top players by generated power.
+    input:
+      type: object
+      properties: {}
+    tools:
+      - tool: get_api_race_state
+      - tool: get_api_race_leaderboard
+    script: |
+      const stateP = rs.callToolAsync('get_api_race_state', {});
+      const boardP = rs.callToolAsync('get_api_race_leaderboard', {});
+      const results = rs.awaitPromises([stateP, boardP]);
+
+      if (!results[0].ok) {
+        return rs.fail('Could not read the race state', { error: results[0].error });
+      }
+      const state = results[0].content;
+      const board = results[1].ok ? (results[1].content || []) : [];
+
+      const round = function (value) {
+        return Math.round(value * 10) / 10;
+      };
+      const teams = (state.teams || []).map(function (team) {
+        const tappers = (state.players || []).filter(function (player) {
+          return player.team === team.id && player.generated > 0;
+        }).length;
+        return {
+          team: team.id,
+          distancePercent: round(team.distance || 0),
+          players: team.players,
+          tappers: tappers,
+          power: team.power
+        };
+      });
+      teams.sort(function (a, b) {
+        return b.distancePercent - a.distancePercent;
+      });
+
+      return {
+        raceId: state.raceId,
+        status: state.status,
+        leader: teams.length > 0 ? teams[0].team : null,
+        gapPercent: teams.length > 1 ? round(teams[0].distancePercent - teams[1].distancePercent) : 0,
+        teams: teams,
+        topPlayers: board.slice(0, 3).map(function (entry) {
+          return { rank: entry.rank, name: entry.name, team: entry.team, power: entry.generated };
+        })
+      };
