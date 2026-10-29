@@ -10,6 +10,7 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.openapi.annotations.Operation;
 
 import java.util.List;
 import java.util.Map;
@@ -35,6 +36,8 @@ public class ThemeResource {
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)
+    @Operation(summary = "The current race theme", description = "Returns the theme on the field: both teams' names, "
+        + "colors and cars, and the track. Admin session required.")
     public RaceTheme current() {
         return themes.current();
     }
@@ -42,6 +45,8 @@ public class ThemeResource {
     @GET
     @Path("presets")
     @Produces(MediaType.APPLICATION_JSON)
+    @Operation(summary = "The built-in race themes", description = "Returns the preset themes that can be applied "
+        + "between races. Admin session required.")
     public List<RaceTheme> presets() {
         return themes.presets();
     }
@@ -50,6 +55,8 @@ public class ThemeResource {
     @Path("preset/{id}")
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("admin")
+    @Operation(summary = "Apply a preset theme (admin only)", description = "Restyles the race between races from a "
+        + "preset id. A running race rejects the change.")
     public Response applyPreset(@PathParam("id") String id) {
         RaceTheme preset = themes.presets().stream()
             .filter(t -> t.id().equals(id))
@@ -62,6 +69,8 @@ public class ThemeResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("admin")
+    @Operation(summary = "Apply a full theme (admin only)", description = "Restyles the race between races from a "
+        + "complete theme: both teams' names, colors and cars. A running race rejects the change.")
     public Response apply(RaceTheme theme) {
         return applied(themes.apply(theme));
     }
@@ -76,6 +85,8 @@ public class ThemeResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("admin")
+    @Operation(summary = "Generate and apply a theme with AI (admin only)", description = "Designs a full theme from "
+        + "a prompt, validates it and applies it. Needs AI enabled; answers 503 without it.")
     public Response generate(ThemePrompt prompt) {
         if (!config.ai().enabled()) {
             return aiDisabled();
@@ -103,6 +114,8 @@ public class ThemeResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("admin")
+    @Operation(summary = "Suggest team names with AI (admin only)", description = "Suggests two team names from an "
+        + "event or location prompt and applies them onto the current colors, cars and track. Needs AI enabled.")
     public Response suggestNames(ThemePrompt prompt) {
         if (!config.ai().enabled()) {
             return aiDisabled();

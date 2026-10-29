@@ -9,6 +9,9 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.jboss.resteasy.reactive.ResponseHeader;
 import org.jboss.resteasy.reactive.RestStreamElementType;
@@ -43,6 +46,9 @@ public class RaceResource {
     @GET
     @Path("state")
     @Produces(MediaType.APPLICATION_JSON)
+    @Operation(summary = "The current race state", description = "Returns the race id and status (WAITING, STARTED, "
+        + "FINISHED), the elapsed race time, the teams with their distance in percent of the track, and every player "
+        + "with the power they generated. The full player list makes this response large.")
     public RaceState state() {
         return Optional.ofNullable(current.get()).orElseGet(() -> RaceState.waiting(gameResource.currentRaceId()));
     }
@@ -50,7 +56,11 @@ public class RaceResource {
     @GET
     @Path("leaderboard")
     @Produces(MediaType.APPLICATION_JSON)
-    public List<RaceState.LeaderboardEntry> leaderboard(@QueryParam("team") Integer team) {
+    @Operation(summary = "The players ranked by generated power", description = "Returns one entry per player: name, "
+        + "team, generated power and overall rank. Filter by team number to get a team's internal ranking.")
+    public List<RaceState.LeaderboardEntry> leaderboard(
+        @Parameter(description = "Team number, starting at 1. Leave it out for all teams.", in = ParameterIn.QUERY)
+        @QueryParam("team") Integer team) {
         return state().leaderboard(team);
     }
 
@@ -63,6 +73,8 @@ public class RaceResource {
     @Produces(MediaType.SERVER_SENT_EVENTS)
     @RestStreamElementType(MediaType.APPLICATION_JSON)
     @ResponseHeader(name = "Connection", value = "keep-alive")
+    @Operation(summary = "Server-sent stream of race snapshots", description = "A long-lived connection; not "
+        + "suitable as a request/response call.")
     public Multi<RaceState> stream() {
         return Multi.createBy().merging().streams(
             Multi.createFrom().item(this::state),

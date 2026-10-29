@@ -9,6 +9,9 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -33,11 +36,19 @@ public class CheatResource {
 
     @GET
     @Produces(MediaType.TEXT_PLAIN)
-    public Uni<String> cheat(@QueryParam("team") int team,
-                             @QueryParam("multiplier") Double multiplier,
-                             @QueryParam("kind") String kind,
-                             @QueryParam("seconds") Integer seconds,
-                             @QueryParam("key") String key) {
+    @Operation(summary = "Secretly boost or sabotage a team", description = "Multiplies one team's power for a number "
+        + "of seconds: a multiplier above 1 boosts, below 1 sabotages. The authenticated boost_team MCP tool is the "
+        + "primary trigger; this is the unauthenticated backup, so anything that can reach the API can call it.")
+    public Uni<String> cheat(
+        @Parameter(description = "Team number, starting at 1", in = ParameterIn.QUERY) @QueryParam("team") int team,
+        @Parameter(description = "Power multiplier: above 1 boosts, below 1 sabotages", in = ParameterIn.QUERY)
+        @QueryParam("multiplier") Double multiplier,
+        @Parameter(description = "BOOST or SABOTAGE; defaults to deciding from the multiplier", in = ParameterIn.QUERY)
+        @QueryParam("kind") String kind,
+        @Parameter(description = "How many seconds the effect lasts", in = ParameterIn.QUERY)
+        @QueryParam("seconds") Integer seconds,
+        @Parameter(description = "Key required when the game sets game.cheat.key", in = ParameterIn.QUERY)
+        @QueryParam("key") String key) {
         if (!config.cheat().enabled()) {
             throw new NotFoundException();
         }

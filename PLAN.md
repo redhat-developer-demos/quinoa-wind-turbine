@@ -112,7 +112,8 @@ busy talking while the audience joins. It knows the game only through its MCP se
   by hand.
 
 The game's own commentary chain is untouched. `A2ACommentator` is dropped; the console
-is the only deliberate change to wind-turbine itself.
+and the OpenAPI schema exposure (for reShapr) are the only deliberate changes to
+wind-turbine itself.
 
 ### Act 6 — Ship it (5 min)
 Pre-warmed cloud OpenShift cluster (freshly provisioned for the talk; the sandbox
@@ -174,8 +175,9 @@ loop for you, and for your agents." Point the audience at
     workaround is needed.
 11. Build in `quinoa-wind-turbine` upstream, no fork; race-ops is a subproject of this
     repo (top-level `race-ops/` directory with its own pom, sharing the wrapper)
-    instead of a second repository. The director console (config-gated, default off) is
-    the only deliberate change to the game; `A2ACommentator` is dropped. race-ops must
+    instead of a second repository. The director console (config-gated, default off)
+    and the OpenAPI schema exposure are the only deliberate changes to the game;
+    `A2ACommentator` is dropped. race-ops must
     not import game classes, checked by a test. Deploy scripts, reShapr compose and the
     run-of-show live here too.
 12. Model choice is GLM 5.3 (hosted) for the talk, granite4.2:3b with thinking disabled
@@ -360,6 +362,39 @@ to the rehearsal cluster.
 6. **reShapr.** Local Docker Compose, import wind-turbine `/q/openapi`, one Custom
    Tool, an agent calling it, our own before/after token count. Done when the number
    is measured, not quoted.
+
+   Shape (settled 2026-10-29 after researching reShapr 1.0.0/1.1.0, open source
+   Apache-2.0, `reshaprio/reshapr`):
+   - **Game schema first:** add `quarkus-smallrye-openapi` so `/q/openapi` serves the
+     REST surface (10 open operations, 3 admin-gated). `@Operation` summaries on the
+     operations agents would call. The second deliberate game change; the claim "the
+     console is the only one" is amended.
+   - **Local run:** `reshapr run` (npm CLI pulls a pinned release compose; control
+     plane :5555, MCP proxy :7777). Never `try.reshapr.io` on stage. Everything
+     scriptable through the CLI with JSON output, so `scripts/reshapr-setup.sh`
+     rebuilds the servers idempotently for rehearsals; artifacts (CustomTools YAML,
+     output filter) live in the repo.
+   - **Two configuration plans over one service:** baseline = the raw full
+     translation (all operations become tools, full JSON responses — including
+     `/api/cheat` and the two SSE endpoints, which are the "naive translation is
+     dumb" beats); reshaped = one scripted Custom Tool `get_race_momentum`
+     (orchestrates `GET /api/race/state` + `GET /api/race/leaderboard` in parallel,
+     returns a compact leader/gap/tappers object) with everything else cherry-picked
+     away. Both backend calls are public reads, so no backend auth wiring.
+   - **Measurement:** a scripted agent run (LC4J, hosted GLM 5.3) asking the same
+     question against both MCP endpoints, capturing provider token usage and
+     tool-call count — our number for the slide. Byte counts of decoded tool content
+     (reShapr's own tutorial metric) as the sanity check. homebot stays the live
+     visual with its JSON-RPC trace panel.
+   - **Early spike:** LC4J MCP client ↔ reShapr protocol negotiation (reShapr serves
+     2024-11-05 through 2026-07-28; verify langchain4j-mcp lands on a common version
+     before building on it).
+   - **Division of labor (documented, not standardized):** phones and dashboard use
+     REST/WS; the director uses the hand-built MCP server (face 1); homebot and the
+     measurement agent use reShapr's servers (face 2). A new capability gets a REST
+     endpoint only if the game's own UI needs it, an MCP tool only if agents need it.
+   - **Open decisions for rehearsal:** `/api/cheat` stays open as the governance beat
+     vs gated; pre-built plans with a Web UI walkthrough vs live click-through.
 7. **Stage readiness.** Provision the fresh cluster; run and pre-warm
    `scripts/deploy-openshift.sh`; deploy a Jaeger collector and set OTel sampling to 1
    (the exporter currently points at a service that doesn't exist); load-test 500 and

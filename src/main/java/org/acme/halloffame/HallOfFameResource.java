@@ -6,6 +6,7 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+import org.eclipse.microprofile.openapi.annotations.Operation;
 
 import java.util.List;
 import org.acme.game.GameConfig;
@@ -29,6 +30,8 @@ public class HallOfFameResource {
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Past finished races", description = "Returns the most recent finished races: the winning "
+        + "team, the players' standings and the race duration, most recent first.")
     public List<HallOfFameEntry> all() {
         return store.all().stream().limit(maxEntries).toList();
     }

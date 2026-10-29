@@ -8,6 +8,9 @@ import io.smallrye.mutiny.operators.multi.processors.BroadcastProcessor;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.ws.rs.BadRequestException;
 import org.acme.game.PowerResource.Power;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.infinispan.client.hotrod.RemoteCacheManager;
@@ -109,7 +112,11 @@ public class GameResource {
     @POST
     @Path("assign/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    public User assignNameAndTeam(@PathParam("id") Integer id, @QueryParam("team") int team) {
+    @Operation(summary = "Register a player with a chosen id and team", description = "Returns the player's name and "
+        + "team. The name is derived from the id, so the same id always means the same player.")
+    public User assignNameAndTeam(
+        @Parameter(description = "The player's id, from 0 up", in = ParameterIn.PATH) @PathParam("id") Integer id,
+        @Parameter(description = "Team number, 1 or 2", in = ParameterIn.QUERY) @QueryParam("team") int team) {
         final User user = new User(id, getNameById(id), team);
         powerOut.send(raceMessage(new Power(0, user.name(), user.team(), currentRaceId())));
         return user;
@@ -119,7 +126,10 @@ public class GameResource {
     @Counted(value = "counted.user_assigned")
     @Path("assign")
     @Produces(MediaType.APPLICATION_JSON)
-    public Uni<User> assignNameAndTeam(@QueryParam("team") int team) {
+    @Operation(summary = "Register a new player", description = "Allocates the next player id and returns the "
+        + "player's name and team.")
+    public Uni<User> assignNameAndTeam(
+        @Parameter(description = "Team number, 1 or 2", in = ParameterIn.QUERY) @QueryParam("team") int team) {
         return Uni.createFrom().future(usersCounter.incrementAndGet())
             .map(c -> assignNameAndTeam(c.intValue(), team));
 
@@ -135,6 +145,8 @@ public class GameResource {
     @GET
     @Path("status")
     @Produces(MediaType.APPLICATION_JSON)
+    @Operation(summary = "The current game lifecycle event", description = "Returns the last game event (start, stop, "
+        + "reset, finish) with the current race id, or an empty status before anything happened.")
     public GameEvent status() {
         return Optional.ofNullable(lastGameEvent.get()).orElse(new GameEvent("empty"));
     }
@@ -144,6 +156,8 @@ public class GameResource {
     @Produces(MediaType.SERVER_SENT_EVENTS)
     @RestStreamElementType(MediaType.APPLICATION_JSON)
     @ResponseHeader(name = "Connection", value = "keep-alive")
+    @Operation(summary = "Server-sent stream of game lifecycle events", description = "A long-lived connection; not "
+        + "suitable as a request/response call.")
     public Multi<GameEvent> events() {
         return withPing(updates(), GameEvent.PING, 30);
     }
@@ -152,6 +166,8 @@ public class GameResource {
     @Path("event")
     @Consumes(MediaType.APPLICATION_JSON)
     @RolesAllowed("admin")
+    @Operation(summary = "Broadcast a game event (admin only)", description = "Starts, pauses or resets the game. "
+        + "Requires an admin session.")
     public Uni<Void> sendGameEvent(GameEvent gameEvent) {
         if (GameEvent.FINISH.equals(gameEvent.type())) {
             throw new BadRequestException("The race topology decides when a race finishes");

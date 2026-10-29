@@ -1,6 +1,7 @@
 package org.acme.game;
 
 import jakarta.inject.Inject;
+import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 
@@ -24,6 +25,9 @@ public class PowerResource {
     @Path("/")
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Submit power for a player", description = "Sends one tap batch: the power quantity, the "
+        + "player's name and their team. The race id is set by the server. Players normally send this over their "
+        + "WebSocket instead.")
     public void generate(Power power) {
         if (power.destination() < 1 || power.destination() > GameConfig.TEAMS) {
             throw new BadRequestException("We only have " + GameConfig.TEAMS + " teams for now");

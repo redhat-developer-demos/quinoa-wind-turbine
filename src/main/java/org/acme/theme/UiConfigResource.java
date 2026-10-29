@@ -4,6 +4,7 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+import org.eclipse.microprofile.openapi.annotations.Operation;
 
 import java.util.List;
 import org.acme.game.GameConfig;
@@ -24,6 +25,8 @@ public class UiConfigResource {
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)
+    @Operation(summary = "The UI configuration", description = "Returns the active theme's teams (name, color, car) "
+        + "and whether AI features are enabled. This is what the player and dashboard UIs render.")
     public UiConfig configuration() {
         List<Team> teams = themes.current().teams().stream()
             .map(t -> new Team(t.id(), t.name(), t.color(), t.car(), t.accent(), t.logo()))
