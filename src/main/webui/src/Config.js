@@ -1,3 +1,5 @@
+import { DEFAULT_INPUT_MODE, normalizeInputMode } from './inputMode.js';
+
 export const DEV_MODE = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
 
 export const IS_TOUCH_DEVICE = (('ontouchstart' in window)
@@ -13,6 +15,9 @@ export let CURRENT_TRACK = null;
 // Where the race-ops director lives, or null when the console stays off. A path prefix when
 // race-ops is routed under this app's own host, a full URL for a separate origin.
 export let OPS_URL = null;
+// How players drive the windmill: 'tap', 'shake' or 'both'. Falls back to tap when the server
+// sends nothing or an unknown value.
+export let INPUT_MODE = DEFAULT_INPUT_MODE;
 
 export async function loadConfig() {
   const response = await fetch('/api/config');
@@ -25,6 +30,7 @@ export async function loadConfig() {
   TEAMS_CONFIG = config.teams;
   CURRENT_TRACK = config.track || null;
   OPS_URL = config.opsUrl || null;
+  INPUT_MODE = normalizeInputMode(config.inputMode);
 }
 
 // Dashboard
@@ -36,8 +42,6 @@ export const SHOW_TOP = 5;
 export const SHOW_TOP_WINNER = 10;
 
 // Mobile app
-export const ENABLE_TAPPING = true;
-export const ENABLE_SHAKING = false; // 'false' in v1, set to 'true' in v2
 export const ENABLE_BLOWING = false;
 export const ENABLE_SWIPING = false;
 
@@ -45,6 +49,4 @@ export const ENABLE_SWIPING = false;
 console.log(`devMode: ${DEV_MODE}`);
 console.log(`Tap needed: ${NB_TAP_NEEDED_PER_USER}`);
 console.log('Swiping Sensor: ', ENABLE_SWIPING);
-console.log('Tapping Sensor: ', ENABLE_TAPPING);
 console.log('Blowing Sensor: ', ENABLE_BLOWING);
-console.log('Shaking Sensor: ', ENABLE_SHAKING);

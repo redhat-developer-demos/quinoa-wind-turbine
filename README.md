@@ -108,7 +108,15 @@ game.taps-needed-per-player=100
 
 A team finishes when its power reaches `tap power × taps needed × players in the team`. Keep `TAP_POWER` in [`Config.js`](src/main/webui/src/Config.js) equal to `game.tap-power`.
 
-`Config.js` also switches the player controls on and off (`ENABLE_TAPPING`, `ENABLE_SHAKING`, `ENABLE_BLOWING` and `ENABLE_SWIPING`) and sets how many players the dashboard shows per team (`SHOW_TOP`).
+### Player input mode
+
+Players drive the windmill by tapping, shaking the phone, or both. The mode is a server setting, `game.input.mode` (`tap`, `shake` or `both`, default `tap`), used until the first switch. An agent with the admin MCP server switches it between races with the `set_input_mode` tool. Like a theme, a switch is rejected while a race is running or paused. Every dashboard and phone follows the change without a reload, and the "Race Started!" text on the dashboard changes with it. `GET /api/config` returns the current `inputMode`.
+
+The active mode is stored in Infinispan, so it is the same on every replica. It survives an app restart as long as the Infinispan server keeps its data; dev mode starts a fresh Infinispan container on each start, so the mode returns to the `game.input.mode` default there. A phone that was offline when the mode changed reads it again when its socket reconnects.
+
+When the mode includes shaking, each phone shows the **Enable Shaking** overlay and keeps it until the player taps it, because iOS only grants motion access after a tap. A phone that already enabled shaking skips it. A device without motion sensors (no `DeviceMotionEvent`) can't shake, so tapping works in every mode there and the overlay isn't shown.
+
+`Config.js` still holds the `ENABLE_BLOWING` and `ENABLE_SWIPING` flags (both off) and sets how many players the dashboard shows per team (`SHOW_TOP`).
 
 ### AI commentary
 

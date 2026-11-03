@@ -21,6 +21,8 @@ import org.acme.halloffame.HallOfFameEntry;
 import org.acme.halloffame.HallOfFameResource;
 import org.acme.race.RaceResource;
 import org.acme.race.RaceState;
+import org.acme.input.InputMode;
+import org.acme.input.InputModeService;
 import org.acme.theme.RaceTheme;
 import org.acme.theme.ThemeService;
 
@@ -41,15 +43,17 @@ public class RaceTools {
     private final GameConfig config;
     private final HallOfFameResource hallOfFame;
     private final ThemeService themes;
+    private final InputModeService inputModes;
 
     public RaceTools(RaceResource race, GameResource game, ResourceManager resources, GameConfig config,
-                     HallOfFameResource hallOfFame, ThemeService themes) {
+                     HallOfFameResource hallOfFame, ThemeService themes, InputModeService inputModes) {
         this.race = race;
         this.game = game;
         this.resources = resources;
         this.config = config;
         this.hallOfFame = hallOfFame;
         this.themes = themes;
+        this.inputModes = inputModes;
     }
 
     @PostConstruct
@@ -181,6 +185,21 @@ public class RaceTools {
         }
         List<String> errors = themes.apply(toApply);
         return errors.isEmpty() ? "Applied theme" : "Theme rejected: " + String.join("; ", errors);
+    }
+
+    @McpServer(ADMIN_SERVER)
+    @Tool(name = "set_input_mode", description = "Sets how players drive the windmill between races: tap, shake or "
+        + "both. Changes every dashboard and phone at once. Phones that need shaking ask the player to enable it. "
+        + "Rejected while a race is running or paused.")
+    String setInputMode(
+        @ToolArg(description = "The input mode: tap, shake or both") String mode) {
+        if (!InputMode.isValid(mode)) {
+            throw new ToolCallException("Unknown input mode '" + mode + "'; expected tap, shake or both");
+        }
+        List<String> errors = inputModes.apply(mode);
+        return errors.isEmpty()
+            ? "Input mode set to " + InputMode.from(mode).value()
+            : "Input mode rejected: " + String.join("; ", errors);
     }
 
     @McpServer(ADMIN_SERVER)

@@ -52,7 +52,14 @@ public interface GameConfig {
 
     Cheat cheat();
 
+    Input input();
+
     Map<Integer, Team> teams();
+
+    interface Input {
+        @WithDefault("tap")
+        String mode();
+    }
 
     interface Team {
         String name();

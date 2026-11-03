@@ -10,7 +10,7 @@ The app is an MCP server with two endpoints, configured in `.mcp.json` (Claude C
 | Server | URL | Login | Tools |
 |---|---|---|---|
 | `wind-turbine-race` | `http://localhost:8080/mcp` | none | `get_race_state`, `get_leaderboard(team?)`, `get_player(name)`, resource `race://current` |
-| `wind-turbine-admin` | `http://localhost:8080/admin/mcp` | OAuth, `admin` role | the same, plus `start_race`, `pause_race`, `reset_race`, `reset_hall_of_fame` |
+| `wind-turbine-admin` | `http://localhost:8080/admin/mcp` | OAuth, `admin` role | the same, plus `start_race`, `pause_race`, `reset_race`, `reset_hall_of_fame`, `set_input_mode(mode)` (`tap`, `shake` or `both`; rejected mid-race) |
 
 `get_race_state` returns the status (`WAITING`, `STARTED`, `PAUSED`, `FINISHED`), the race time, the
 teams in race order with `distance` in percent of the track, and the players sorted by generated

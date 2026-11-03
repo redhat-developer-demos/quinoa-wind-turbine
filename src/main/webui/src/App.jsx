@@ -4,18 +4,21 @@ import Dashboard from './components/Dashboard';
 import GameController from './components/GameController';
 import { Login, LoginError } from './components/Login';
 import { ThemeProvider } from './ThemeContext';
+import { InputModeProvider } from './InputModeContext';
 
 function App() {
   return (
     <ThemeProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<GameController />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/login-error" element={<LoginError />} />
-        </Routes>
-      </BrowserRouter>
+      <InputModeProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<GameController />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/login-error" element={<LoginError />} />
+          </Routes>
+        </BrowserRouter>
+      </InputModeProvider>
     </ThemeProvider>
   );
 }
