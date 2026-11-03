@@ -37,7 +37,12 @@ jobs:
       - name: Run tests
         run: ./mvnw -B test
 
+      # A PR from a fork runs with the fork's token, which cannot write packages in this
+      # organization (ghcr denies it with "installation not allowed to Write organization
+      # package"), so the image push only runs where it can succeed: pushes to main or a
+      # tag, and PRs from a branch of this repository.
       - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
@@ -45,6 +50,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata for Docker
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         id: meta
         uses: docker/metadata-action@v6
         with:
@@ -61,6 +67,7 @@ jobs:
       # PRs push a pr-<number> tagged image too, so a cluster can deploy a PR for testing
       # without an in-cluster build. The metadata step picks the tag for the event type.
       - name: Build and push container image
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         run: |
           ./mvnw -B package \
             -Dquarkus.container-image.build=true \
