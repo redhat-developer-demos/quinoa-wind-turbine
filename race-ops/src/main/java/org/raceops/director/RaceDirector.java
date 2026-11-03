@@ -29,10 +29,15 @@ import java.util.concurrent.atomic.AtomicReference;
 @ApplicationScoped
 public class RaceDirector {
 
+    /** How long to leave the game alone after a failed start, so an outage is not hammered every tick. */
+    private static final long START_RETRY_BACKOFF_MS = 15_000;
+
     private final AdminRaceClient admin;
     private final RaceOpsConfig config;
     private final ProposalService proposals;
+    private final DirectorHealth health;
     private final Optional<DirectorAi> ai;
+    private volatile long retryStartAfter;
 
     private volatile RaceSnapshotEvent latest;
     /** The race this director already started; the game keeps serving WAITING snapshots until the start lands. */
@@ -49,10 +54,11 @@ public class RaceDirector {
 
     @Inject
     public RaceDirector(AdminRaceClient admin, RaceOpsConfig config, ProposalService proposals,
-                        Instance<DirectorAi> ai) {
+                        DirectorHealth health, Instance<DirectorAi> ai) {
         this.admin = admin;
         this.config = config;
         this.proposals = proposals;
+        this.health = health;
         this.ai = ai.isUnsatisfied() ? Optional.empty() : Optional.of(ai.get());
     }
 
@@ -89,7 +95,7 @@ public class RaceDirector {
             && snapshot.raceId().equals(startedRaceId);
     }
 
-    @Scheduled(every = "3s")
+    @Scheduled(every = "1s")
     void evaluate() {
         if (!config.directorEnabled()) {
             return;
@@ -99,7 +105,7 @@ public class RaceDirector {
             return;
         }
         String raceId = event.snapshot().raceId();
-        if (raceId.equals(startedRaceId.get())) {
+        if (raceId.equals(startedRaceId.get()) || System.currentTimeMillis() < retryStartAfter) {
             return;
         }
         List<RaceSnapshot> waitingWindow = event.window().stream()
@@ -114,10 +120,12 @@ public class RaceDirector {
         if (startedRaceId.compareAndSet(null, raceId)) {
             try {
                 String result = admin.start();
+                health.succeeded();
                 Log.infof("Director started %s (%s): %s", raceId, decision.reason(), result);
             } catch (Exception e) {
                 startedRaceId.compareAndSet(raceId, null);
-                Log.warnf(e, "Director could not start %s, will retry on the next evaluation", raceId);
+                retryStartAfter = System.currentTimeMillis() + START_RETRY_BACKOFF_MS;
+                health.failed("start_race", e);
             }
         }
     }
@@ -165,6 +173,7 @@ public class RaceDirector {
         }
         try {
             List<AdminRaceClient.ThemeOption> options = admin.listThemes();
+            health.succeeded();
             Proposal fallback = DirectorDecisions.themeFallback(options, snapshot.raceId(),
                 Math.floorMod(snapshot.raceId().hashCode(), 97), currentTheme);
             Proposal proposal = fallback;
@@ -183,7 +192,7 @@ public class RaceDirector {
             currentTheme = proposal.presetId();
             Log.infof("Director proposes theme %s for the next heat: %s", proposal.presetId(), proposal.message());
         } catch (Exception e) {
-            Log.warnf(e, "Director could not build a theme proposal");
+            health.failed("list_preset_themes", e);
         }
     }
 

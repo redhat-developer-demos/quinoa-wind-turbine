@@ -46,10 +46,10 @@ public interface RaceOpsConfig {
 
     /**
      * The join plateau: the race starts when the field has been unchanged for this many
-     * seconds. The wall-clock backstop for a huge room comes from the run-of-show, not
-     * from this app.
+     * seconds. Short on purpose, because on a live stage the room waits through it. The
+     * wall-clock backstop for a huge room comes from the run-of-show, not from this app.
      */
-    @WithDefault("20")
+    @WithDefault("5")
     int plateauSeconds();
 
     /**

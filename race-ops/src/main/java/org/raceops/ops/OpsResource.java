@@ -9,6 +9,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import org.jboss.resteasy.reactive.RestStreamElementType;
+import org.raceops.director.DirectorHealth;
 import org.raceops.director.ProposalService;
 import org.raceops.monitor.OpsBroadcaster;
 import org.raceops.monitor.OpsUpdate;
@@ -26,19 +27,22 @@ public class OpsResource {
 
     private final OpsBroadcaster broadcaster;
     private final ProposalService proposals;
+    private final DirectorHealth health;
 
     @Inject
-    public OpsResource(OpsBroadcaster broadcaster, ProposalService proposals) {
+    public OpsResource(OpsBroadcaster broadcaster, ProposalService proposals, DirectorHealth health) {
         this.broadcaster = broadcaster;
         this.proposals = proposals;
+        this.health = health;
     }
 
     /**
      * The whole console state: the race, the director's pending proposal with its
-     * approve/dismiss decision, and what was recently decided.
+     * approve/dismiss decision, what was recently decided, and the problem that currently
+     * stops the director from acting on the game (null when there is none).
      */
     public record OpsSnapshot(OpsState race, List<ProposalService.ProposalView> pending,
-                              List<ProposalService.ProposalView> recentProposals) {
+                              List<ProposalService.ProposalView> recentProposals, String problem) {
     }
 
     @GET
@@ -53,7 +57,7 @@ public class OpsResource {
     @Path("state")
     @Produces(MediaType.APPLICATION_JSON)
     public OpsSnapshot state() {
-        return new OpsSnapshot(broadcaster.state(), proposals.pending(), proposals.recent());
+        return new OpsSnapshot(broadcaster.state(), proposals.pending(), proposals.recent(), health.problem());
     }
 
     @POST
