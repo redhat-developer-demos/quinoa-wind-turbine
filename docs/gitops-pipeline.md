@@ -100,7 +100,8 @@ Create the Argo CD application to deploy the game:
 oc apply -f argo/wind-turbine-app.yaml
 ```
 
-Start the pipeline or edit `Config.js` to switch to V2:
+Start the pipeline, or switch the players to shaking (V2) without rebuilding the image. The player input mode is a server setting, not a `Config.js` flag. Between races, call the admin MCP tool `set_input_mode` with `shake` (or `both`), or set the default for new deployments in `application.properties`:
 
-```js
-export const ENABLE_SHAKING = true;
+```properties
+game.input.mode=shake
+```

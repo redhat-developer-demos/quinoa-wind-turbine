@@ -2,13 +2,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { gameApi, playerSocket, sensors } from '../../api';
 import Generator from './Generator';
-import { ENABLE_SHAKING } from '../../Config';
 import { useTheme } from '../../ThemeContext';
+import { useInputMode, useSetInputMode } from '../../InputModeContext';
+import { effectiveInputs } from '../../inputMode';
 import TopBar from './TopBar';
 import FormulaOneCar, { FormulaOneCarDefs } from '../Dashboard/FormulaOneCar';
 import EnableShakingModal from './EnableShakingModal';
 import ChooseTeamModal from './ChooseTeamModal';
 import RankModal from './RankModal';
+import GoFlash, { GO_FLASH_MS } from './GoFlash';
 
 const Container = styled.div`
   text-align: center;
@@ -108,14 +110,30 @@ function StatusContent(props) {
 
 export default function GameController() {
   const { teams } = useTheme();
+  const inputMode = useInputMode();
+  const setInputMode = useSetInputMode();
+  const inputs = effectiveInputs(inputMode);
   const [user, setUser] = useState();
   const [status, setStatus] = useState({ value: 'offline' });
   const [generated, setCounter] = useState(0);
   const [standing, setStanding] = useState();
   const [notification, setNotification] = useState();
+  const [showGo, setShowGo] = useState(false);
+  const previousStatus = useRef();
   const [shakingEnabled, setShakingEnabled] = useState(false);
   const [teamChosen, setTeamChosen] = useState(false);
   const socket = useRef();
+
+  const refreshInputMode = React.useCallback(() => {
+    fetch('/api/config')
+      .then((r) => r.json())
+      .then((cfg) => {
+        if (cfg && cfg.inputMode) {
+          setInputMode(cfg.inputMode);
+        }
+      })
+      .catch(() => {});
+  }, [setInputMode]);
 
   function reset() {
     setCounter(0);
@@ -147,6 +165,8 @@ export default function GameController() {
       return undefined;
     }
     socket.current = playerSocket.connect(user, {
+      onOpen: refreshInputMode,
+      onInputMode: refreshInputMode,
       onEvent: (e) => gameApi.applyGameEvent(e, setStatus, reset),
       onStanding: setStanding,
       onNotification: setNotification,
@@ -156,7 +176,19 @@ export default function GameController() {
       socket.current.close();
       socket.current = null;
     };
-  }, [user]);
+  }, [user, refreshInputMode]);
+  // Flash GO when the race starts under the player's eyes; not when joining or reconnecting
+  // to a race that is already running.
+  useEffect(() => {
+    const justStarted = previousStatus.current === 'paused' && status.value === 'started';
+    previousStatus.current = status.value;
+    setShowGo(justStarted);
+    if (!justStarted) {
+      return undefined;
+    }
+    const timeout = setTimeout(() => setShowGo(false), GO_FLASH_MS);
+    return () => clearTimeout(timeout);
+  }, [status.value]);
   useEffect(() => {
     if (!notification) {
       return undefined;
@@ -181,9 +213,10 @@ export default function GameController() {
             shakingEnabled={shakingEnabled}
           />
           {status.value === 'started' && standing && <Standing standing={standing} />}
+          {showGo && <GoFlash />}
           {notification && <NotificationDiv id="notification">{notification}</NotificationDiv>}
-          {ENABLE_SHAKING && !shakingEnabled
-                    && <EnableShakingModal onClick={enableShaking} />}          
+          {inputs.shake && !shakingEnabled
+                    && <EnableShakingModal onClick={enableShaking} />}
         </>
       )}
       {!teamChosen && <ChooseTeamModal onClick={chooseTeam} />}

@@ -74,6 +74,26 @@ test('finished races accept finish lines and reject routine commentary', () => {
   f.close();
 });
 
+test('game event theme triggers onTheme callback', () => {
+  let themeCalled = false;
+  globalThis.WebSocket = Socket;
+  globalThis.window = { location: { protocol: 'http:', host: 'localhost:8080' } };
+  const close = consume(() => {}, () => {}, () => {}, () => { themeCalled = true; });
+  Socket.last.receive({ type: 'game', event: { type: 'theme' } });
+  assert.equal(themeCalled, true);
+  close();
+});
+
+test('game event input-mode triggers onInputMode callback', () => {
+  let inputModeCalled = false;
+  globalThis.WebSocket = Socket;
+  globalThis.window = { location: { protocol: 'http:', host: 'localhost:8080' } };
+  const close = consume(() => {}, () => {}, () => {}, () => {}, () => { inputModeCalled = true; });
+  Socket.last.receive({ type: 'game', event: { type: 'input-mode', data: { mode: 'shake' } } });
+  assert.equal(inputModeCalled, true);
+  close();
+});
+
 test('finish commentary waits for the finished snapshot when it arrives first', () => {
   const f = fixture();
   f.socket.receive(race('STARTED', 9));

@@ -7,8 +7,11 @@ import io.quarkus.test.junit.QuarkusTestProfile;
 import io.quarkus.test.junit.TestProfile;
 import io.vertx.core.MultiMap;
 import io.vertx.core.json.JsonObject;
+import jakarta.inject.Inject;
+import org.acme.input.InputModeService;
 import org.acme.race.RaceState.Status;
 import org.eclipse.microprofile.config.ConfigProvider;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -24,6 +27,7 @@ import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @QuarkusTest
@@ -40,7 +44,16 @@ class RaceToolsTest {
     private static final List<String> READ_TOOLS =
         List.of("get_race_state", "get_leaderboard", "get_player", "get_hall_of_fame");
     private static final List<String> ADMIN_TOOLS = List.of("start_race", "pause_race", "reset_race", "boost_team",
-        "list_preset_themes", "apply_theme", "suggest_team_names", "generate_theme", "reset_hall_of_fame");
+        "list_preset_themes", "apply_theme", "set_input_mode", "suggest_team_names", "generate_theme",
+        "reset_hall_of_fame");
+
+    @Inject
+    InputModeService inputModes;
+
+    @AfterEach
+    void restoreDefaultInputMode() {
+        inputModes.clear();
+    }
 
     @Test
     void readToolsNeedNoLogin() {
@@ -166,6 +179,98 @@ class RaceToolsTest {
             })
             .thenAssertResults();
         client.disconnect();
+    }
+
+    @Test
+    void setInputModeIsAdminOnly() {
+        McpStreamableTestClient client = McpAssured.newConnectedStreamableClient();
+        client.when()
+            .toolsList(page -> assertFalse(
+                page.tools().stream().anyMatch(tool -> "set_input_mode".equals(tool.name()))))
+            .thenAssertResults();
+        client.disconnect();
+    }
+
+    @Test
+    void adminSwitchesTheInputModeBetweenRaces() {
+        McpStreamableTestClient client = adminClient();
+        resetRace(client);
+
+        client.when()
+            .toolsList(page -> assertTrue(
+                page.tools().stream().anyMatch(tool -> "set_input_mode".equals(tool.name()))))
+            .toolsCall("set_input_mode", Map.of("mode", "shake"), response -> {
+                assertFalse(response.isError(), () -> response.firstContent().asText().text());
+                assertEquals("Input mode set to shake", response.firstContent().asText().text());
+            })
+            .thenAssertResults();
+        given().get("/api/config").then().statusCode(200).body("inputMode", is("shake"));
+
+        client.when()
+            .toolsCall("set_input_mode", Map.of("mode", "BOTH"), response ->
+                assertEquals("Input mode set to both", response.firstContent().asText().text()))
+            .thenAssertResults();
+        given().get("/api/config").then().statusCode(200).body("inputMode", is("both"));
+        client.disconnect();
+    }
+
+    @Test
+    void inputModeIsRejectedDuringARace() {
+        McpStreamableTestClient client = adminClient();
+        resetRace(client);
+        client.when()
+            .toolsCall("start_race", response -> assertFalse(response.isError()))
+            .thenAssertResults();
+        await().atMost(Duration.ofSeconds(10)).until(RaceToolsTest::gameStatus, is("start"));
+
+        client.when()
+            .toolsCall("set_input_mode", Map.of("mode", "shake"), response -> {
+                assertFalse(response.isError(), () -> response.firstContent().asText().text());
+                assertTrue(response.firstContent().asText().text().contains("rejected"),
+                    () -> response.firstContent().asText().text());
+                assertTrue(response.firstContent().asText().text().contains("between races"),
+                    () -> response.firstContent().asText().text());
+            })
+            .thenAssertResults();
+        given().get("/api/config").then().statusCode(200).body("inputMode", is("tap"));
+
+        resetRace(client);
+        client.disconnect();
+    }
+
+    @Test
+    void invalidInputModeIsAnError() {
+        McpStreamableTestClient client = adminClient();
+        resetRace(client);
+        client.when()
+            .toolsCall("set_input_mode", Map.of("mode", "blow"), response -> {
+                assertTrue(response.isError(), () -> response.firstContent().asText().text());
+                assertTrue(response.firstContent().asText().text().contains("Unknown input mode"),
+                    () -> response.firstContent().asText().text());
+            })
+            .thenAssertResults();
+        given().get("/api/config").then().statusCode(200).body("inputMode", is("tap"));
+        client.disconnect();
+    }
+
+    private McpStreamableTestClient adminClient() {
+        String token = token("developer", "developer");
+        return McpAssured.newStreamableClient()
+            .setMcpPath("/admin/mcp")
+            .setAdditionalHeaders(message -> MultiMap.caseInsensitiveMultiMap().add("Authorization", "Bearer " + token))
+            .build()
+            .connect();
+    }
+
+    private static void resetRace(McpStreamableTestClient client) {
+        client.when()
+            .toolsCall("reset_race", response -> assertEquals("Race reset", response.firstContent().asText().text()))
+            .thenAssertResults();
+        await().atMost(Duration.ofSeconds(10)).until(RaceToolsTest::gameStatus, is("reset"));
+    }
+
+    private static String gameStatus() {
+        return given().get("/api/game/status").then().statusCode(200).extract().jsonPath().getString("type");
     }
 
     private RaceState state() {

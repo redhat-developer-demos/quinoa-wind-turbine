@@ -89,9 +89,9 @@ public class GameResource {
         this.powerOut = powerOut;
         this.modifiersOut = modifiersOut;
         this.gameEventsIn.subscribe().with(s -> {
-            // A theme event restyles the board but is not a race lifecycle event, so it must not
-            // become the "last game event" that drives game status.
-            if (!GameEvent.THEME.equals(s.type())) {
+            // Theme and input-mode events restyle the board / update controls but are not race
+            // lifecycle events, so they must not become the "last game event" that drives game status.
+            if (!GameEvent.THEME.equals(s.type()) && !GameEvent.INPUT_MODE.equals(s.type())) {
                 lastGameEvent.set(s);
                 if (GameEvent.RESET.equals(s.type()) && s.raceId() != null) {
                     raceId.set(s.raceId());
@@ -205,6 +205,16 @@ public class GameResource {
         gameEventsOut.send(raceMessage(event));
     }
 
+    /**
+     * Broadcasts an input mode to the race-wide game-events topic so every replica and client updates.
+     * It carries the mode in the event data and does not touch the race lifecycle.
+     */
+    public void sendInputMode(String mode) {
+        GameEvent event = new GameEvent(GameEvent.INPUT_MODE, Map.of("mode", mode));
+        LOG.infof("Broadcasting input mode: %s", mode);
+        gameEventsOut.send(raceMessage(event));
+    }
+
     private static String raceIdFor(long counter) {
         return "race-" + counter;
     }
@@ -218,6 +228,7 @@ public class GameResource {
         public static final String PAUSE = "pause";
         public static final String FINISH = "finish";
         public static final String THEME = "theme";
+        public static final String INPUT_MODE = "input-mode";
         static final GameEvent PING = new GameEvent("ping");
 
         public GameEvent(String type) {

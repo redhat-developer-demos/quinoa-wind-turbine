@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { raceApi } from '../../api';
 import { elapsedNow, toDashboardModel } from './DashboardUtils';
 import styled from 'styled-components';
@@ -9,8 +9,10 @@ import HallOfFame from './HallOfFame';
 import ThemePanel from './ThemePanel';
 import CommentaryTicker from './CommentaryTicker';
 import DirectorConsole from './DirectorConsole';
+import RaceStarted, { START_BANNER_MS } from './RaceStarted';
 import { RACE_ANIMATION_MS } from './RaceAnimation';
 import { useSetTheme } from '../../ThemeContext';
+import { useSetInputMode } from '../../InputModeContext';
 
 const NO_WINNER = { winner: -1 };
 
@@ -19,18 +21,34 @@ function Dashboard(props) {
   const [offline, setOffline] = useState(false);
   const [time, setTime] = useState(0);
   const [showWinner, setShowWinner] = useState(false);
+  const [showStart, setShowStart] = useState(false);
+  const previousStatus = useRef();
   const [commentary, setCommentary] = useState();
   const setTheme = useSetTheme();
+  const setInputMode = useSetInputMode();
 
-  useEffect(() => raceApi.consume(setRace, setOffline, setCommentary, () => {
-    // A theme was applied between races: pull the new teams and restyle every component.
-    fetch('/api/config').then((r) => r.json()).then((cfg) => {
-      if (cfg && cfg.teams) {
-        // A null track in the theme means "keep the current track", so fall back to prev.track.
-        setTheme((prev) => ({ ...prev, teams: cfg.teams, track: cfg.track || prev.track }));
-      }
-    }).catch(() => {});
-  }), [setTheme]);
+  useEffect(() => raceApi.consume(
+    setRace,
+    setOffline,
+    setCommentary,
+    () => {
+      // A theme was applied between races: pull the new teams and restyle every component.
+      fetch('/api/config').then((r) => r.json()).then((cfg) => {
+        if (cfg && cfg.teams) {
+          // A null track in the theme means "keep the current track", so fall back to prev.track.
+          setTheme((prev) => ({ ...prev, teams: cfg.teams, track: cfg.track || prev.track }));
+        }
+      }).catch(() => {});
+    },
+    () => {
+      // An input mode was applied between races: pull the new mode and update context.
+      fetch('/api/config').then((r) => r.json()).then((cfg) => {
+        if (cfg && cfg.inputMode) {
+          setInputMode(cfg.inputMode);
+        }
+      }).catch(() => {});
+    },
+  ), [setTheme, setInputMode]);
 
   // The server owns the race clock. The stopwatch runs locally and resyncs when it drifts.
   useEffect(() => {
@@ -41,6 +59,19 @@ function Dashboard(props) {
   }, [race]);
 
   const { status, teams, rank } = toDashboardModel(race);
+
+  // Announce a start the dashboard watched happen, not a race that was already running when
+  // the page loaded, and not a resume after a pause.
+  useEffect(() => {
+    const justStarted = previousStatus.current === 'initial' && status === 'started';
+    previousStatus.current = status;
+    setShowStart(justStarted);
+    if (!justStarted) {
+      return undefined;
+    }
+    const timeout = setTimeout(() => setShowStart(false), START_BANNER_MS);
+    return () => clearTimeout(timeout);
+  }, [status]);
 
   useEffect(() => {
     if (rank.winner < 0) {
@@ -70,6 +101,7 @@ function Dashboard(props) {
           && (commentary.trigger !== 'finish' || winnerShown) ? commentary : undefined} />
         <DirectorConsole />
       </TopStrip>
+      {showStart && !offline && <RaceStarted />}
       {winnerShown && <Winner rank={rank} />}
       {status === 'initial' && !offline && <HallOfFame />}
       {!offline && <ThemePanel />}

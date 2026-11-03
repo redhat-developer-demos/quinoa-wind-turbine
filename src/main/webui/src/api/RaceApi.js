@@ -3,7 +3,7 @@ import { socketUrl } from './PlayerSocket.js';
 /**
  * Renders the race from the dashboard connection, which sends the current race on connect and every snapshot after.
  */
-export function consume(setRace, setOffline, setCommentary = () => {}, onTheme = () => {}) {
+export function consume(setRace, setOffline, setCommentary = () => {}, onTheme = () => {}, onInputMode = () => {}) {
   let socket;
   let i = 0;
   let closed = false;
@@ -82,6 +82,8 @@ export function consume(setRace, setOffline, setCommentary = () => {}, onTheme =
         setCommentary(undefined);
       } else if (message.type === 'game' && message.event.type === 'theme') {
         onTheme();
+      } else if (message.type === 'game' && message.event.type === 'input-mode') {
+        onInputMode();
       }
     };
     socket.onclose = (e) => {

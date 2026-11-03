@@ -1,4 +1,4 @@
-import { DEV_MODE } from '../Config';
+import { DEV_MODE } from '../Config.js';
 
 const storage = DEV_MODE ? sessionStorage : localStorage;
 
@@ -64,6 +64,9 @@ export function applyGameEvent(e, setStatus, reset) {
     case 'pause':
     case 'empty':
       setStatus({ value: 'paused' });
+      break;
+    case 'theme':
+    case 'input-mode':
       break;
     default:
       console.error(`invalid event type: ${e.type}`);
