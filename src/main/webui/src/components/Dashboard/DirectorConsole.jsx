@@ -60,20 +60,27 @@ export default function DirectorConsole() {
   }
   const engagement = state.race && state.race.engagement;
   const pending = state.pending || [];
+  // race-ops being up is not enough: the director also has to reach the game's admin tools.
+  const problem = state.problem;
   return (
     <Console aria-label="Race director console">
-      {engagement && (
-        <Status>
+      {(engagement || problem) && (
+        <Status $failing={Boolean(problem)}>
           <span className="dot" />
           <span>director</span>
-          <span className="race">
-            {engagement.raceId}
-            {' · '}
-            {engagement.status.toLowerCase()}
-            {' · '}
-            {engagement.teams.reduce((sum, t) => sum + t.tappers, 0)} players
-          </span>
+          {engagement && (
+            <span className="race">
+              {engagement.raceId}
+              {' · '}
+              {engagement.status.toLowerCase()}
+              {' · '}
+              {engagement.teams.reduce((sum, t) => sum + t.tappers, 0)} players
+            </span>
+          )}
         </Status>
+      )}
+      {problem && (
+        <Problem role="alert">Director cannot act on the game: {problem}</Problem>
       )}
       {pending.map((p) => (
         <Card key={p.proposal.id}>
@@ -129,12 +136,22 @@ const Status = styled.div`
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background-color: #6c6;
+    background-color: ${(props) => (props.$failing ? '#e94' : '#6c6')};
   }
 
   .race {
     color: #aaa;
   }
+`;
+
+const Problem = styled.div`
+  border: 1px solid #e94;
+  border-radius: 6px;
+  background-color: rgba(52, 30, 12, 0.92);
+  color: #fc9;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  padding: 8px 12px;
 `;
 
 const Card = styled.div`

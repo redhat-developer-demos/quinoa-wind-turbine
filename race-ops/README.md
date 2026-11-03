@@ -44,7 +44,7 @@ and every power it has is the admin toolset in `AdminRaceClient`: start, pause, 
 boost, team names, themes. The director is off by default (`race-ops.director-enabled`,
 on in dev).
 
-Verified live: 12 GameLoader players joined, nobody pressed start, and 20 s after the last
+Verified live (when the plateau was 20 s): 12 GameLoader players joined, nobody pressed start, and 20 s after the last
 join the director started the race itself; in a second run one team was sabotaged, fell
 15% behind, the director proposed boosting it, and approving the card executed
 "Applied x2.5 to team 1 for 30s"; and after a finished heat the director proposed "Fire
