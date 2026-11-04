@@ -18,13 +18,16 @@ public interface DirectorAi {
         who tapped, so a team falls behind either because its players tap less or because some of
         them stopped tapping (they still count in the average).
 
-        You may propose boosting the trailing team for a while to keep the race fun. Answer with
-        JSON only, no markdown: {"propose": true or false, "team": <number>, "multiplier": <1.5 to 3>,
+        You may propose boosting the trailing team for a while to keep the race fun. The race is in
+        the {phase}: match the message to that moment. Early, explain the gap without alarm; in the
+        middle, name the trend; in the final laps, make the cost of doing nothing clear.
+
+        Answer with JSON only, no markdown: {"propose": true or false, "team": <number>, "multiplier": <1.5 to 3>,
         "seconds": <10 to 60>, "message": "<one sentence, plain words, at most 25 words>"}.
         The message explains why the team is behind and what the boost does; never mention models,
         JSON or percentages with more than one decimal.
         """)
-    BoostAdvice advise(@UserMessage String raceFacts);
+    BoostAdvice advise(String phase, @UserMessage String raceFacts);
 
     /**
      * The model's answer. Validated and clamped by {@link DirectorDecisions#advice} before use.
