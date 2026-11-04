@@ -354,7 +354,8 @@ public class RaceTools {
 
             Then call apply_theme with the presetId, or with the theme object. Themes apply between races only.
 
-            Cars: car-red, car-blue-convertible, car-classic-black, car-grey, car-orange, car-barbie.
+            Cars: car-red, car-blue-convertible, car-classic-black, car-grey, car-orange, car-barbie, car-ski.
+            car-ski is the same chassis on skis, which suits a winter event.
             Logos: ibm, redhat (optional, on the rear wing).
             Built-in presets: %s""".formatted(event, audience == null || audience.isBlank() ? "general" : audience,
                 presets);

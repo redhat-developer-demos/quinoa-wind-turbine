@@ -99,7 +99,8 @@ function StatusContent(props) {
           <div>
             <svg viewBox="0 0 50 28" aria-hidden="true">
               <defs><FormulaOneCarDefs /></defs>
-              <FormulaOneCar color={team.color} accent={team.accent || undefined} logo={team.logo || undefined} />
+              <FormulaOneCar color={team.color} accent={team.accent || undefined} logo={team.logo || undefined}
+                ski={team.car === 'car-ski'} />
             </svg>
           </div>
           <div>Waiting for game...</div>

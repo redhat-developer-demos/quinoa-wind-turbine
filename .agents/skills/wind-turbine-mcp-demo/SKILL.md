@@ -176,7 +176,7 @@ With AI on (`GAME_AI_ENABLED=true`) the admin server has two more tools. Both wo
 
 ### Custom Themes
 Pass a full `theme` object to `apply_theme(theme={...})`.
-- **Allowed cars**: `"car-red"`, `"car-blue-convertible"`, `"car-classic-black"`, `"car-grey"`, `"car-orange"`, `"car-barbie"`.
+- **Allowed cars**: `"car-red"`, `"car-blue-convertible"`, `"car-classic-black"`, `"car-grey"`, `"car-orange"`, `"car-barbie"`, `"car-ski"` (the same chassis on skis, for winter events).
 - **Allowed logos**: `"ibm"`, `"redhat"`.
 - **Mandatory rules for Ferrari**:
   - Whenever Ferrari is included as a team, **always** set `"logo": "ibm"`, `"color": "#dc0000"`, `"car": "car-red"`, and `"accent": "#ffffff"`.

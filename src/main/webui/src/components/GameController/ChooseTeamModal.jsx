@@ -1,6 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { TEAMS_CONFIG } from '../../Config';
+import { getContrastColor } from '../Dashboard/DashboardUtils';
 
 const TeamContainer = styled.div`
   position: fixed;
@@ -27,7 +28,6 @@ const TeamHeader = styled.div`
 const TeamSelectionButton = styled.div`
   
   width: 200px;
-  color: white;
   text-transform: uppercase;
   cursor: pointer;
   font-weight: bold;
@@ -40,29 +40,31 @@ const TeamSelectionButton = styled.div`
     margin-right: 10px;
   }
 
-  .button1 {
+  div {
     padding: 10px;
-    background-color: ${TEAMS_CONFIG[0].color};
-  }
-  .button2 {
-    padding: 10px;
-    background-color: ${TEAMS_CONFIG[1].color};
+    width: 100%;
+    text-align: center;
   }
 `;
 
 
 
 export default function ChooseTeamModal(props) {
+  // A light team color needs dark text; white on a white team was unreadable.
+  const buttonStyle = (team) => ({
+    backgroundColor: team.color,
+    color: getContrastColor(team.color),
+  });
   return (
     <TeamContainer>  
       <TeamHeader>
         Choose your team:
       </TeamHeader>
       <TeamSelectionButton onClick={() => props.onClick(1)}>
-        <div className='button1'>Team {TEAMS_CONFIG[0].name}</div>     
+        <div style={buttonStyle(TEAMS_CONFIG[0])}>Team {TEAMS_CONFIG[0].name}</div>
       </TeamSelectionButton>
       <TeamSelectionButton onClick={() => props.onClick(2)}>
-        <div className='button2'>Team {TEAMS_CONFIG[1].name}</div>
+        <div style={buttonStyle(TEAMS_CONFIG[1])}>Team {TEAMS_CONFIG[1].name}</div>
       </TeamSelectionButton>          
     </TeamContainer>
   );

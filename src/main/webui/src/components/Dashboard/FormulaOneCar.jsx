@@ -26,8 +26,18 @@ const LOGOS = {
 
 // The 250 × 104 drawing fits the track's 50 × 28 car box, pointing right and centered at (25, 14).
 // `accent` is the livery's second color (the wing elements and stripes), white unless a theme sets one.
-// `logo` names an optional sponsor mark for the rear wing.
-export default function FormulaOneCar({ color, accent = '#f4f6f7', logo }) {
+// `logo` names an optional sponsor mark for the rear wing. `ski` swaps the four tyres for the winter
+// kit: narrow boards on struts at the same corners, so the lane animation and finish detection keep
+// the same footprint.
+const SKIS = [
+  { x: 30.5, y: 7, strut: 'M55.5 16 V25' },
+  { x: 30.5, y: 86, strut: 'M55.5 85 V76' },
+  { x: 170.5, y: 8, strut: 'M195.5 17 V25' },
+  { x: 170.5, y: 85, strut: 'M195.5 84 V76' },
+];
+const TYRES = [[34, 0, 43, 25], [34, 79, 43, 25], [177, 2, 37, 23], [177, 79, 37, 23]];
+
+export default function FormulaOneCar({ color, accent = '#f4f6f7', logo, ski = false }) {
   return (
     <g filter="url(#f1-shadow)">
       <g transform="translate(0 3.6) scale(0.2)">
@@ -46,16 +56,30 @@ export default function FormulaOneCar({ color, accent = '#f4f6f7', logo }) {
         <path d="M54 24 L88 45 M54 80 L88 59 M192 24 L155 45 M192 80 L155 59"
           fill="none" stroke="#7b858d" strokeWidth="1.2" />
 
-        {/* Slick tyres, with tread shoulders instead of visible wheel hubs in this overhead view. */}
-        {[[34, 0, 43, 25], [34, 79, 43, 25], [177, 2, 37, 23], [177, 79, 37, 23]].map(([x, y, width, height]) => (
-          <g key={`${x}-${y}`} transform={`translate(${x} ${y})`}>
-            <rect width={width} height={height} rx="7" fill="url(#f1-tyre)" stroke="#080b0e" strokeWidth="1.4" />
-            <path d={`M5 4 H${width - 5} M5 ${height - 4} H${width - 5}`}
-              stroke="#626a71" strokeWidth="1" opacity="0.65" />
-            <path d={`M9 1.5 V${height - 1.5} M${width - 9} 1.5 V${height - 1.5}`}
-              stroke="#080b0e" strokeWidth="1.5" opacity="0.5" />
-          </g>
-        ))}
+        {/* Slick tyres, or narrow skis on struts when the theme rides the winter kit. */}
+        {ski
+          ? SKIS.map(({ x, y, strut }) => (
+            <g key={`ski-${x}-${y}`}>
+              <path d={strut} stroke="#2b343c" strokeWidth="3.5" strokeLinecap="round" />
+              <g transform={`translate(${x} ${y})`}>
+                <path d="M4 0 H37 Q46 0 50 4.5 Q46 9 37 9 H4 Q0 9 0 4.5 Q0 0 4 0 Z"
+                  fill="url(#f1-ski)" stroke="#080b0e" strokeWidth="1.4" />
+                <path d="M6 2.6 H35" stroke="#ffffff" strokeWidth="1.2" opacity="0.7" />
+                <rect x="13" y="0.8" width="15" height="7.4" rx="2" fill={accent}
+                  stroke="#11171c" strokeWidth="0.8" />
+                <path d="M16 3 H25" stroke="#11171c" strokeWidth="1" opacity="0.4" />
+              </g>
+            </g>
+          ))
+          : TYRES.map(([x, y, width, height]) => (
+            <g key={`${x}-${y}`} transform={`translate(${x} ${y})`}>
+              <rect width={width} height={height} rx="7" fill="url(#f1-tyre)" stroke="#080b0e" strokeWidth="1.4" />
+              <path d={`M5 4 H${width - 5} M5 ${height - 4} H${width - 5}`}
+                stroke="#626a71" strokeWidth="1" opacity="0.65" />
+              <path d={`M9 1.5 V${height - 1.5} M${width - 9} 1.5 V${height - 1.5}`}
+                stroke="#080b0e" strokeWidth="1.5" opacity="0.5" />
+            </g>
+          ))}
 
         {/* Rear wing: two aero elements and body-colored endplates. */}
         <path d="M4 14 Q15 11 26 16 L26 88 Q15 93 4 90 Z" fill="#11171c" />
@@ -141,6 +165,11 @@ export function FormulaOneCarDefs() {
         <stop offset="0.48" stopColor="#20272d" />
         <stop offset="0.8" stopColor="#151b20" />
         <stop offset="1" stopColor="#080c10" />
+      </linearGradient>
+      <linearGradient id="f1-ski" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#f8fbff" />
+        <stop offset="0.45" stopColor="#cdd8e2" />
+        <stop offset="1" stopColor="#8593a0" />
       </linearGradient>
     </>
   );

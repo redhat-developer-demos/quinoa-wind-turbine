@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
 public class ThemeValidator {
 
     static final Set<String> ALLOWED_CARS = Set.of(
-        "car-barbie", "car-blue-convertible", "car-classic-black", "car-grey", "car-orange", "car-red");
+        "car-barbie", "car-blue-convertible", "car-classic-black", "car-grey", "car-orange", "car-red", "car-ski");
     static final Set<String> ALLOWED_LOGOS = Set.of("ibm", "redhat");
     static final Pattern COLOR_PATTERN = Pattern.compile("#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|[a-zA-Z]{3,20}");
     static final int MAX_NAME_LENGTH = 24;

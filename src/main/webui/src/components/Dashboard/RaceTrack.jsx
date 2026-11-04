@@ -55,7 +55,8 @@ function Cars({
       }}
     >
       <g transform={wrap || undefined}>
-        <FormulaOneCar color={team.color} accent={team.accent || undefined} logo={team.logo || undefined} />
+        <FormulaOneCar color={team.color} accent={team.accent || undefined} logo={team.logo || undefined}
+          ski={team.car === 'car-ski'} />
       </g>
     </g>
   ));
