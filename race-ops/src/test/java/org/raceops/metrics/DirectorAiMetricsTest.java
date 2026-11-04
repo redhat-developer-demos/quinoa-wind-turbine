@@ -43,7 +43,8 @@ class DirectorAiMetricsTest {
         OpenAiStub.answer("""
             {"propose": true, "team": 2, "multiplier": 2.5, "seconds": 30, "message": "Team 2 is behind."}""");
 
-        DirectorAi.BoostAdvice advice = ai.advise("{\"trailingTeam\": 2, \"deficitPercent\": 18.0}");
+        DirectorAi.BoostAdvice advice = ai.advise("the opening laps",
+            "{\"trailingTeam\": 2, \"deficitPercent\": 18.0}");
 
         assertTrue(advice.propose());
         double tokens = registry.getMeters().stream()

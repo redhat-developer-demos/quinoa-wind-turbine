@@ -38,6 +38,23 @@ public final class DirectorDecisions {
     }
 
     /**
+     * Which part of the race the facts describe, used to steer the boost message. It is derived
+     * from the leading distance so the model does not have to infer it, and the three labels stay
+     * stable so the prompt has a fixed set of cases.
+     */
+    public static String racePhase(RaceSnapshot snapshot) {
+        RaceSnapshot.Team leader = snapshot.leader();
+        double distance = leader == null ? 0 : leader.distance();
+        if (distance < 40) {
+            return "opening laps";
+        }
+        if (distance < 80) {
+            return "middle of the race";
+        }
+        return "final laps";
+    }
+
+    /**
      * The fallback when the model is off or fails: boost the trailing team with the
      * default parameters and a plain diagnosis.
      */

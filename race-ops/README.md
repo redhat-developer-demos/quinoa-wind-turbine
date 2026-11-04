@@ -38,7 +38,9 @@ heat before the game re-skins, so its leaderboard keeps the names that raced and
 names start on an empty board. The advice messages come from the model
 when `race-ops.ai-enabled` is on (same hosted endpoint as the game), with deterministic
 fallbacks otherwise — and the model never gets the last word: boosts are clamped to the
-trailing team and sane parameters, themes to the real preset list.
+trailing team and sane parameters, themes to the real preset list. The boost prompt is told
+whether the race is in its opening laps, middle or final laps, so the message matches the
+stakes instead of sounding the same at every point.
 
 The director holds its own OIDC token (`quarkus-oidc-client`, direct grant against the dev
 Keycloak; a deployment overrides with a confidential client carrying the `admin` role),

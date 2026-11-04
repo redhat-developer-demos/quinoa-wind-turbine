@@ -209,7 +209,8 @@ public class RaceDirector {
         if (ai.isPresent() && config.aiEnabled()) {
             try {
                 DirectorAi.BoostAdvice boostAdvice = ai.get()
-                    .advise(DirectorDecisions.raceFacts(snapshot, engagement, situation));
+                    .advise(DirectorDecisions.racePhase(snapshot),
+                        DirectorDecisions.raceFacts(snapshot, engagement, situation));
                 if (boostAdvice != null && boostAdvice.propose()) {
                     return DirectorDecisions.advice(boostAdvice, situation, snapshot);
                 }
