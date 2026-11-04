@@ -1,7 +1,9 @@
 package org.raceops.director;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.quarkus.oidc.client.OidcClientException;
 import org.junit.jupiter.api.Test;
+import org.raceops.metrics.DirectorMetrics;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -9,9 +11,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DirectorHealthTest {
 
+    private static DirectorHealth health() {
+        return new DirectorHealth(new DirectorMetrics(new SimpleMeterRegistry()));
+    }
+
     @Test
     void aFailureIsReportedUntilACallSucceeds() {
-        DirectorHealth health = new DirectorHealth();
+        DirectorHealth health = health();
         assertNull(health.problem());
 
         health.failed("start_race", new IllegalStateException("game unreachable"));

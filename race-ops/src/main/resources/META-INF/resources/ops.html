@@ -126,7 +126,7 @@
       const card = document.querySelector(`.proposal[data-id="${id}"]`);
       if (card) card.querySelectorAll('button').forEach(b => b.disabled = true);
       try {
-        await fetch(`/api/ops/proposals/${id}/${action}`, { method: 'POST' });
+        await fetch(`api/ops/proposals/${id}/${action}`, { method: 'POST' });
       } catch (e) { console.error(e); }
       refresh();
     }
@@ -161,7 +161,7 @@
 
     async function refresh() {
       try {
-        const r = await fetch('/api/ops/state');
+        const r = await fetch('api/ops/state');
         renderState(await r.json());
         dot.classList.remove('off');
       } catch (e) {
@@ -171,7 +171,7 @@
 
     refresh();
     setInterval(refresh, 2000);
-    const source = new EventSource('/api/ops/stream');
+    const source = new EventSource('api/ops/stream');
     source.onopen = () => dot.classList.remove('off');
     source.onerror = () => dot.classList.add('off');
     source.onmessage = e => renderUpdate(JSON.parse(e.data));

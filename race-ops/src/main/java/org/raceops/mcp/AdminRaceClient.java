@@ -6,6 +6,7 @@ import dev.langchain4j.mcp.client.McpClient;
 import io.quarkiverse.langchain4j.mcp.runtime.McpClientName;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.raceops.metrics.DirectorMetrics;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,18 +16,22 @@ import java.util.UUID;
 /**
  * The director's hands: the admin toolset of the game's MCP server (start, pause, reset,
  * boost, themes), called programmatically. Every power this app has over the game goes
- * through here, behind the OIDC admin scope.
+ * through here, behind the OIDC admin scope. Every call is timed per tool, so the metrics
+ * show which tool is slow or failing.
  */
 @ApplicationScoped
 public class AdminRaceClient {
 
     private final McpClient admin;
     private final ObjectMapper mapper;
+    private final DirectorMetrics metrics;
 
     @Inject
-    public AdminRaceClient(@McpClientName("race-admin") McpClient admin, ObjectMapper mapper) {
+    public AdminRaceClient(@McpClientName("race-admin") McpClient admin, ObjectMapper mapper,
+                           DirectorMetrics metrics) {
         this.admin = admin;
         this.mapper = mapper;
+        this.metrics = metrics;
     }
 
     public String start() {
@@ -75,16 +80,11 @@ public class AdminRaceClient {
 
     public List<ThemeOption> listThemes() {
         try {
-            ToolExecutionRequest request = ToolExecutionRequest.builder()
-                .id(UUID.randomUUID().toString())
-                .name("list_preset_themes")
-                .arguments(mapper.writeValueAsString(Map.of()))
-                .build();
             // The server sends one text content per theme and the client joins them with
             // newlines into a single result, so parse line by line — readTree on the
             // joined text would silently return only the first theme.
             List<ThemeOption> options = new ArrayList<>();
-            for (String line : admin.executeTool(request).resultText().split("\\R")) {
+            for (String line : execute("list_preset_themes", "{}").split("\\R")) {
                 if (line.isBlank()) {
                     continue;
                 }
@@ -107,14 +107,33 @@ public class AdminRaceClient {
 
     private String call(String tool, Map<String, Object> arguments) {
         try {
+            return execute(tool, mapper.writeValueAsString(arguments));
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("MCP tool " + tool + " failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Runs one tool call and times it with the tool name and whether it worked, so the
+     * metrics separate a failing boost from a failing token exchange.
+     */
+    private String execute(String tool, String arguments) {
+        long started = System.nanoTime();
+        String outcome = "success";
+        try {
             ToolExecutionRequest request = ToolExecutionRequest.builder()
                 .id(UUID.randomUUID().toString())
                 .name(tool)
-                .arguments(mapper.writeValueAsString(arguments))
+                .arguments(arguments)
                 .build();
             return admin.executeTool(request).resultText();
         } catch (Exception e) {
+            outcome = "error";
             throw new IllegalStateException("MCP tool " + tool + " failed: " + e.getMessage(), e);
+        } finally {
+            metrics.mcpCall(tool, outcome, System.nanoTime() - started);
         }
     }
 }

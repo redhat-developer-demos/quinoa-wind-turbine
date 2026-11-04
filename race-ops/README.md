@@ -33,7 +33,9 @@ for a team that falls far enough behind (default 15% of the track, mid-race only
 the diagnosis of why; and when a heat finishes it proposes the theme for the next one,
 picking from the presets the game offers and avoiding the theme already on. Both kinds of
 proposal wait on the console (`/ops.html`) for a human to approve or dismiss, and only
-approval executes them through the admin toolset. The advice messages come from the model
+approval executes them through the admin toolset. Approving a theme resets the finished
+heat before the game re-skins, so its leaderboard keeps the names that raced and the new
+names start on an empty board. The advice messages come from the model
 when `race-ops.ai-enabled` is on (same hosted endpoint as the game), with deterministic
 fallbacks otherwise — and the model never gets the last word: boosts are clamped to the
 trailing team and sane parameters, themes to the real preset list.
@@ -82,16 +84,51 @@ No test in this project talks to a server or a model. The watcher is off in test
 (`%test.race-ops.watcher-enabled=false`); the filter and analytics are pure functions tested
 against constructed snapshots.
 
+## Metrics
+
+The director serves Prometheus metrics on `/metrics`, the same path as the game, and under
+`/ops/metrics` on a cluster where the app is mounted under the `/ops` root path.
+`quarkus-micrometer` adds the JVM, process, HTTP server and client, Netty and CPU meters
+by default; the director adds its own:
+
+| Metric | What it shows |
+|---|---|
+| `race_ops_proposals_proposed_total{type}` | Cards the director put on the console, `boost` or `theme` |
+| `race_ops_proposals_decided_total{type,outcome}` | How they ended: `executed`, `failed`, `dismissed` (operator said no) or `stale` (the race ended first) |
+| `race_ops_proposals_pending` | The card currently waiting for the operator |
+| `race_ops_director_healthy` | 1 when the director's last call to the game worked, 0 when the game is down or rejects its token |
+| `race_ops_races_started_total` | Races the director started itself on the join plateau |
+| `race_ops_mcp_calls_seconds_count{tool,outcome}` | Latency of every call on the game's admin MCP server, per tool and per outcome |
+| `race_ops_race_progress{team}` and `race_ops_race_players{team}` | Live progress in percent of the track and headcount per team |
+| `race_ops_race_snapshots_total{status}` | Snapshots accepted, split by race status |
+
+The model's token counts come from the langchain4j integration, not from this app:
+`gen_ai_client_token_usage_total{gen_ai_token_type="input"}` and `...="output"`, plus
+`gen_ai_client_operation_duration_seconds` for the call latency, all tagged with the request and
+response model. They appear with the first request to the model rather than at boot, which is how
+the integration registers them, not a missing registration. Don't filter on `ai_service_class_name`:
+the director's calls arrive with `none` there, so select the series by your deployment's `job`
+label instead.
+
+The OIDC token request to Keycloak is not instrumented: only the admin MCP calls and the
+model calls carry a timer.
+
 ## Cluster deployment
 
 `scripts/deploy-openshift.sh` deploys race-ops next to the game when OIDC is on: one replica
 (five would mean five directors racing to start and restyle), everything served under
-`quarkus.http.root-path=/ops` because OpenShift routes do not rewrite paths — a path route
-carries `/ops` on the game's own host to the race-ops service, so the dashboard's console
-fetch is same-origin. The director authenticates with a confidential `race-ops` Keycloak
-client through a client-credentials grant; the script creates that client through Keycloak's
-Admin API when the realm predates it, because a realm re-import adds nothing to an existing
-realm (Keycloak skips it wholesale).
+`quarkus.http.root-path=/ops` because OpenShift routes do not rewrite paths. A path route
+carries `/ops` on the game's own host to the race-ops service, so the director page is
+`https://<game-host>/ops/ops.html`, its metrics are `https://<game-host>/ops/metrics`, and the
+dashboard's console fetch is same-origin. The page uses relative URLs so the same file works at
+`/ops.html` in dev and under the prefix in the cluster. The director authenticates with a
+confidential `race-ops` Keycloak
+client through a client-credentials grant. The script ensures that client, and the `admin`
+role on its service account, through Keycloak's Admin API on every run: a realm re-import
+adds nothing to an existing realm (Keycloak skips it wholesale), and the realm file cannot
+declare the service-account user at all — Keycloak imports users before clients, so a user
+named `service-account-race-ops` collides with the one the client creation makes and the
+import job fails on the `(realm_id, username)` unique constraint.
 
 Two traps in that wiring, both hit and fixed:
 

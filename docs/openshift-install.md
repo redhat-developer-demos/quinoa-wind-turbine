@@ -227,6 +227,16 @@ A realm import is per-realm, so it adds `wind-turbine` without touching other re
 The developer user's password comes from the `game-admin` secret, so the dashboard and the MCP login
 share one password.
 
+On Keycloak 26.4 and later, a realm created this way cannot be administered through the Admin API
+afterwards. The import job writes the realm straight into the database, the master admin never
+receives the realm's `<realm>-realm` client roles, and every call under `/admin/realms/wind-turbine`
+answers 403 — reading its clients, updating it, even deleting it. When something has to manage the
+realm after creation, create it through the Admin API instead, which grants the creator those roles:
+`POST /admin/realms` with the realm JSON from `spec.realm` in `realm-import.yaml` and the
+`${GAME_ADMIN_PASSWORD}`/`${RACE_OPS_CLIENT_SECRET}` placeholders filled in. That is what
+`scripts/deploy-openshift.sh` does, and the import file stays a valid `KeycloakRealmImport` for a
+Keycloak whose admin API you cannot reach.
+
 ### Create a fresh Keycloak
 
 On a cluster with no Keycloak, install the operator into the namespace, create the database secret,
@@ -294,6 +304,42 @@ curl -s "https://$HOST/api/race/state"
 
 The race state reaches `FINISHED`, and `GET /api/race/leaderboard?team=1` returns the ranked players.
 A read-only MCP `initialize` against `https://$HOST/mcp` returns the server info without a login.
+
+## Metrics
+
+Both deployments publish Prometheus metrics and the Quarkus extension creates a `ServiceMonitor`
+for each: `/metrics` on port 8080 of the game, `/ops/metrics` on port 8081 of race-ops. Nothing
+collects them until user workload monitoring is on:
+
+```bash
+oc apply -f - <<'EOF'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-monitoring-config
+  namespace: openshift-monitoring
+data:
+  config.yaml: |
+    enableUserWorkload: true
+EOF
+```
+
+The model calls report under the OpenTelemetry GenAI names, so the tokens the game spends on
+commentary and the director spends on advice arrive as `gen_ai_client_token_usage_total`, split by
+`gen_ai_token_type` (`input` and `output`), `gen_ai_request_model` and `gen_ai_response_model`.
+Those series appear only after the first model call. Race-ops also carries its own meters
+(`race_ops_proposals_*`, `race_ops_mcp_calls_seconds`, `race_ops_race_*`).
+
+Query them from the console under Observe > Metrics, or through the Thanos API:
+
+```bash
+TOKEN=$(oc whoami -t)
+THANOS=$(oc get route thanos-querier -n openshift-monitoring -o jsonpath='{.spec.host}')
+curl -sk -H "Authorization: Bearer $TOKEN" "https://$THANOS/api/v1/query" \
+  --data-urlencode 'query=sum by (gen_ai_token_type) (gen_ai_client_token_usage_total{namespace="wind-turbine"})'
+```
+
+Every replica counts its own model calls, so sum across pods for the deployment total.
 
 ## Confluent
 

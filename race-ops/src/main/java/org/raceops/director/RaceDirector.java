@@ -10,6 +10,7 @@ import org.raceops.RaceOpsConfig;
 import org.raceops.analytics.EngagementAnalytics;
 import org.raceops.analytics.EngagementReport;
 import org.raceops.mcp.AdminRaceClient;
+import org.raceops.metrics.DirectorMetrics;
 import org.raceops.model.RaceSnapshot;
 import org.raceops.monitor.RaceSnapshotEvent;
 
@@ -36,6 +37,7 @@ public class RaceDirector {
     private final RaceOpsConfig config;
     private final ProposalService proposals;
     private final DirectorHealth health;
+    private final DirectorMetrics metrics;
     private final Optional<DirectorAi> ai;
     private volatile long retryStartAfter;
 
@@ -54,11 +56,12 @@ public class RaceDirector {
 
     @Inject
     public RaceDirector(AdminRaceClient admin, RaceOpsConfig config, ProposalService proposals,
-                        DirectorHealth health, Instance<DirectorAi> ai) {
+                        DirectorHealth health, DirectorMetrics metrics, Instance<DirectorAi> ai) {
         this.admin = admin;
         this.config = config;
         this.proposals = proposals;
         this.health = health;
+        this.metrics = metrics;
         this.ai = ai.isUnsatisfied() ? Optional.empty() : Optional.of(ai.get());
     }
 
@@ -121,6 +124,7 @@ public class RaceDirector {
             try {
                 String result = admin.start();
                 health.succeeded();
+                metrics.raceStarted();
                 Log.infof("Director started %s (%s): %s", raceId, decision.reason(), result);
             } catch (Exception e) {
                 startedRaceId.compareAndSet(raceId, null);

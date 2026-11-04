@@ -2,9 +2,10 @@
 #
 # Deploy the game to OpenShift with Strimzi Kafka, in one re-runnable pass. Existing passwords and keys
 # are read back and reused, so a re-run doesn't rotate the dashboard password, the session key or the
-# Infinispan password. A finished realm import is left alone.
+# Infinispan password. An existing realm is left alone.
 #
-# Prerequisites: `oc login` as a cluster-admin, and the repo's Maven wrapper (./mvnw).
+# Prerequisites: `oc login` as a cluster-admin, the repo's Maven wrapper (./mvnw), and python3 for the
+# one JSON rewrite that creates the Keycloak realm.
 #
 # Usage:
 #   scripts/deploy-openshift.sh
@@ -125,41 +126,77 @@ else
     --from-literal=secret="$RACE_OPS_CLIENT_SECRET" --dry-run=client -o yaml \
     | oc apply -n "$KEYCLOAK_NAMESPACE" -f -
 
-  # A finished import stays as it is. Re-applying it would change nothing, and reimporting the realm
-  # would invalidate the cached OAuth client of any MCP agent.
-  import_done=$(oc get keycloakrealmimport wind-turbine -n "$KEYCLOAK_NAMESPACE" \
-    -o jsonpath='{.status.conditions[?(@.type=="Done")].status}' 2>/dev/null || true)
-  if [ "$import_done" = True ]; then
-    log "Realm wind-turbine is already imported"
-  else
-    oc process -f src/main/kubernetes/keycloak/realm-import.yaml -p KEYCLOAK_CR_NAME="$KEYCLOAK_CR" \
-      | oc apply -n "$KEYCLOAK_NAMESPACE" -f -
-    oc wait --for=jsonpath='{.status.conditions[?(@.type=="Done")].status}'=True \
-      --timeout=240s keycloakrealmimport/wind-turbine -n "$KEYCLOAK_NAMESPACE"
-  fi
+  # The realm is created through the Admin API, not with the operator's KeycloakRealmImport. That
+  # import job writes the realm straight into Keycloak's database, and the master admin then holds
+  # none of the realm's per-realm admin roles (<realm>-realm client), so every Admin API call
+  # against the realm answers 403 — including the race-ops client this script has to create, which
+  # made the whole deploy unusable. A realm created through the API grants its creator exactly
+  # those roles. The realm content still lives in realm-import.yaml under spec.realm, the single
+  # source of truth, and the file stays usable as a KeycloakRealmImport for a Keycloak whose admin
+  # API is not reachable.
+  KC_ADMIN_USER=$(oc get secret keycloak-initial-admin -n "$KEYCLOAK_NAMESPACE" \
+    -o jsonpath='{.data.username}' | base64 -d)
+  KC_ADMIN_PASSWORD=$(oc get secret keycloak-initial-admin -n "$KEYCLOAK_NAMESPACE" \
+    -o jsonpath='{.data.password}' | base64 -d)
+  KC_TOKEN=$(curl -fsS "https://$KC_HOST/realms/master/protocol/openid-connect/token" \
+    -d grant_type=password -d client_id=admin-cli \
+    -d username="$KC_ADMIN_USER" -d password="$KC_ADMIN_PASSWORD" \
+    | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4) || true
+  [ -n "${KC_TOKEN:-}" ] || die "could not get a Keycloak admin token on $KC_HOST"
 
-  # A realm imported before the race-ops client existed is missing it, and Keycloak's
-  # single-file import skips existing realms wholesale, so re-applying the CR adds nothing
-  # (the import job logs "Realm already exists. Import skipped"). Create the client through
-  # the Admin API instead: additive, and no re-authentication for MCP agents that registered
-  # their own clients dynamically.
-  if [ "$import_done" = True ]; then
-    KC_ADMIN_USER=$(oc get secret keycloak-initial-admin -n "$KEYCLOAK_NAMESPACE" \
-      -o jsonpath='{.data.username}' | base64 -d)
-    KC_ADMIN_PASSWORD=$(oc get secret keycloak-initial-admin -n "$KEYCLOAK_NAMESPACE" \
-      -o jsonpath='{.data.password}' | base64 -d)
-    KC_TOKEN=$(curl -fsS "https://$KC_HOST/realms/master/protocol/openid-connect/token" \
-      -d grant_type=password -d client_id=admin-cli \
-      -d username="$KC_ADMIN_USER" -d password="$KC_ADMIN_PASSWORD" \
-      | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4) || true
-    RACE_OPS_CLIENT_IN_REALM=""
-    if [ -n "$KC_TOKEN" ]; then
-      RACE_OPS_CLIENT_IN_REALM=$(curl -fsS -H "Authorization: Bearer $KC_TOKEN" \
-        "https://$KC_HOST/admin/realms/wind-turbine/clients?clientId=race-ops" | grep -o '"id"' || true)
-    fi
-    if [ -z "$RACE_OPS_CLIENT_IN_REALM" ]; then
-      log "Creating the race-ops client in the existing realm (Admin API, additive)"
-      RACE_OPS_CLIENT_JSON=$(cat <<EOF
+  REALM_STATUS=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $KC_TOKEN" \
+    "https://$KC_HOST/admin/realms/wind-turbine") || true
+  case "$REALM_STATUS" in
+    200)
+      log "Realm wind-turbine exists"
+      ;;
+    404)
+      # oc process keeps the ${GAME_ADMIN_PASSWORD} and ${RACE_OPS_CLIENT_SECRET} placeholders, which
+      # the operator would resolve for a KeycloakRealmImport. The Admin API needs them filled in.
+      log "Create realm wind-turbine"
+      REALM_JSON=$(oc process -f src/main/kubernetes/keycloak/realm-import.yaml \
+          -p KEYCLOAK_CR_NAME="$KEYCLOAK_CR" -o json \
+        | GAME_ADMIN_PASSWORD="$GAME_ADMIN_PASSWORD" RACE_OPS_CLIENT_SECRET="$RACE_OPS_CLIENT_SECRET" \
+          python3 -c 'import json, os, sys
+realm = json.dumps(json.load(sys.stdin)["items"][0]["spec"]["realm"])
+realm = realm.replace("${GAME_ADMIN_PASSWORD}", os.environ["GAME_ADMIN_PASSWORD"])
+realm = realm.replace("${RACE_OPS_CLIENT_SECRET}", os.environ["RACE_OPS_CLIENT_SECRET"])
+sys.stdout.write(realm)')
+      curl -fsS -o /dev/null -H "Authorization: Bearer $KC_TOKEN" -H "Content-Type: application/json" \
+        -X POST "https://$KC_HOST/admin/realms" -d "$REALM_JSON" \
+        || die "could not create the wind-turbine realm"
+      ;;
+    403)
+      die "the wind-turbine realm exists but $KC_ADMIN_USER cannot administer it; a realm imported through KeycloakRealmImport gets no per-realm admin roles, so delete it in Keycloak and re-run"
+      ;;
+    *)
+      die "unexpected answer ($REALM_STATUS) reading the wind-turbine realm on $KC_HOST"
+      ;;
+  esac
+
+  # The race-ops client and its service account are ensured here, not only imported: a realm that
+  # predates this script is missing the client, and Keycloak's single-file import skips existing
+  # realms wholesale (the job logs "Realm already exists. Import skipped"), so re-applying the CR
+  # adds nothing. The role cannot live in the realm file at all: Keycloak imports users before
+  # clients, so a declared service-account-race-ops user collides with the one creating the client
+  # makes and the whole import fails on (realm_id, username). Both Admin API steps are additive and
+  # idempotent, so this runs for a realm imported just now and for one that predates the script,
+  # adding no re-authentication for MCP agents that registered their own clients dynamically.
+  KC_ADMIN_USER=$(oc get secret keycloak-initial-admin -n "$KEYCLOAK_NAMESPACE" \
+    -o jsonpath='{.data.username}' | base64 -d)
+  KC_ADMIN_PASSWORD=$(oc get secret keycloak-initial-admin -n "$KEYCLOAK_NAMESPACE" \
+    -o jsonpath='{.data.password}' | base64 -d)
+  KC_TOKEN=$(curl -fsS "https://$KC_HOST/realms/master/protocol/openid-connect/token" \
+    -d grant_type=password -d client_id=admin-cli \
+    -d username="$KC_ADMIN_USER" -d password="$KC_ADMIN_PASSWORD" \
+    | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4) || true
+  [ -n "${KC_TOKEN:-}" ] || die "could not get a Keycloak admin token on $KC_HOST"
+
+  RACE_OPS_CLIENT_IN_REALM=$(curl -fsS -H "Authorization: Bearer $KC_TOKEN" \
+    "https://$KC_HOST/admin/realms/wind-turbine/clients?clientId=race-ops" | grep -o '"id"' || true)
+  if [ -z "$RACE_OPS_CLIENT_IN_REALM" ]; then
+    log "Creating the race-ops client in the realm (Admin API, additive)"
+    RACE_OPS_CLIENT_JSON=$(cat <<EOF
 {"clientId":"race-ops","name":"Race director","enabled":true,"publicClient":false,
 "standardFlowEnabled":false,"directAccessGrantsEnabled":false,"serviceAccountsEnabled":true,
 "secret":"$RACE_OPS_CLIENT_SECRET",
@@ -169,29 +206,31 @@ else
 "access.token.claim":"true","introspection.token.claim":"true"}}]}
 EOF
 )
-      curl -fsS -o /dev/null -H "Authorization: Bearer $KC_TOKEN" -H "Content-Type: application/json" \
-        -X POST "https://$KC_HOST/admin/realms/wind-turbine/clients" \
-        -d "$RACE_OPS_CLIENT_JSON" || die "could not create the race-ops Keycloak client"
-      # Creating the client with service accounts also creates its service-account user;
-      # that user needs the admin role, which is every power the director has over the game.
-      SA_USER_ID=""
-      for attempt in 1 2 3 4 5; do
-        SA_USER_ID=$(curl -fsS -H "Authorization: Bearer $KC_TOKEN" \
-          "https://$KC_HOST/admin/realms/wind-turbine/users?username=service-account-race-ops" \
-          | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
-        [ -n "$SA_USER_ID" ] && break
-        sleep 2
-      done
-      [ -n "$SA_USER_ID" ] || die "the race-ops service account user did not appear in Keycloak"
-      ADMIN_ROLE_ID=$(curl -fsS -H "Authorization: Bearer $KC_TOKEN" \
-        "https://$KC_HOST/admin/realms/wind-turbine/roles/admin" \
-        | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
-      curl -fsS -o /dev/null -H "Authorization: Bearer $KC_TOKEN" -H "Content-Type: application/json" \
-        -X POST "https://$KC_HOST/admin/realms/wind-turbine/users/$SA_USER_ID/role-mappings/realm" \
-        -d "{\"id\":\"$ADMIN_ROLE_ID\",\"name\":\"admin\"}" \
-        || die "could not grant the admin role to the race-ops service account"
-    fi
+    curl -fsS -o /dev/null -H "Authorization: Bearer $KC_TOKEN" -H "Content-Type: application/json" \
+      -X POST "https://$KC_HOST/admin/realms/wind-turbine/clients" \
+      -d "$RACE_OPS_CLIENT_JSON" || die "could not create the race-ops Keycloak client"
   fi
+
+  # Creating the client with service accounts also creates its service-account user; the grant
+  # itself is a no-op when the role is already mapped.
+  SA_USER_ID=""
+  for attempt in 1 2 3 4 5; do
+    SA_USER_ID=$(curl -fsS -H "Authorization: Bearer $KC_TOKEN" \
+      "https://$KC_HOST/admin/realms/wind-turbine/users?username=service-account-race-ops" \
+      | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+    [ -n "$SA_USER_ID" ] && break
+    sleep 2
+  done
+  [ -n "$SA_USER_ID" ] || die "the race-ops service account user did not appear in Keycloak"
+  ADMIN_ROLE_ID=$(curl -fsS -H "Authorization: Bearer $KC_TOKEN" \
+    "https://$KC_HOST/admin/realms/wind-turbine/roles/admin" \
+    | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4) || true
+  [ -n "$ADMIN_ROLE_ID" ] || die "the wind-turbine realm has no admin role to grant"
+  # The role-mapping endpoint takes an array of role representations, not one object.
+  curl -fsS -o /dev/null -H "Authorization: Bearer $KC_TOKEN" -H "Content-Type: application/json" \
+    -X POST "https://$KC_HOST/admin/realms/wind-turbine/users/$SA_USER_ID/role-mappings/realm" \
+    -d "[{\"id\":\"$ADMIN_ROLE_ID\",\"name\":\"admin\"}]" \
+    || die "could not grant the admin role to the race-ops service account"
 fi
 
 # The s2i build replaces the Deployment, which drops variables set with `oc set env`. Baking the OIDC
@@ -233,6 +272,9 @@ if oc get secret commentary-openai -n "$NAMESPACE" >/dev/null 2>&1; then
   oc set env deployment/quinoa-wind-turbine -n "$NAMESPACE" --from=secret/commentary-openai
   # game.ai.enabled gates the game's own commentary; the token and endpoint come from the secret.
   oc set env deployment/quinoa-wind-turbine -n "$NAMESPACE" GAME_AI_ENABLED=true
+  # Setting env changes the pod template, so this starts another rollout. Wait for it here as well,
+  # or the health check below can pass against the previous pods.
+  oc rollout status deployment/quinoa-wind-turbine -n "$NAMESPACE" --timeout=600s
 else
   log "WARNING: no secret commentary-openai; the game and the director run without a model"
 fi
@@ -263,6 +305,7 @@ if [ "$OIDC_ENABLED" = true ]; then
 
   if oc get secret commentary-openai -n "$NAMESPACE" >/dev/null 2>&1; then
     oc set env deployment/race-ops -n "$NAMESPACE" --from=secret/commentary-openai
+    oc rollout status deployment/race-ops -n "$NAMESPACE" --timeout=600s
   fi
 
   # The director's path route: the game's host carries /ops to the race-ops service, so the
@@ -280,6 +323,26 @@ for _ in $(seq 1 30); do
   if curl -fsS "https://$APP_HOST/q/health/ready" | grep -Eq '"status": ?"UP"'; then
     echo "App is up: https://$APP_HOST"
     echo "Dashboard password: oc get secret game-admin -n $NAMESPACE -o jsonpath='{.data.password}' | base64 -d"
+    # Both metrics endpoints must answer, since a path under the wrong root would only show up
+    # when a scrape runs. The game serves /metrics at its root, race-ops under its /ops prefix.
+    # Download first: grep -q closes the pipe early, and pipefail would turn curl's SIGPIPE into
+    # a failed deploy on a response that is larger than the pipe buffer.
+    log "Metrics endpoints"
+    METRICS_TMP=$(mktemp)
+    curl -fsS -o "$METRICS_TMP" "https://$APP_HOST/metrics" \
+      || die "https://$APP_HOST/metrics did not answer"
+    grep -q '^jvm_' "$METRICS_TMP" || die "https://$APP_HOST/metrics returned no JVM metrics"
+    if [ "$OIDC_ENABLED" = true ]; then
+      curl -fsS -o "$METRICS_TMP" "https://$APP_HOST/ops/metrics" \
+        || die "https://$APP_HOST/ops/metrics did not answer"
+      grep -q '^jvm_' "$METRICS_TMP" || die "https://$APP_HOST/ops/metrics returned no JVM metrics"
+      # Without the OIDC tenant the admin server answers 403; 401 means it is up and asks for a token.
+      ADMIN_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST "https://$APP_HOST/admin/mcp")
+      [ "$ADMIN_STATUS" = 401 ] \
+        || die "POST /admin/mcp answered $ADMIN_STATUS, expected 401; is OIDC enabled on the game?"
+    fi
+    rm -f "$METRICS_TMP"
+    echo "Director page: https://$APP_HOST/ops/ops.html"
     exit 0
   fi
   sleep 10

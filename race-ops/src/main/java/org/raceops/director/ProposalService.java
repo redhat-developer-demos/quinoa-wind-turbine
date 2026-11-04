@@ -1,7 +1,9 @@
 package org.raceops.director;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.raceops.mcp.AdminRaceClient;
+import org.raceops.metrics.DirectorMetrics;
 import org.raceops.monitor.CurrentRace;
 
 import java.util.ArrayDeque;
@@ -18,7 +20,8 @@ import java.util.Optional;
  *
  * Approving a proposal for a race that has already ended rejects it instead: a card left
  * open across a reset or a finish must not boost the next race. The MCP call runs outside
- * the lock, so a slow game cannot stall the state endpoint.
+ * the lock, so a slow game cannot stall the state endpoint. Every transition is counted,
+ * so the console and the metrics agree on what was proposed and what happened to it.
  */
 @ApplicationScoped
 public class ProposalService {
@@ -27,11 +30,14 @@ public class ProposalService {
 
     private final AdminRaceClient admin;
     private final CurrentRace currentRace;
+    private final DirectorMetrics metrics;
     private final Map<String, ProposalView> proposals = new LinkedHashMap<>();
 
-    public ProposalService(AdminRaceClient admin, CurrentRace currentRace) {
+    @Inject
+    public ProposalService(AdminRaceClient admin, CurrentRace currentRace, DirectorMetrics metrics) {
         this.admin = admin;
         this.currentRace = currentRace;
+        this.metrics = metrics;
     }
 
     /**
@@ -43,6 +49,8 @@ public class ProposalService {
         }
         proposals.put(proposal.id(), new ProposalView(proposal, Status.PENDING, null, 0));
         trim();
+        metrics.proposalProposed(proposal.type());
+        metrics.pendingProposals(pending().size());
         return true;
     }
 
@@ -59,9 +67,12 @@ public class ProposalService {
                 ProposalView stale = new ProposalView(proposal, Status.DISMISSED,
                     "Rejected: " + proposal.raceId() + " already ended", System.currentTimeMillis());
                 proposals.put(id, stale);
+                metrics.proposalDecided(proposal.type(), "stale");
+                metrics.pendingProposals(pending().size());
                 return Optional.of(stale);
             }
             proposals.put(id, new ProposalView(proposal, Status.DECIDING, null, 0));
+            metrics.pendingProposals(pending().size());
             taken = proposal;
         }
         ProposalView decided;
@@ -73,6 +84,8 @@ public class ProposalService {
         synchronized (this) {
             proposals.put(id, decided);
         }
+        metrics.proposalDecided(taken.type(), decided.status() == Status.EXECUTED ? "executed" : "failed");
+        metrics.pendingProposals(pending().size());
         return Optional.of(decided);
     }
 
@@ -81,6 +94,8 @@ public class ProposalService {
         if (view != null && view.status().equals(Status.PENDING)) {
             view = new ProposalView(view.proposal(), Status.DISMISSED, null, System.currentTimeMillis());
             proposals.put(id, view);
+            metrics.proposalDecided(view.proposal().type(), "dismissed");
+            metrics.pendingProposals(pending().size());
         }
         return Optional.ofNullable(view);
     }
