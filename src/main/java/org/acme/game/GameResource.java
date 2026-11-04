@@ -91,7 +91,8 @@ public class GameResource {
         this.gameEventsIn.subscribe().with(s -> {
             // Theme and input-mode events restyle the board / update controls but are not race
             // lifecycle events, so they must not become the "last game event" that drives game status.
-            if (!GameEvent.THEME.equals(s.type()) && !GameEvent.INPUT_MODE.equals(s.type())) {
+            if (!GameEvent.THEME.equals(s.type()) && !GameEvent.INPUT_MODE.equals(s.type())
+                    && !GameEvent.COMMENTARY_STYLE.equals(s.type())) {
                 lastGameEvent.set(s);
                 if (GameEvent.RESET.equals(s.type()) && s.raceId() != null) {
                     raceId.set(s.raceId());
@@ -215,6 +216,17 @@ public class GameResource {
         gameEventsOut.send(raceMessage(event));
     }
 
+    /**
+     * Broadcasts a commentary style to the race-wide game-events topic so the replica that owns
+     * commentary, and any replica that takes over, uses the same voice. It does not touch the race
+     * lifecycle.
+     */
+    public void sendCommentaryStyle(String style) {
+        GameEvent event = new GameEvent(GameEvent.COMMENTARY_STYLE, Map.of("style", style));
+        LOG.infof("Broadcasting commentary style: %s", style);
+        gameEventsOut.send(raceMessage(event));
+    }
+
     private static String raceIdFor(long counter) {
         return "race-" + counter;
     }
@@ -229,6 +241,7 @@ public class GameResource {
         public static final String FINISH = "finish";
         public static final String THEME = "theme";
         public static final String INPUT_MODE = "input-mode";
+        public static final String COMMENTARY_STYLE = "commentary-style";
         static final GameEvent PING = new GameEvent("ping");
 
         public GameEvent(String type) {

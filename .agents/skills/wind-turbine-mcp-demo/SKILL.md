@@ -212,6 +212,22 @@ deletes all of them and reports how many it removed. Use it at the start of a ne
 races of the same demo. The current race is untouched, and an open dashboard shows the empty hall the
 next time it loads.
 
+## Prompt templates
+
+The servers also expose MCP prompts. Use them when the client supports prompts and the user asks for a
+briefing, a recap or a theme idea: the server fills in the live race, so you don't paste JSON.
+
+- `race_briefing(style, focus)` on both servers. `style` is `broadcast`, `hype`, `analyst` or `dry`;
+  `focus` is a team or player, optional. Returns the rules plus the current race and team names.
+- `race_recap(raceId, tone)` on both servers. Without a `raceId` it takes the latest finished race, or
+  previews the race in progress when the hall is empty.
+- `theme_idea(event, audience)` on the admin server. Returns a design brief with the presets, cars,
+  logos and rules; finish by calling `apply_theme`.
+
+`set_commentary_style(style)` on the admin server changes the AI commentator's voice between races. Use
+it when the user asks for a different tone, and mention the new style after it applies. It is rejected
+during a race.
+
 ## Run the race
 
 When the user asks to run or demo the race, do the whole flow yourself and don't stop to ask between

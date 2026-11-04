@@ -23,7 +23,11 @@
         "apply_theme",
         "boost_team",
         "get_hall_of_fame",
-        "reset_hall_of_fame"
+        "reset_hall_of_fame",
+        "generate_theme",
+        "set_input_mode",
+        "set_commentary_style",
+        "suggest_team_names"
       ]
     },
     "wind-turbine-race-cluster": {

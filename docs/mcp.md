@@ -2,10 +2,13 @@
 
 The app is also an MCP server, so an agent such as Claude Code or goose can read the race and, with an admin login, run it. There are two endpoints, because MCP clients only start their login when the server answers with a 401.
 
-`/mcp` needs no login. It has the tools `get_race_state`, `get_leaderboard`, `get_player` and `get_hall_of_fame`, and the resource `race://current`, which sends an update notification to subscribers every time the race changes.
+`/mcp` needs no login. It has the tools `get_race_state`, `get_leaderboard`, `get_player` and `get_hall_of_fame`, the resource `race://current`, which sends an update notification to subscribers every time the race changes, and the prompts `race_briefing` and `race_recap`.
 
-`/admin/mcp` has the same tools and resource, plus `start_race`, `pause_race`, `reset_race`,
-`boost_team`, `reset_hall_of_fame`, `set_input_mode` (`tap`, `shake` or `both`, between races only), and the theme tools `list_preset_themes` and `apply_theme`. It
+`/admin/mcp` has the same tools, resource and prompts, plus `start_race`, `pause_race`, `reset_race`,
+`boost_team`, `reset_hall_of_fame`, `set_input_mode` (`tap`, `shake` or `both`, between races only),
+`set_commentary_style` (`broadcast`, `hype`, `analyst` or `dry`, between races only), and the theme
+tools `list_preset_themes` and `apply_theme` (between races only; a finished heat is reset first so
+the new names never land on its leaderboard). It also has the `theme_idea` prompt. It
 needs a bearer token with the `admin` role from the `wind-turbine` Keycloak realm. Enable OIDC
 explicitly to use it. For local development:
 
@@ -37,6 +40,18 @@ claude mcp add --transport http --client-id mcp-agent --callback-port 33418 wind
 ```
 
 To log in, run `/mcp` in Claude Code, pick `wind-turbine-admin`, choose Authenticate and log in as `developer`. You can then ask it, for example, to start the race and tell you when one team passes 50%.
+
+## Prompt templates
+
+Prompts are MCP's template primitive: the server owns the wording and fills in its own data, and the client only picks arguments. The game uses them so an agent does not have to paste race JSON or remember the percentage and rounding rules.
+
+| Prompt | Server | Arguments | Returns |
+|---|---|---|---|
+| `race_briefing` | both | `style` (`broadcast`, `hype`, `analyst`, `dry`), `focus` (a team or player, optional) | Two user messages: the briefing rules, then the live race and team names as JSON |
+| `race_recap` | both | `raceId` (a finished race, default latest), `tone` | The recap rules and the hall-of-fame entry, or the race in progress when nothing has finished |
+| `theme_idea` | admin | `event`, `audience` (optional) | A design brief with the presets, cars, logos and validation rules, ending in `apply_theme` |
+
+The `style` and `tone` arguments offer completion values, so a client suggests them as the operator types. Prompts only read state: applying a theme or starting a race still goes through the tools and their checks.
 
 ## Bob
 

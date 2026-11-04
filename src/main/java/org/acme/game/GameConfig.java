@@ -114,6 +114,13 @@ public interface GameConfig {
         @WithDefault("180")
         int maxLength();
 
+        /**
+         * How the AI commentator sounds: broadcast, hype, analyst or dry. The admin MCP tool
+         * {@code set_commentary_style} switches it between races.
+         */
+        @WithDefault("broadcast")
+        String style();
+
         @WithDefault("5s")
         Duration surgeWindow();
 
