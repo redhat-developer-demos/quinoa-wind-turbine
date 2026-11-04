@@ -34,6 +34,9 @@ class AiCommentatorTest {
     @Inject
     TemplateCommentator template;
 
+    @Inject
+    CommentaryStyleService styles;
+
     public static class Enabled implements QuarkusTestProfile {
         @Override
         public Map<String, String> getConfigOverrides() {
@@ -57,6 +60,8 @@ class AiCommentatorTest {
         assertEquals("system", body.path("messages").get(0).path("role").asText());
         assertTrue(body.path("messages").get(0).path("content").asText().contains("180"));
         assertTrue(body.path("messages").get(0).path("content").asText().contains("one decimal place"));
+        // The default style is part of the prompt, so the model sees the same guidance the config holds.
+        assertTrue(body.path("messages").get(0).path("content").asText().contains("calm television race commentator"));
         JsonNode user = body.path("messages").get(1);
         assertEquals("user", user.path("role").asText());
         String content = user.path("content").asText();
@@ -77,6 +82,35 @@ class AiCommentatorTest {
         assertFalse(content.contains("10.1666"));
         assertFalse(content.contains("Unrelated player"));
         assertNull(OpenAiStub.REQUESTS.poll(100, TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    void theActiveStyleChangesTheSystemPrompt() throws Exception {
+        OpenAiStub.respond(200, "A measured line.", 0);
+        styles.apply(CommentaryStyle.ANALYST);
+        try {
+            CommentaryTrigger trigger = new CommentaryTrigger("style-test", "ai-style", "surge", 1,
+                1, null, "Racer");
+            assertEquals("A measured line.", ai.comment(trigger, snapshot()));
+            OpenAiStub.Request request = nextRequest();
+            String system = mapper.readTree(request.body())
+                .path("messages").get(0).path("content").asText();
+            assertTrue(system.contains("technical race analyst"), system);
+        } finally {
+            styles.reset();
+        }
+    }
+
+    @Test
+    void modelCallsReportTokenUsageToMicrometer() {
+        OpenAiStub.respond(200, "A line that costs two tokens.", 0);
+        CommentaryTrigger trigger = new CommentaryTrigger("metrics-test", "ai-metrics", "surge", 1,
+            1, null, "Racer");
+        assertEquals("A line that costs two tokens.", ai.comment(trigger, snapshot()));
+        // The langchain4j micrometer listener is what makes token counts (and the rest of the gen_ai
+        // metrics) visible on /metrics; without it the deployment exposes no model telemetry at all.
+        io.restassured.RestAssured.given().get("/metrics").then().statusCode(200)
+            .body(org.hamcrest.Matchers.containsString("gen_ai_client_token_usage_total"));
     }
 
     @Test

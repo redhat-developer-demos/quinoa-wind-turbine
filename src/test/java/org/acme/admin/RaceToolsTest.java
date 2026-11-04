@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import org.acme.commentary.CommentaryStyleService;
 import org.acme.race.RaceState;
 
 import static io.restassured.RestAssured.given;
@@ -44,15 +45,20 @@ class RaceToolsTest {
     private static final List<String> READ_TOOLS =
         List.of("get_race_state", "get_leaderboard", "get_player", "get_hall_of_fame");
     private static final List<String> ADMIN_TOOLS = List.of("start_race", "pause_race", "reset_race", "boost_team",
-        "list_preset_themes", "apply_theme", "set_input_mode", "suggest_team_names", "generate_theme",
-        "reset_hall_of_fame");
+        "list_preset_themes", "apply_theme", "set_input_mode", "set_commentary_style", "suggest_team_names",
+        "generate_theme", "reset_hall_of_fame");
+    private static final List<String> READ_PROMPTS = List.of("race_briefing", "race_recap");
 
     @Inject
     InputModeService inputModes;
 
+    @Inject
+    CommentaryStyleService commentaryStyles;
+
     @AfterEach
-    void restoreDefaultInputMode() {
+    void restoreDefaults() {
         inputModes.clear();
+        commentaryStyles.reset();
     }
 
     @Test
@@ -69,6 +75,25 @@ class RaceToolsTest {
             .toolsCall("get_hall_of_fame", response -> assertFalse(response.isError()))
             .resourcesRead(RaceTools.RACE_URI, response -> assertTrue(
                 new JsonObject(response.contents().getFirst().asText().text()).containsKey("status")))
+            .promptsList(page -> assertEquals(READ_PROMPTS,
+                page.prompts().stream().map(McpAssured.PromptInfo::name).sorted().toList()))
+            .promptsGet("race_briefing")
+            .withArguments(Map.of("style", "analyst", "focus", "Beach"))
+            .withAssert(response -> {
+                assertEquals(2, response.messages().size());
+                String instructions = response.messages().get(0).content().asText().text();
+                assertTrue(instructions.contains("technical race analyst"), instructions);
+                assertTrue(instructions.contains("Focus on Beach"), instructions);
+                assertTrue(response.messages().get(1).content().asText().text().contains("teamNames"));
+            })
+            .send()
+            .promptsGet("race_recap")
+            .withAssert(response -> {
+                assertEquals(2, response.messages().size());
+                String instructions = response.messages().get(0).content().asText().text();
+                assertTrue(instructions.contains("wind turbine race"), instructions);
+            })
+            .send()
             .thenAssertResults();
         client.disconnect();
     }
@@ -79,8 +104,8 @@ class RaceToolsTest {
             .post("/admin/mcp")
             .then().statusCode(401)
             .extract().header("WWW-Authenticate");
-        assertTrue(challenge.contains("resource_metadata=\"http://localhost:8081/.well-known/oauth-protected-resource/admin/mcp\""),
-            challenge);
+        assertTrue(challenge.contains("resource_metadata=\"" + testBase()
+            + "/.well-known/oauth-protected-resource/admin/mcp\""), challenge);
     }
 
     @Test
@@ -88,7 +113,7 @@ class RaceToolsTest {
         String metadata = given().get("/.well-known/oauth-protected-resource/admin/mcp")
             .then().statusCode(200).extract().asString();
         JsonObject json = new JsonObject(metadata);
-        assertEquals("http://localhost:8081/admin/mcp", json.getString("resource"), metadata);
+        assertEquals(testBase() + "/admin/mcp", json.getString("resource"), metadata);
         assertEquals(authServerUrl(), json.getJsonArray("authorization_servers").getString(0));
     }
 
@@ -253,6 +278,80 @@ class RaceToolsTest {
         client.disconnect();
     }
 
+    @Test
+    void adminPromptsIncludeTheThemeBrief() {
+        McpStreamableTestClient client = adminClient();
+        client.when()
+            .promptsList(page -> assertEquals(List.of("race_briefing", "race_recap", "theme_idea"),
+                page.prompts().stream().map(McpAssured.PromptInfo::name).sorted().toList()))
+            .promptsGet("theme_idea")
+            .withArguments(Map.of("event", "KubeCon Salt Lake City", "audience", "platform engineers"))
+            .withAssert(response -> {
+                String brief = response.messages().get(0).content().asText().text();
+                assertTrue(brief.contains("KubeCon Salt Lake City"), brief);
+                assertTrue(brief.contains("kubecon-slc"), brief);
+                assertTrue(brief.contains("apply_theme"), brief);
+            })
+            .send()
+            .thenAssertResults();
+        client.disconnect();
+    }
+
+    @Test
+    void adminSwitchesTheCommentaryStyleBetweenRaces() {
+        McpStreamableTestClient client = adminClient();
+        resetRace(client);
+        client.when()
+            .toolsCall("set_commentary_style", Map.of("style", "analyst"), response -> {
+                assertFalse(response.isError(), () -> response.firstContent().asText().text());
+                assertEquals("Commentary style set to analyst", response.firstContent().asText().text());
+            })
+            .thenAssertResults();
+        // The style reaches the replicas through a game event, so the config endpoint catches up
+        // asynchronously like the theme does.
+        await().atMost(Duration.ofSeconds(10)).until(() ->
+            given().get("/api/config").then().statusCode(200).extract().jsonPath().getString("commentaryStyle"),
+            is("analyst"));
+        client.disconnect();
+    }
+
+    @Test
+    void commentaryStyleIsRejectedDuringARace() {
+        McpStreamableTestClient client = adminClient();
+        resetRace(client);
+        client.when()
+            .toolsCall("start_race", response -> assertFalse(response.isError()))
+            .thenAssertResults();
+        await().atMost(Duration.ofSeconds(10)).until(RaceToolsTest::gameStatus, is("start"));
+
+        client.when()
+            .toolsCall("set_commentary_style", Map.of("style", "hype"), response -> {
+                assertFalse(response.isError(), () -> response.firstContent().asText().text());
+                assertTrue(response.firstContent().asText().text().contains("between races"),
+                    () -> response.firstContent().asText().text());
+            })
+            .thenAssertResults();
+        given().get("/api/config").then().statusCode(200).body("commentaryStyle", is("broadcast"));
+
+        resetRace(client);
+        client.disconnect();
+    }
+
+    @Test
+    void invalidCommentaryStyleIsAnError() {
+        McpStreamableTestClient client = adminClient();
+        resetRace(client);
+        client.when()
+            .toolsCall("set_commentary_style", Map.of("style", "shouty"), response -> {
+                assertTrue(response.isError(), () -> response.firstContent().asText().text());
+                assertTrue(response.firstContent().asText().text().contains("Unknown commentary style"),
+                    () -> response.firstContent().asText().text());
+            })
+            .thenAssertResults();
+        given().get("/api/config").then().statusCode(200).body("commentaryStyle", is("broadcast"));
+        client.disconnect();
+    }
+
     private McpStreamableTestClient adminClient() {
         String token = token("developer", "developer");
         return McpAssured.newStreamableClient()
@@ -279,6 +378,14 @@ class RaceToolsTest {
 
     private static String authServerUrl() {
         return ConfigProvider.getConfig().getValue("quarkus.oidc.auth-server-url", String.class);
+    }
+
+    /**
+     * The base URL the test client actually uses. The test port is random when the suite passes
+     * {@code -Dquarkus.http.test-port=0}, so the advertised URLs cannot be hardcoded.
+     */
+    private static String testBase() {
+        return io.restassured.RestAssured.baseURI + ":" + io.restassured.RestAssured.port;
     }
 
     private static String token(String username, String password) {

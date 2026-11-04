@@ -93,7 +93,7 @@ game.teams.2.car=car-blue-convertible
 
 The available car images are listed in [`Config.js`](src/main/webui/src/Config.js).
 
-To restyle the race without a restart, apply a theme between races. A theme sets the team names, colors, cars and track on every dashboard and phone at once. Ask your assistant:
+To restyle the race without a restart, apply a theme between races. A theme sets the team names, colors, cars and track on every dashboard and phone at once. A finished heat stays on the board until it is reset, so applying a theme then resets that heat first: the new names never land on the leaderboard of the race that just ended. Ask your assistant:
 
 > List the preset themes and apply one.
 
@@ -137,6 +137,8 @@ GAME_AI_ENABLED=true OPENAI_BASE_URL=http://localhost:11434/v1/ \
 
 On errors or slow answers the game falls back to the template line. The other commentary settings are in [How it works](docs/architecture.md#race-commentary).
 
+The commentator's voice is a prompt fragment, not a separate model. `game.commentary.style` sets the default (`broadcast`, `hype`, `analyst` or `dry`), and an agent with the admin MCP server switches it between races with `set_commentary_style`. Every replica switches on the next line, and `GET /api/config` returns the active `commentaryStyle`.
+
 ## Use MCP and code assistants
 
 The app is an MCP server, so an agent such as IBM Bob, Claude Code, Codex or goose, etc can read the race and run it.
@@ -144,7 +146,9 @@ The app is an MCP server, so an agent such as IBM Bob, Claude Code, Codex or goo
 | Server | URL | Login | Tools |
 |---|---|---|---|
 | `wind-turbine-race` | `/mcp` | none | `get_race_state`, `get_leaderboard`, `get_player`, `get_hall_of_fame` |
-| `wind-turbine-admin` | `/admin/mcp` | `developer` / `developer` | the same, plus `start_race`, `pause_race`, `reset_race`, `boost_team`, `reset_hall_of_fame`, `list_preset_themes`, `apply_theme`, and, with AI on, `suggest_team_names` and `generate_theme` |
+| `wind-turbine-admin` | `/admin/mcp` | `developer` / `developer` | the same, plus `start_race`, `pause_race`, `reset_race`, `boost_team`, `reset_hall_of_fame`, `list_preset_themes`, `apply_theme`, `set_input_mode`, `set_commentary_style`, and, with AI on, `suggest_team_names` and `generate_theme` |
+
+Both servers also expose prompts, the MCP template primitive. `/mcp` has `race_briefing` (the live standings plus the rules, for a chosen commentary style and focus) and `race_recap` (a finished heat from the hall of fame). `/admin/mcp` adds `theme_idea`, a design brief with the presets, allowed cars and validation rules for the next heat. A client lists them with `prompts/list` and asks for one with `prompts/get`; the arguments come back filled in, so the model never has to know the JSON shape.
 
 Both are listed in [`.mcp.json`](.mcp.json) (and [`.bob/mcp.json`](.bob/mcp.json) for Bob). Claude Code offers them when you open the repository.
 

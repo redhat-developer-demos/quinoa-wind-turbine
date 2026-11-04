@@ -17,13 +17,16 @@ public class AiCommentator implements Commentator {
     private final int maxLength;
     private final GameConfig config;
     private final ThemeService themes;
+    private final CommentaryStyleService styles;
 
-    public AiCommentator(RaceCommentaryAi ai, ObjectMapper mapper, GameConfig config, ThemeService themes) {
+    public AiCommentator(RaceCommentaryAi ai, ObjectMapper mapper, GameConfig config, ThemeService themes,
+                         CommentaryStyleService styles) {
         this.ai = ai;
         this.mapper = mapper;
         this.maxLength = config.commentary().maxLength();
         this.config = config;
         this.themes = themes;
+        this.styles = styles;
     }
 
     @Override
@@ -40,7 +43,8 @@ public class AiCommentator implements Commentator {
                     .toList(),
                 "teamNames", config.teams().keySet().stream().collect(java.util.stream.Collectors.toMap(id -> id, themes::teamName)),
                 "players", race.players().stream()
-                    .filter(p -> p.name().equals(trigger.player())).toList())), maxLength);
+                    .filter(p -> p.name().equals(trigger.player())).toList())), maxLength,
+                styles.current().guidance());
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Cannot serialize commentary facts", e);
         }
