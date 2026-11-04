@@ -1,7 +1,9 @@
 package org.raceops.director;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.raceops.mcp.AdminRaceClient;
+import org.raceops.metrics.DirectorMetrics;
 import org.raceops.monitor.CurrentRace;
 
 import java.util.Optional;
@@ -20,7 +22,7 @@ class ProposalServiceTest {
         boolean fail;
 
         RecordingAdmin() {
-            super(null, null);
+            super(null, null, new DirectorMetrics(new SimpleMeterRegistry()));
         }
 
         @Override
@@ -46,6 +48,10 @@ class ProposalServiceTest {
         return Proposal.boost(raceId, 2, 2.5, 30, "Team 2 is behind. Boost?");
     }
 
+    private static ProposalService service(RecordingAdmin admin, CurrentRace race) {
+        return new ProposalService(admin, race, new DirectorMetrics(new SimpleMeterRegistry()));
+    }
+
     private static String idOf(ProposalService service) {
         return service.pending().get(0).proposal().id();
     }
@@ -53,7 +59,7 @@ class ProposalServiceTest {
     @Test
     void onlyOnePendingProposalAtATime() {
         RecordingAdmin admin = new RecordingAdmin();
-        ProposalService service = new ProposalService(admin, new CurrentRace());
+        ProposalService service = service(admin, new CurrentRace());
         assertTrue(service.propose(boostProposal("race-1")));
         assertFalse(service.propose(boostProposal("race-2")));
         assertEquals(1, service.pending().size());
@@ -64,7 +70,7 @@ class ProposalServiceTest {
         RecordingAdmin admin = new RecordingAdmin();
         CurrentRace currentRace = new CurrentRace();
         currentRace.update("race-1");
-        ProposalService service = new ProposalService(admin, currentRace);
+        ProposalService service = service(admin, currentRace);
         service.propose(boostProposal("race-1"));
 
         Optional<ProposalService.ProposalView> view = service.approve(idOf(service));
@@ -79,7 +85,7 @@ class ProposalServiceTest {
         RecordingAdmin admin = new RecordingAdmin();
         CurrentRace currentRace = new CurrentRace();
         currentRace.update("race-1");
-        ProposalService service = new ProposalService(admin, currentRace);
+        ProposalService service = service(admin, currentRace);
         service.propose(boostProposal("race-1"));
 
         // The race ended and a new one began before the operator clicked approve.
@@ -96,7 +102,7 @@ class ProposalServiceTest {
         admin.fail = true;
         CurrentRace currentRace = new CurrentRace();
         currentRace.update("race-1");
-        ProposalService service = new ProposalService(admin, currentRace);
+        ProposalService service = service(admin, currentRace);
         service.propose(boostProposal("race-1"));
 
         Optional<ProposalService.ProposalView> view = service.approve(idOf(service));
@@ -107,7 +113,7 @@ class ProposalServiceTest {
     @Test
     void dismissDropsAPendingProposal() {
         RecordingAdmin admin = new RecordingAdmin();
-        ProposalService service = new ProposalService(admin, new CurrentRace());
+        ProposalService service = service(admin, new CurrentRace());
         service.propose(boostProposal("race-1"));
         String id = idOf(service);
 
@@ -123,7 +129,7 @@ class ProposalServiceTest {
         RecordingAdmin admin = new RecordingAdmin();
         CurrentRace currentRace = new CurrentRace();
         currentRace.update("race-1");
-        ProposalService service = new ProposalService(admin, currentRace);
+        ProposalService service = service(admin, currentRace);
         service.propose(Proposal.theme("race-1", "atlanta", "Next heat: Aquarium vs Coca-Cola?"));
 
         Optional<ProposalService.ProposalView> view = service.approve(idOf(service));

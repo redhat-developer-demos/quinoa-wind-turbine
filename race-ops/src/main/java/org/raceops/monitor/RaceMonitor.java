@@ -6,6 +6,7 @@ import jakarta.inject.Inject;
 import org.raceops.RaceOpsConfig;
 import org.raceops.analytics.EngagementAnalytics;
 import org.raceops.analytics.EngagementReport;
+import org.raceops.metrics.DirectorMetrics;
 import org.raceops.model.RaceSnapshot;
 import org.raceops.watch.RaceEvent;
 import org.raceops.watch.RaceEventFilter;
@@ -17,7 +18,8 @@ import java.util.List;
  * The single place snapshot state lives. Applies the event filter to adjacent snapshots,
  * computes the engagement report over a time window (adjacent snapshots are too noisy for
  * active-versus-stalled: a human tapping three times a second only moves their number every
- * few snapshots), and pushes what survived to the ops stream.
+ * few snapshots), and pushes what survived to the ops stream. Every accepted snapshot also
+ * updates the live race gauges, so a dashboard can plot the race without the console.
  */
 @ApplicationScoped
 public class RaceMonitor {
@@ -26,15 +28,17 @@ public class RaceMonitor {
     private final RaceOpsConfig config;
     private final Event<RaceSnapshotEvent> snapshotEvent;
     private final CurrentRace currentRace;
+    private final DirectorMetrics metrics;
     private final ArrayDeque<RaceSnapshot> window = new ArrayDeque<>();
 
     @Inject
     public RaceMonitor(OpsBroadcaster broadcaster, RaceOpsConfig config, Event<RaceSnapshotEvent> snapshotEvent,
-                       CurrentRace currentRace) {
+                       CurrentRace currentRace, DirectorMetrics metrics) {
         this.broadcaster = broadcaster;
         this.config = config;
         this.snapshotEvent = snapshotEvent;
         this.currentRace = currentRace;
+        this.metrics = metrics;
     }
 
     public synchronized void onSnapshot(RaceSnapshot snapshot) {
@@ -52,6 +56,7 @@ public class RaceMonitor {
         }
         window.addLast(snapshot);
         currentRace.update(snapshot.raceId());
+        metrics.snapshot(snapshot);
         long windowMs = config.analyticsWindowSeconds() * 1000L;
         while (window.size() > 1 && snapshot.updatedAt() - window.peekFirst().updatedAt() > windowMs) {
             window.pollFirst();

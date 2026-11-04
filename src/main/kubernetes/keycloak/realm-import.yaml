@@ -8,6 +8,12 @@
 #
 #   # After a fresh instance from keycloak.yaml, apply this into the same namespace with the default name.
 #
+# On Keycloak 26.4 and later the import job leaves the realm without per-realm admin roles, so the
+# master admin gets 403 on every /admin/realms/wind-turbine call afterwards. scripts/deploy-openshift.sh
+# therefore reads spec.realm from this file and POSTs it to /admin/realms, which grants the creator
+# those roles. The file remains a valid KeycloakRealmImport for a Keycloak whose admin API you cannot
+# reach, and it is the single source of truth for the realm either way.
+#
 # The developer user's password comes from the game-admin secret in the realm import's namespace, the
 # same secret the dashboard login uses, so both logins share one password. Create game-admin first
 # (src/main/kubernetes/secrets.yaml). A realm import is per-realm, so it adds wind-turbine without
@@ -130,12 +136,11 @@ objects:
                 temporary: false
             realmRoles:
               - admin
-          # The service account of the race-ops client below; its client-credentials tokens
-          # carry the admin role, which is every power the director has over the game.
-          - username: service-account-race-ops
-            enabled: true
-            realmRoles:
-              - admin
+          # The race-ops client's service-account user is not declared here. Keycloak imports
+          # users before clients, so a user named service-account-race-ops collides with the one
+          # creating the client makes and the import fails on (realm_id, username). The client
+          # below is imported without roles; scripts/deploy-openshift.sh grants the admin role
+          # to its service account through the Admin API, which also covers existing realms.
         clients:
           - clientId: wind-turbine
             name: Wind turbine race

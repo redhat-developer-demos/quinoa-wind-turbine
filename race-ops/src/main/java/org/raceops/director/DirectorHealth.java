@@ -3,19 +3,28 @@ package org.raceops.director;
 import io.quarkus.logging.Log;
 import io.quarkus.oidc.client.OidcClientException;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.raceops.metrics.DirectorMetrics;
 
 /**
  * Whether the director can act on the game. A reachable race-ops says nothing about that: the
  * game may be down, or running without OIDC so the admin tools reject the director's token.
  * A failure is logged once as a single line (the stack trace goes to debug), repeats of the
  * same problem stay quiet, and the console shows the current problem until a call succeeds.
+ * The state is also a gauge ({@code race_ops_director_healthy}), so an alert can fire on it.
  */
 @ApplicationScoped
 public class DirectorHealth {
 
     private static final int MAX_LENGTH = 200;
 
+    private final DirectorMetrics metrics;
     private volatile String problem;
+
+    @Inject
+    public DirectorHealth(DirectorMetrics metrics) {
+        this.metrics = metrics;
+    }
 
     public void failed(String operation, Exception e) {
         String summary = operation + ": " + describe(e);
@@ -24,6 +33,7 @@ public class DirectorHealth {
         }
         Log.debugf(e, "Director call %s failed", operation);
         problem = summary;
+        metrics.directorHealthy(false);
     }
 
     public void succeeded() {
@@ -31,6 +41,7 @@ public class DirectorHealth {
             Log.info("Director can reach the game again");
             problem = null;
         }
+        metrics.directorHealthy(true);
     }
 
     /**
