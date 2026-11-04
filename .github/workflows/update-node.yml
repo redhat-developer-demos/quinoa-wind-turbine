@@ -17,7 +17,9 @@ env:
 
 jobs:
   update-node:
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: the -latest label migrates between OS versions under you
+    # (it moved to Ubuntu 26.04 in November 2026).
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v7

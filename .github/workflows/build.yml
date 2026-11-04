@@ -16,7 +16,9 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: the -latest label migrates between OS versions under you
+    # (it moved to Ubuntu 26.04 in November 2026). The build already passes on this image.
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       packages: write
