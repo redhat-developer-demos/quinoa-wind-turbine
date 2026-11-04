@@ -98,7 +98,7 @@ public class PresetThemes {
                new ThemeTeam(2, "Coca-Cola", "#dc0000", "car-red", "#ffffff")), ATLANTA),
            new RaceTheme("kubecon-slc", "KubeCon Salt Lake City", List.of(
                new ThemeTeam(1, "Kubernetes", "#326ce5", "car-blue-convertible", "#ffffff"),
-               new ThemeTeam(2, "CNCF", "#5b2fa8", "car-classic-black", "#ffffff")), KUBECON_SLC),
+               new ThemeTeam(2, "CNCF", "#f57c00", "car-classic-black", "#ffffff")), KUBECON_SLC),
            new RaceTheme("forest-sun", "Forest vs Sun", List.of(
                new ThemeTeam(1, "Forest", "#2e7d32", "car-grey", "#fdd835"),
                new ThemeTeam(2, "Sunshine", "#fdd835", "car-orange", "#2e7d32")), null),
