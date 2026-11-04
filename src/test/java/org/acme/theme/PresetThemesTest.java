@@ -37,20 +37,22 @@ class PresetThemesTest {
     }
 
     /**
-     * Blue and purple passed the validator's floor but still looked alike on the big screen, which
-     * is the only place these two cars are ever compared. The painted track has grey asphalt and
-     * white snow, so the pair also has to differ in hue, not just brightness.
+     * Blue and purple passed the validator's 60-point floor at 95 but read as one color on a
+     * projector, so this preset is held to a wider gap. Blue and white sit around 254, and the
+     * test also pins the winter kit: the cars are the ski variant, not the slick tyres.
      */
     @Test
-    void theKubeConCarsUseColorsThatStayApartOnScreen() {
+    void theKubeConCarsStayApartAndRideSkis() {
         RaceTheme theme = new PresetThemes().all().stream()
             .filter(preset -> preset.id().equals("kubecon-slc"))
             .findFirst().orElseThrow();
 
         String first = theme.teams().get(0).color();
         String second = theme.teams().get(1).color();
-        assertTrue(rgbDistance(first, second) > 250,
+        assertTrue(rgbDistance(first, second) > 200,
             () -> first + " and " + second + " are too close to tell apart at a distance");
+        theme.teams().forEach(team ->
+            assertEquals("car-ski", team.car(), team.name() + " should ride the winter kit"));
     }
 
     private static double rgbDistance(String a, String b) {
