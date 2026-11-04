@@ -36,6 +36,37 @@ class PresetThemesTest {
         assertNotEquals(track.lanes().get(0), track.lanes().get(1));
     }
 
+    /**
+     * Blue and purple passed the validator's floor but still looked alike on the big screen, which
+     * is the only place these two cars are ever compared. The painted track has grey asphalt and
+     * white snow, so the pair also has to differ in hue, not just brightness.
+     */
+    @Test
+    void theKubeConCarsUseColorsThatStayApartOnScreen() {
+        RaceTheme theme = new PresetThemes().all().stream()
+            .filter(preset -> preset.id().equals("kubecon-slc"))
+            .findFirst().orElseThrow();
+
+        String first = theme.teams().get(0).color();
+        String second = theme.teams().get(1).color();
+        assertTrue(rgbDistance(first, second) > 250,
+            () -> first + " and " + second + " are too close to tell apart at a distance");
+    }
+
+    private static double rgbDistance(String a, String b) {
+        int[] ca = rgb(a);
+        int[] cb = rgb(b);
+        return Math.sqrt(Math.pow(ca[0] - cb[0], 2) + Math.pow(ca[1] - cb[1], 2) + Math.pow(ca[2] - cb[2], 2));
+    }
+
+    private static int[] rgb(String hex) {
+        return new int[] {
+            Integer.parseInt(hex.substring(1, 3), 16),
+            Integer.parseInt(hex.substring(3, 5), 16),
+            Integer.parseInt(hex.substring(5, 7), 16),
+        };
+    }
+
     private static double[] firstPoint(String lane) {
         String[] parts = lane.trim().split(" ");
         return new double[] { Double.parseDouble(parts[1]), Double.parseDouble(parts[2]) };
