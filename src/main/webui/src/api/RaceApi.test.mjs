@@ -84,6 +84,20 @@ test('game event theme triggers onTheme callback', () => {
   close();
 });
 
+test('theme applied over a finished heat waits for the board to clear', () => {
+  let themeCalled = 0;
+  globalThis.WebSocket = Socket;
+  globalThis.window = { location: { protocol: 'http:', host: 'localhost:8080' } };
+  const close = consume(() => {}, () => {}, () => {}, () => { themeCalled += 1; });
+  Socket.last.receive(race('FINISHED', 10));
+  Socket.last.receive({ type: 'game', event: { type: 'reset' } });
+  Socket.last.receive({ type: 'game', event: { type: 'theme' } });
+  assert.equal(themeCalled, 0, 'the old leaderboard must keep its names until it is cleared');
+  Socket.last.receive(race('WAITING', 11, 'b'));
+  assert.equal(themeCalled, 1);
+  close();
+});
+
 test('game event input-mode triggers onInputMode callback', () => {
   let inputModeCalled = false;
   globalThis.WebSocket = Socket;

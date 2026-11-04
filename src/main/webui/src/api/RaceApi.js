@@ -10,6 +10,10 @@ export function consume(setRace, setOffline, setCommentary = () => {}, onTheme =
   let currentRace;
   let pendingCommentary;
   let latestCommentary;
+  // A theme applied while a finished heat is on the board is held until the board clears, so the
+  // next heat's names never rename the leaderboard of the race that just ended.
+  let snapshotStatus;
+  let pendingTheme = false;
   const seen = new Set();
 
   function receiveCommentary(line) {
@@ -63,11 +67,16 @@ export function consume(setRace, setOffline, setCommentary = () => {}, onTheme =
           setCommentary(undefined);
         }
         currentRace = message.race;
+        snapshotStatus = message.race.status;
         setRace(message.race);
         if (pendingCommentary) {
           const pending = pendingCommentary;
           pendingCommentary = undefined;
           receiveCommentary(pending);
+        }
+        if (pendingTheme && snapshotStatus !== 'FINISHED') {
+          pendingTheme = false;
+          onTheme();
         }
       } else if (message.type === 'commentary') {
         receiveCommentary(message.commentary);
@@ -81,7 +90,11 @@ export function consume(setRace, setOffline, setCommentary = () => {}, onTheme =
         }
         setCommentary(undefined);
       } else if (message.type === 'game' && message.event.type === 'theme') {
-        onTheme();
+        if (snapshotStatus === 'FINISHED') {
+          pendingTheme = true;
+        } else {
+          onTheme();
+        }
       } else if (message.type === 'game' && message.event.type === 'input-mode') {
         onInputMode();
       }

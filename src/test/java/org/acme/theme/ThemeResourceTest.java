@@ -2,6 +2,10 @@ package org.acme.theme;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.Cookie;
+import org.acme.game.GameResource;
+import org.acme.game.PowerResource.Power;
+import org.acme.race.RaceState;
+import org.acme.race.RaceState.Status;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -14,7 +18,11 @@ import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The theme endpoints against the default profile, where AI is off. Theme application is
@@ -92,6 +100,67 @@ class ThemeResourceTest {
         given().cookie(session).contentType(JSON).body(Map.of("type", "reset"))
             .post("/api/game/event").then().statusCode(204);
         await().atMost(Duration.ofSeconds(10)).until(() -> status(), is("reset"));
+    }
+
+    @Test
+    void applyingAThemeAfterAFinishResetsTheFinishedRaceFirst() {
+        Cookie session = login();
+        String finished = finishARace();
+
+        given().cookie(session).post("/api/theme/preset/ferrari-mercedes").then().statusCode(204);
+
+        awaitTeamNames("Ferrari", "Mercedes");
+        // The reset clears the board the new names must never land on: no winner and no players
+        // from the heat that just ended.
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+            RaceState state = raceState();
+            assertNotEquals(finished, state.raceId());
+            assertEquals(Status.WAITING, state.status());
+            assertNull(state.winner());
+            assertTrue(state.players().isEmpty(), "the previous heat's leaderboard should be cleared");
+            assertEquals("reset", status());
+        });
+    }
+
+    /**
+     * Resets, starts and finishes a race with one player on each team. Team 1 has one player, so it
+     * needs 1500 power (tap-power 15 x taps-needed 100) to finish; each power event is capped at
+     * 200, hence the eight events.
+     */
+    private static String finishARace() {
+        resetToNewRace();
+        GameResource.User player = assign(1);
+        assign(2);
+        await().atMost(Duration.ofSeconds(10)).until(() -> raceState().players().size() == 2);
+
+        given().cookie(login()).contentType(JSON).body(Map.of("type", "start"))
+            .post("/api/game/event").then().statusCode(204);
+        await().atMost(Duration.ofSeconds(10)).until(() -> raceState().status() == Status.STARTED);
+
+        for (int i = 0; i < 8; i++) {
+            given().contentType(JSON).body(new Power(200, player.name(), 1))
+                .post("/api/power").then().statusCode(204);
+        }
+        await().atMost(Duration.ofSeconds(30)).until(() -> raceState().status() == Status.FINISHED);
+        return raceState().raceId();
+    }
+
+    private static void resetToNewRace() {
+        String previous = raceState().raceId();
+        given().cookie(login()).contentType(JSON).body(Map.of("type", "reset"))
+            .post("/api/game/event").then().statusCode(204);
+        await().atMost(Duration.ofSeconds(60))
+            .until(ThemeResourceTest::raceState,
+                s -> !s.raceId().equals(previous) && s.status() == Status.WAITING);
+    }
+
+    private static GameResource.User assign(int team) {
+        return given().queryParam("team", team).post("/api/game/assign")
+            .then().statusCode(200).extract().as(GameResource.User.class);
+    }
+
+    private static RaceState raceState() {
+        return given().get("/api/race/state").then().statusCode(200).extract().as(RaceState.class);
     }
 
     private static Cookie login() {

@@ -56,7 +56,7 @@ public class ThemeResource {
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("admin")
     @Operation(summary = "Apply a preset theme (admin only)", description = "Restyles the race between races from a "
-        + "preset id. A running race rejects the change.")
+        + "preset id. A running race rejects the change; a finished race is reset first.")
     public Response applyPreset(@PathParam("id") String id) {
         RaceTheme preset = themes.presets().stream()
             .filter(t -> t.id().equals(id))
@@ -70,7 +70,8 @@ public class ThemeResource {
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed("admin")
     @Operation(summary = "Apply a full theme (admin only)", description = "Restyles the race between races from a "
-        + "complete theme: both teams' names, colors and cars. A running race rejects the change.")
+        + "complete theme: both teams' names, colors and cars. A running race rejects the change; a finished race is "
+        + "reset first.")
     public Response apply(RaceTheme theme) {
         return applied(themes.apply(theme));
     }
