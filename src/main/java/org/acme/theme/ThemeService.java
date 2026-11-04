@@ -20,6 +20,10 @@ import org.acme.game.GameResource;
  * The current theme lives in memory and is seeded from the configured teams on startup; a pod that
  * starts after a theme change shows the default until the next theme event (a known issue recorded
  * in AGENTS.md).
+ *
+ * A finished heat stays on the board until a reset, so applying a theme then would put the next
+ * heat's names on the old leaderboard and rename a race that is already over. The apply therefore
+ * resets the finished race first and broadcasts the theme after it.
  */
 @ApplicationScoped
 @Startup
@@ -86,8 +90,9 @@ public class ThemeService {
 
     /**
      * Validates and applies a theme. Switching is only allowed between races, so a restyle never
-     * lands mid-race. On success it broadcasts the theme to every replica and client and returns
-     * an empty list; otherwise it returns the validation errors and changes nothing.
+     * lands mid-race. A finished heat is reset first, so the new names never land on the old
+     * leaderboard. On success it broadcasts the theme to every replica and client and returns an
+     * empty list; otherwise it returns the validation errors and changes nothing.
      */
     public List<String> apply(RaceTheme theme) {
         List<String> errors = validator.validate(theme, config.teams().size());
@@ -97,6 +102,11 @@ public class ThemeService {
         String status = game.status().type();
         if (GameEvent.START.equals(status) || GameEvent.PAUSE.equals(status)) {
             return List.of("Themes can only be applied between races");
+        }
+        if (GameEvent.FINISH.equals(status)) {
+            LOG.infof("Resetting the finished race before applying theme %s", theme.id());
+            // Wait for the reset so both events reach the game-events topic in this order.
+            game.sendGameEvent(new GameEvent(GameEvent.RESET)).await().indefinitely();
         }
         game.sendTheme(theme);
         return List.of();
