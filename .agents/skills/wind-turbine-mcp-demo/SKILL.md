@@ -160,6 +160,8 @@ Apply themes immediately in a single `apply_theme` tool call without querying so
 Use `apply_theme(presetId="...")` when matching:
 - `"classic"`: Mountains vs Beach (Parkland track)
 - `"ferrari-mercedes"`: Ferrari (with IBM logo) vs Mercedes (Swiss Alps track)
+- `"atlanta"`: Aquarium vs Coca-Cola (Atlanta track)
+- `"kubecon-slc"`: Kubernetes vs CNCF (KubeCon Salt Lake City winter track)
 - `"forest-sun"`: Forest vs Sun
 - `"royal-teal"`: Royal vs Teal
 - `"silver-arrows"`: Silver vs Black
