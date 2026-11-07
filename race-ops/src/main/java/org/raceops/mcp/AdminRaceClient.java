@@ -105,6 +105,26 @@ public class AdminRaceClient {
         }
     }
 
+    /**
+     * The id of the theme the game is wearing right now. The director asks every time it
+     * proposes a look: its own memory of the theme resets when the app restarts, and the
+     * operator can also apply a theme straight from the dashboard, so a local copy goes stale
+     * and the director ends up proposing the theme already on the track (seen live, 2026-11-06).
+     */
+    public String activeTheme() {
+        try {
+            var theme = mapper.readTree(execute("get_active_theme", "{}"));
+            if (!theme.hasNonNull("id")) {
+                throw new IllegalStateException("get_active_theme returned no id");
+            }
+            return theme.get("id").asText();
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("MCP tool get_active_theme failed: " + e.getMessage(), e);
+        }
+    }
+
     private String call(String tool, Map<String, Object> arguments) {
         try {
             return execute(tool, mapper.writeValueAsString(arguments));

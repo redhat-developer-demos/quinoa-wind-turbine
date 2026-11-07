@@ -1,6 +1,6 @@
-package org.raceops.analytics;
+package org.raceanalyst.analytics;
 
-import org.raceops.model.RaceSnapshot;
+import org.raceanalyst.model.RaceSnapshot;
 
 import java.util.List;
 
@@ -20,6 +20,9 @@ public final class EngagementAnalytics {
      * @param curr the current snapshot
      */
     public static EngagementReport analyze(RaceSnapshot base, RaceSnapshot curr) {
+        if (curr == null) {
+            throw new IllegalArgumentException("The current snapshot is required");
+        }
         boolean comparable = base != null && base.raceId() != null && base.raceId().equals(curr.raceId());
         boolean running = "STARTED".equals(curr.status());
         List<EngagementReport.TeamEngagement> teams = curr.teams() == null ? List.of()

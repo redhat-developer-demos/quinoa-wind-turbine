@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.raceanalyst</groupId>
+  <artifactId>race-analyst</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+
+  <description>
+    The race analyst of the Race Day demo: an A2A server that turns race snapshots into an
+    engagement report and says why a team is behind. Deliberately no LLM: not everything in
+    an agent application needs a model. A subproject of quinoa-wind-turbine with its own pom,
+    built with the repository's wrapper (./mvnw -f race-analyst/pom.xml ...). It knows the
+    race only through the JSON the caller sends and must never import game or race-ops
+    classes (checked by NoForeignImportsTest).
+  </description>
+
+  <properties>
+    <compiler-plugin.version>3.16.0</compiler-plugin.version>
+    <maven.compiler.release>25</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <quarkus.platform.group-id>io.quarkus</quarkus.platform.group-id>
+    <quarkus.platform.version>3.40.1.1</quarkus.platform.version>
+    <!-- The A2A SDK line the a2a lab and langchain4j-agentic-a2a are verified against. -->
+    <a2a-sdk.version>1.4.0.Final</a2a-sdk.version>
+    <surefire-plugin.version>3.6.0</surefire-plugin.version>
+  </properties>
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.quarkus</groupId>
+        <artifactId>quarkus-bom</artifactId>
+        <version>${quarkus.platform.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.a2aproject.sdk</groupId>
+        <artifactId>a2a-java-sdk-bom</artifactId>
+        <version>${a2a-sdk.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.a2aproject.sdk</groupId>
+        <artifactId>a2a-java-sdk-reference-bom</artifactId>
+        <version>${a2a-sdk.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+  <dependencies>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-rest-jackson</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-openshift</artifactId>
+    </dependency>
+    <!-- The reference JSON-RPC server doubles as a Quarkus extension: the jar registers the
+         Vert.x routes (/.well-known/agent-card.json and the JSON-RPC endpoint at /). -->
+    <dependency>
+      <groupId>org.a2aproject.sdk</groupId>
+      <artifactId>a2a-java-sdk-reference-jsonrpc</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.a2aproject.sdk</groupId>
+      <artifactId>a2a-java-sdk-server-common</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-junit5</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.rest-assured</groupId>
+      <artifactId>rest-assured</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>${quarkus.platform.group-id}</groupId>
+        <artifactId>quarkus-maven-plugin</artifactId>
+        <version>${quarkus.platform.version}</version>
+        <extensions>true</extensions>
+        <executions>
+          <execution>
+            <goals>
+              <goal>build</goal>
+              <goal>generate-code</goal>
+              <goal>generate-code-tests</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>${compiler-plugin.version}</version>
+        <configuration>
+          <compilerArgs>
+            <arg>-parameters</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${surefire-plugin.version}</version>
+        <configuration>
+          <systemPropertyVariables>
+            <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
+            <maven.home>${maven.home}</maven.home>
+            <!-- The dev workflow runs this app on 8082, the default Quarkus test port. A random
+                 test port keeps `test` runnable next to a running dev server. -->
+            <quarkus.http.test-port>0</quarkus.http.test-port>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

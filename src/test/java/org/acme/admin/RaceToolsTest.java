@@ -43,7 +43,7 @@ class RaceToolsTest {
     }
 
     private static final List<String> READ_TOOLS =
-        List.of("get_race_state", "get_leaderboard", "get_player", "get_hall_of_fame");
+        List.of("get_race_state", "get_leaderboard", "get_player", "get_hall_of_fame", "get_active_theme");
     private static final List<String> ADMIN_TOOLS = List.of("start_race", "pause_race", "reset_race", "boost_team",
         "list_preset_themes", "apply_theme", "set_input_mode", "set_commentary_style", "suggest_team_names",
         "generate_theme", "reset_hall_of_fame");
@@ -73,6 +73,12 @@ class RaceToolsTest {
             })
             .toolsCall("get_player", Map.of("name", "Nobody"), response -> assertTrue(response.isError()))
             .toolsCall("get_hall_of_fame", response -> assertFalse(response.isError()))
+            .toolsCall("get_active_theme", response -> {
+                JsonObject theme = new JsonObject(response.firstContent().asText().text());
+                // The configured default look is its own theme id, not the "classic" preset.
+                assertEquals("default", theme.getString("id"), theme::encode);
+                assertEquals(2, theme.getJsonArray("teams").size(), theme::encode);
+            })
             .resourcesRead(RaceTools.RACE_URI, response -> assertTrue(
                 new JsonObject(response.contents().getFirst().asText().text()).containsKey("status")))
             .promptsList(page -> assertEquals(READ_PROMPTS,

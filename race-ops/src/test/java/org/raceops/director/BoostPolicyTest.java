@@ -24,7 +24,7 @@ class BoostPolicyTest {
     private static EngagementReport engagement(int stalledTeam1) {
         return new EngagementReport("race-1", "STARTED", 10_000, List.of(
             new EngagementReport.TeamEngagement(1, 2, 5, 5 - stalledTeam1, stalledTeam1, (5 - stalledTeam1) / 5.0, 0, 30),
-            new EngagementReport.TeamEngagement(2, 1, 5, 5, 0, 1.0, 0, 50)));
+            new EngagementReport.TeamEngagement(2, 1, 5, 5, 0, 1.0, 0, 50)), "teams", "in-process");
     }
 
     @Test
@@ -64,7 +64,7 @@ class BoostPolicyTest {
         RaceSnapshot snapshot = started(team(1, 2, 30), team(2, 1, 50));
         BoostPolicy.Situation situation = new BoostPolicy.Situation(1, 20, 0.4);
         // The model tries to boost the leading team with an absurd multiplier and duration.
-        DirectorAi.BoostAdvice rogue = new DirectorAi.BoostAdvice(true, 2, 99, 3600, "  ");
+        DirectorDecisions.BoostAdvice rogue = new DirectorDecisions.BoostAdvice(true, 2, 99, 3600, "  ");
         Proposal proposal = DirectorDecisions.advice(rogue, situation, snapshot);
         assertEquals(1, proposal.team());
         assertEquals(3.0, proposal.multiplier());

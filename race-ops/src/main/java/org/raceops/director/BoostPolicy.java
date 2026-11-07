@@ -22,6 +22,14 @@ public final class BoostPolicy {
     static final double TRAILING_MIN = 10;
 
     /**
+     * The share of a team's tappers who must have stopped for the situation to count as an
+     * engagement collapse rather than soft tapping. Above it a next-heat look is the right
+     * intervention; below it the team is still racing and a boost is. Shared with the
+     * director's guardrail and the fallback wording, so the three never disagree.
+     */
+    public static final double QUITTER_SHARE = 0.3;
+
+    /**
      * The situation that triggers a proposal.
      *
      * @param team        the trailing team

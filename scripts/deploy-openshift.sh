@@ -46,6 +46,23 @@ wait_for_operator() {
   oc wait "csv/$csv" -n openshift-operators --for=jsonpath='{.status.phase}'=Succeeded --timeout=300s
 }
 
+# Waits for the asynchronous s2i build of an app, then for its rollout. A build that fails does not
+# fail the Maven deploy; the rollout would then just re-deploy the previous image and the script
+# would report success. Fail loudly instead. The binary build streams the project directory, so a
+# failed build is usually a broken source upload: keep the tree lean (mvn clean, no local .quinoa
+# or node_modules).
+wait_for_build_and_rollout() {
+  local name=$1 build
+  log "Wait for the $name image build"
+  build=$(oc get builds -n "$NAMESPACE" -l "buildconfig=$name" \
+    --sort-by=.metadata.creationTimestamp -o name | tail -1)
+  [ -n "$build" ] || die "no $name build was triggered by the deploy"
+  oc wait --for=condition=Complete "$build" -n "$NAMESPACE" --timeout=900s \
+    || die "$name image build $build did not complete; check 'oc logs $build -n $NAMESPACE'"
+  log "Wait for the $name rollout"
+  oc rollout status "deployment/$name" -n "$NAMESPACE" --timeout=600s
+}
+
 oc whoami >/dev/null 2>&1 || die "not logged in; run oc login first"
 
 log "Operator subscriptions"
@@ -251,19 +268,7 @@ log "Build and deploy the app"
   -Dquarkus.container-image.group="$NAMESPACE" \
   $OIDC_ARGS $OPS_ARGS
 
-# The s2i build runs asynchronously, so a failed build does not fail the Maven deploy above; the
-# rollout below would then just re-deploy the previous image and this script would report success.
-# Fail loudly instead. The binary build streams the project directory, so a failed build is usually
-# a broken source upload: keep the tree lean (mvn clean, no local .quinoa or node_modules).
-log "Wait for the image build"
-BUILD=$(oc get builds -n "$NAMESPACE" -l buildconfig=quinoa-wind-turbine \
-  --sort-by=.metadata.creationTimestamp -o name | tail -1)
-[ -n "$BUILD" ] || die "no build was triggered by the deploy"
-oc wait --for=condition=Complete "$BUILD" -n "$NAMESPACE" --timeout=900s \
-  || die "image build $BUILD did not complete; check 'oc logs $BUILD -n $NAMESPACE'"
-
-log "Wait for the rollout"
-oc rollout status deployment/quinoa-wind-turbine -n "$NAMESPACE" --timeout=600s
+wait_for_build_and_rollout quinoa-wind-turbine
 
 # The build replaced the Deployment, so the model credentials applied with oc set env are gone.
 # Re-apply them to both deployments; without them the commentary falls back to template lines.
@@ -276,14 +281,48 @@ if oc get secret commentary-openai -n "$NAMESPACE" >/dev/null 2>&1; then
   # or the health check below can pass against the previous pods.
   oc rollout status deployment/quinoa-wind-turbine -n "$NAMESPACE" --timeout=600s
 else
-  log "WARNING: no secret commentary-openai; the game and the director run without a model"
+  log "WARNING: no secret commentary-openai; the game, race-creative and the director run without a model"
 fi
 
 if [ "$OIDC_ENABLED" = true ]; then
-  log "Build and deploy race-ops"
+  # The two A2A specialists race-ops calls. Each is its own service, so one can be restarted or
+  # killed on stage without touching the others; neither exposes a route.
+  log "Build and deploy race-analyst"
+  ./mvnw -f race-analyst/pom.xml package -Dquarkus.profile=openshift-cluster \
+    -Dquarkus.kubernetes.deploy=true -DskipTests \
+    -Dquarkus.container-image.registry="$REGISTRY" \
+    -Dquarkus.container-image.group="$NAMESPACE"
+  wait_for_build_and_rollout race-analyst
+
+  log "Build and deploy race-creative"
+  # The model turns on only when the shared secret exists; without it the app still boots and
+  # proposes presets, so the theme beat never depends on the key being provisioned.
+  CREATIVE_AI_ARGS=""
+  if oc get secret commentary-openai -n "$NAMESPACE" >/dev/null 2>&1; then
+    CREATIVE_AI_ARGS="-Dquarkus.openshift.env.vars.race-creative-ai-enabled=true"
+  fi
   APP_HOST=$(oc get route quinoa-wind-turbine -n "$NAMESPACE" -o jsonpath='{.spec.host}')
-  # The director talks to the game through its source-balanced route, so the MCP sessions stay
-  # on one of the five pods. OIDC comes from the same Keycloak as the game's admin login.
+  # The game runs five pods, and its Service round-robins: an MCP session opened on one pod is
+  # unknown to the next request that lands elsewhere, and the tool call hangs until the client
+  # times out. The route is annotated `balance: source`, so it keeps a caller on one pod. Both
+  # MCP clients in the cluster therefore go through the route, not the Service.
+  # $CREATIVE_AI_ARGS is unquoted for the same reason as $OIDC_ARGS above.
+  ./mvnw -f race-creative/pom.xml package -Dquarkus.profile=openshift-cluster \
+    -Dquarkus.kubernetes.deploy=true -DskipTests \
+    -Dquarkus.container-image.registry="$REGISTRY" \
+    -Dquarkus.container-image.group="$NAMESPACE" \
+    -Dquarkus.openshift.env.vars.quarkus-oidc-client-auth-server-url="$KC_URL" \
+    -Dquarkus.openshift.env.vars.quarkus-langchain4j-mcp-race-admin-url="https://$APP_HOST/admin/mcp" \
+    $CREATIVE_AI_ARGS
+  wait_for_build_and_rollout race-creative
+  if [ -n "$CREATIVE_AI_ARGS" ]; then
+    oc set env deployment/race-creative -n "$NAMESPACE" --from=secret/commentary-openai
+    oc rollout status deployment/race-creative -n "$NAMESPACE" --timeout=600s
+  fi
+
+  log "Build and deploy race-ops"
+  # The director talks to the game through the same source-balanced route, so the MCP sessions
+  # stay on one of the five pods. OIDC comes from the same Keycloak as the game's admin login.
   ./mvnw -f race-ops/pom.xml package -Dquarkus.profile=openshift-cluster \
     -Dquarkus.kubernetes.deploy=true -DskipTests \
     -Dquarkus.container-image.registry="$REGISTRY" \
@@ -293,15 +332,7 @@ if [ "$OIDC_ENABLED" = true ]; then
     -Dquarkus.openshift.env.vars.quarkus-oidc-client-auth-server-url="$KC_URL" \
     -Dquarkus.openshift.env.vars.race-ops-ai-enabled=true
 
-  log "Wait for the race-ops image build"
-  ROPS_BUILD=$(oc get builds -n "$NAMESPACE" -l buildconfig=race-ops \
-    --sort-by=.metadata.creationTimestamp -o name | tail -1)
-  [ -n "$ROPS_BUILD" ] || die "no race-ops build was triggered by the deploy"
-  oc wait --for=condition=Complete "$ROPS_BUILD" -n "$NAMESPACE" --timeout=900s \
-    || die "race-ops image build $ROPS_BUILD did not complete; check 'oc logs $ROPS_BUILD -n $NAMESPACE'"
-
-  log "Wait for the race-ops rollout"
-  oc rollout status deployment/race-ops -n "$NAMESPACE" --timeout=600s
+  wait_for_build_and_rollout race-ops
 
   if oc get secret commentary-openai -n "$NAMESPACE" >/dev/null 2>&1; then
     oc set env deployment/race-ops -n "$NAMESPACE" --from=secret/commentary-openai
@@ -314,7 +345,7 @@ if [ "$OIDC_ENABLED" = true ]; then
   oc process -f src/main/kubernetes/race-ops-route.yaml -p GAME_HOST="$APP_HOST" \
     | oc apply -n "$NAMESPACE" -f -
 else
-  log "OIDC is off; skipping race-ops (the director needs the admin tools)"
+  log "OIDC is off; skipping race-analyst, race-creative and race-ops (the director needs the admin tools)"
 fi
 
 APP_HOST=$(oc get route quinoa-wind-turbine -n "$NAMESPACE" -o jsonpath='{.spec.host}')

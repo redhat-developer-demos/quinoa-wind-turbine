@@ -1,7 +1,7 @@
-package org.raceops.analytics;
+package org.raceanalyst.analytics;
 
 import org.junit.jupiter.api.Test;
-import org.raceops.model.RaceSnapshot;
+import org.raceanalyst.model.RaceSnapshot;
 
 import java.util.List;
 
