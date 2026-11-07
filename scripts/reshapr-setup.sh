@@ -13,12 +13,17 @@
 #
 # Prerequisites: the game running locally (./mvnw quarkus:dev with -Dquarkus.http.host=0.0.0.0
 # so the containers can reach it), the reshapr CLI (npm install -g @reshapr/reshapr-cli), and
-# a container runtime (podman or docker). Re-running the script is safe: imports and the
-# artifact update in place, and the plans and expositions are recreated.
+# a container runtime (podman or docker). Re-running the script is safe: both services are
+# deleted and imported again, so nothing survives from an earlier run (a plan keeps the
+# backend address it was created with and ignores a new one, which broke the endpoints
+# whenever the machine's IP changed).
 #
-# The game must listen on the machine's LAN address: the reShapr containers run in a VM
-# (podman on macOS), and host.containers.internal from those containers does not reach a
-# dev-mode Quarkus bound to localhost.
+# The containers reach the game through the container runtime's host alias
+# (host.containers.internal on podman, host.docker.internal on docker), so the setup does not
+# depend on the machine's IP address. The game must listen on all interfaces
+# (-Dquarkus.http.host=0.0.0.0): a dev-mode Quarkus bound to localhost refuses the
+# connections forwarded from the container VM. Override with GAME_URL if your runtime has no
+# such alias.
 set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -29,6 +34,9 @@ RAW_SERVICE_NAME="Wind Turbine Racer Raw"
 SHAPED_SERVICE_NAME="Wind Turbine Racer"
 PLAN_NAME="race-momentum"
 PROXY="http://localhost:7777/mcp"
+CONTROL_PLANE="http://localhost:5555"
+# How this machine reaches the game, versus how the reShapr containers reach it.
+LOCAL_URL=${LOCAL_URL:-"http://localhost:8080"}
 
 log() { echo "==> $*"; }
 die() { echo "ERROR: $*" >&2; exit 1; }
@@ -36,22 +44,33 @@ die() { echo "ERROR: $*" >&2; exit 1; }
 command -v reshapr >/dev/null || die "the reshapr CLI is not installed; run: npm install -g @reshapr/reshapr-cli"
 [ -f "$ARTIFACT" ] || die "missing $ARTIFACT"
 
-# The address the reShapr containers use to call the game. On macOS the containers run in a
-# VM behind the LAN address; host.containers.internal resolves but its forwarded connections
-# are refused by a dev-mode Quarkus bound to localhost.
-GAME_HOST=${GAME_HOST:-$(ipconfig getifaddr en0 2>/dev/null || true)}
-[ -n "$GAME_HOST" ] || die "could not detect the LAN address; set GAME_HOST explicitly"
-GAME_URL=${GAME_URL:-"http://$GAME_HOST:8080"}
-curl -fsS --max-time 5 -o /dev/null "$GAME_URL/q/openapi" \
-  || die "the game is not reachable at $GAME_URL (start it with -Dquarkus.http.host=0.0.0.0)"
+if [ -z "${GAME_URL:-}" ]; then
+  if command -v podman >/dev/null; then
+    GAME_URL="http://host.containers.internal:8080"
+  else
+    GAME_URL="http://host.docker.internal:8080"
+  fi
+fi
+curl -fsS --max-time 5 -o /dev/null "$LOCAL_URL/q/openapi" \
+  || die "the game is not reachable at $LOCAL_URL (start it with -Dquarkus.http.host=0.0.0.0)"
 
-if ! reshapr status >/dev/null 2>&1; then
+# 'reshapr status' answers from its saved state even when the containers are gone, so ask the
+# control plane itself.
+control_plane_up() {
+  [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$CONTROL_PLANE/" 2>/dev/null)" != "000" ]
+}
+if ! control_plane_up; then
   log "Starting reShapr locally (Docker Compose)"
   reshapr run
+  for _ in $(seq 1 30); do
+    control_plane_up && break
+    sleep 2
+  done
+  control_plane_up || die "the reShapr control plane did not come up at $CONTROL_PLANE"
 fi
 
 log "Login to the local control plane"
-reshapr login -s http://localhost:5555 -u admin -p password >/dev/null
+reshapr login -s "$CONTROL_PLANE" -u admin -p password >/dev/null
 
 service_id() {
   reshapr service list --output json | python3 -c "
@@ -79,6 +98,18 @@ match = [e for e in expos if e['service']['name'] == '$1' and '$2' in e['name']]
 print(match[0]['id'] if match else '')")
   [ -z "$id" ] || reshapr expo delete "$id" >/dev/null
 }
+
+# A configuration plan keeps the backend address it was created with, and a later import
+# ignores a new --backendEndpoint. Delete both services (with their plans and expositions)
+# so every run starts from the current address.
+delete_service() {
+  local id
+  id=$(service_id "$1")
+  [ -z "$id" ] || reshapr service delete "$id" --force >/dev/null
+}
+log "Remove services from earlier runs"
+delete_service "$RAW_SERVICE_NAME"
+delete_service "$SHAPED_SERVICE_NAME"
 
 log "Import the raw translation: $RAW_SERVICE_NAME"
 reshapr import -u "$GAME_URL/q/openapi" --backendEndpoint "$GAME_URL" \
