@@ -230,12 +230,14 @@ export default function LeftBar(props) {
   return (
     <LeftBarDiv>
       <Title>The Race</Title>
+      {/* Top of the sidebar: the phone has to be held up to the screen to scan it, so the code
+          sits where people point, not under the clock and the controls. */}
+      <QrJoin />
       <Teams>
         {teamDef.map((d) => (<StyledTeam key={d.id} {...d} winner={winner} />))}
       </Teams>
       <StopWatch time={props.time} setTime={props.setTime} running={props.status === 'started'} />
       <StyledControl winner={winner} status={props.status} />
-      <QrJoin />
     </LeftBarDiv>
   );
 }
