@@ -33,8 +33,10 @@ scripts/reshapr-setup.sh
 scripts/reshapr-measure.sh
 ```
 
-`reshapr-setup.sh` is idempotent: imports and the artifact update in place, the plan and
-exposition are recreated. The control plane is at http://localhost:5555 (admin/password),
+`reshapr-setup.sh` is idempotent: it starts reShapr if the control plane isn't answering,
+deletes both services and imports them again (a plan keeps the backend address it was
+created with, so reusing one breaks the endpoints when the address changes). The control
+plane is at http://localhost:5555 (admin/password),
 the proxy serves each exposition at `http://localhost:7777/mcp/<id>`.
 
 First measured run (2026-10-29, live race, GLM 5.3, same question asked of both endpoints):
@@ -44,9 +46,11 @@ should cite a measurement, not this one.
 
 ## Notes
 
-- `host.containers.internal` from the reShapr containers does not reach a dev-mode Quarkus
-  bound to localhost (podman on macOS, gvproxy answers 400), which is why the game must
-  bind `0.0.0.0` and the script targets the machine's LAN address.
+- The reShapr containers reach the game at `host.containers.internal` (podman) or
+  `host.docker.internal` (docker), so the setup doesn't depend on the machine's IP. That
+  alias does not reach a dev-mode Quarkus bound to localhost (podman on macOS, gvproxy
+  answers 400), which is why the game must bind `0.0.0.0`. Set `GAME_URL` to override the
+  address the containers use, and `LOCAL_URL` for how the script itself reaches the game.
 - The langchain4j MCP client (`StreamableHttpMcpTransport`, 1.21.0-beta31) negotiates
   reShapr's stateless 2026-07-28 protocol without configuration — the compatibility spike
   is done.
