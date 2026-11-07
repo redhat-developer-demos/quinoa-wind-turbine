@@ -12,10 +12,9 @@ subproject, the `race-ops` director application.
 
 Title (working): streamlined inner-loop experience for agentic AI — develop, test, and
 iterate on agentic applications on a laptop, then deploy the same image to Kubernetes with
-zero code changes. ("Multi-agent" softens to "agentic": the director is one agent with
-tools plus a deterministic analytics component. Revisit the wording once the director
-exists; if the director/analytics split earns A2A a real act, the stronger claim can come
-back.)
+zero code changes. ("Multi-agent" is back in play: the director is a supervisor over two
+A2A specialists, one of them an LLM with tools. The wording still depends on how much of
+the mesh the talk shows.)
 
 Goal: showcase Quarkus agentic capabilities. Demo-heavy, roughly 35 minutes of stage
 time in a 40-minute slot. Open-source tooling and cloud-native patterns only.
@@ -87,12 +86,27 @@ busy talking while the audience joins. It knows the game only through its MCP se
 
 - **Watcher (no LLM):** subscribes to `race://current` (subscription confirmed by spike,
   ~4 notifications/s mid-race, so it filters to meaningful events — milestones, lead
-  changes, finish — before anything expensive). Computes the engagement analytics from
-  per-player power: how many players tap, how hard, who quit. Plain code, no model; not
-  everything needs an LLM.
+  changes, finish — before anything expensive). The engagement numbers come from
+  `race-analyst`, a separate A2A app that holds no state and runs no model: it compares
+  two snapshots and separates a team that taps softer from one that stopped tapping. The
+  director composes the console report from every snapshot and overlays the analyst's
+  answer while it is fresh, so a stopped specialist never blanks the console. Plain code,
+  no model; not everything needs an LLM.
 - **Director (LLM):** decides and acts through the admin MCP toolset — `start_race`,
   `pause_race`, `reset_race`, `boost_team`, `suggest_team_names`, `generate_theme`,
-  `apply_theme`. Every power it has is the admin scope, held under an OIDC token.
+  `apply_theme`. Every power it has is the admin scope, held under an OIDC token. One
+  supervisor with both specialists as sub-agents is the director's entry point to the mesh:
+  the model picks which one a request needs, and the specialist's structured answer is
+  returned unchanged.
+- **Creative director (LLM, separate app):** `race-creative` proposes the next heat's look
+  over A2A. Its tools are the game's own theme tools, and only the read tool reaches the
+  model. A proposal changes nothing. An approved brief runs through `suggest_team_names` or
+  `generate_theme` as plain code, because those tools apply the theme inside the game the
+  moment they return. The proposal is one of the supervisor's routes, so the routing itself
+  is visible on stage; the approved execution then bypasses the model on purpose.
+- **Theme memory:** the director reads the active theme from the game (`get_active_theme`)
+  before proposing, instead of remembering it. A local copy forgets an operator's theme on
+  restart, and the director then proposes the look already on the track.
 - **Start rule:** both teams at or above a minimum of active players, joins plateaued
   (no new player for ~20-30 s), or a wall-clock backstop from the run-of-show — the talk
   has a clock and the room doesn't. No headcount balance: the race math is
@@ -190,6 +204,17 @@ loop for you, and for your agents." Point the audience at
 14. Sabotage detection is out (2026-10-27): it needed a game change (`get_modifiers`)
     for a beat that mattered to a Confluent talk, not this one. The boost becomes a
     director proposal instead of a hidden cheat (2026-10-28).
+15. The director/analytics split earns A2A a real act (2026-11-06), revising decision 5:
+    `race-analyst` and `race-creative` are separate Quarkus apps behind A2A, and
+    `race-ops` runs one supervisor over both. The analyst holds no state and runs no
+    model; the creative app is the LLM whose tools are the game's theme tools. The
+    supervisor's model routes each request to one specialist and returns that answer
+    unchanged, so the routing is the visible orchestration and no second model rewrites a
+    structured proposal. The payload itself travels as a typed argument, because the
+    planner model rewrites a long JSON request into prose; the framework refuses to
+    overwrite a typed scope value, so only the choice of specialist comes from the model.
+    The old A2A commentary mesh stays dropped: this split does not duplicate the game's
+    commentator.
 
 ## Spike log
 
@@ -335,6 +360,46 @@ to the rehearsal cluster.
    fallback paths are deterministic. Remaining: the cluster's confidential client
    (dev uses the direct grant), and a talk-length refresh check under rehearsal
    conditions.
+   **Mesh** (2026-11-06): `race-analyst` (port 8082, no model) and `race-creative`
+   (port 8083, the LLM with the game's theme tools) run as their own Quarkus apps behind
+   A2A. race-ops sends every decision through one supervisor with both specialists as
+   sub-agents, so the model routes and the specialist's answer comes back unchanged. Both
+   calls run on a managed executor, and every specialist has an in-process fallback. The
+   active theme is read from the game (`get_active_theme`) before a proposal, so the
+   director cannot re-propose the look already on the track. Verified live with 12
+   GameLoader players: the analyst's diagnosis stayed on the console through `FINISHED`,
+   an `ai-names` card appeared about 8 s after the finish, and approving it applied
+   "Tailwind Turbines vs The Spinlocks" to the game. Tests: 78 race-ops, 15 analyst, 23
+   creative.
+
+   **Diagnosis-first routing** (2026-11-06): the supervisor no longer routes from a
+   `task` line the caller filled in. Mid-race the analyst always runs with the
+   snapshots, and the model reads its diagnosis before choosing: return `done` (the
+   director boosts, with the analyst's sentence on the card) or call the creative
+   director once for the next heat. Between heats the same entry point gets a standing
+   order in `supervisorContext`, the only channel that steers the planner because the
+   framework builds its system message and ignores `@SystemMessage`. The route is read
+   from the scope, a next-heat look needs 30% of the team stopped tapping
+   (`BoostPolicy.QUITTER_SHARE`), and a decision whose race stopped running is dropped.
+   A mid-heat theme approval is `QUEUED` and applied after the finish, since the game
+   rejects a restyle mid-race. Verified live on the stock stack: `Supervisor route:
+   BOOST (analyst ran: true, creative ran: false)` in ~6 s, the card carried the
+   analyst's sentence, approving it applied `x2.5` to team 2, and the next heat produced
+   an `ai-names` card that applied "Turbine Overflow vs Async Gust Await". Tests: 93
+   race-ops, 15 analyst, 23 creative.
+
+   **Structural mid-race gate** (2026-11-06): the creative director carries
+   `@ActivationCondition` on a `themeWindow` scope value the director passes with the
+   supervised call. The planner only offers agents whose condition holds, so on a
+   soft-tapping diagnosis the model cannot pick the next-heat look at all; the route
+   guard stays as the second line. This needs the agentic modules that generalize
+   activation conditions (1.23.0-beta33), which arrive by bumping `quarkus-langchain4j`
+   to 1.15.0.CR2 (same Quarkus 3.40.1.1, `langchain4j-bom` 1.23.0). Overriding only the
+   agentic artifacts on CR1 mixed beta33 with the older core and failed at runtime with
+   `NoClassDefFoundError: dev/langchain4j/agentic/agent/ChatMessagesAccess`, so the
+   version bump is the path, not a per-artifact override. Verified live on CR2: mid-race
+   with all players tapping, the planner's agent list held only `Race Analyst$0`;
+   between heats it held both and the `kubecon-slc` theme card appeared and applied.
 4. **The console.** Status line and approval cards in the dashboard webui,
    config-gated, default off; a `/ops` page served by race-ops as the dev surface and
    second-screen option; path-based route under the game's host to avoid CORS. Done
@@ -359,6 +424,11 @@ to the rehearsal cluster.
    theme proposals approved through `/ops` re-skinned the game, kill beat clean at
    0 replicas. One caveat: the approval endpoints on the cluster are currently
    unprotected (open item below).
+   **Mesh deployment** (2026-11-06): `scripts/deploy-openshift.sh` now deploys
+   race-analyst and race-creative before race-ops, one replica each and no route. The
+   director reaches them over cluster DNS, and the creative app uses the same `race-ops`
+   client secret and the `commentary-openai` model secret as the director. The deployment
+   is scripted and syntax-checked; the mesh has not yet been exercised on the cluster.
 6. **reShapr.** Local Docker Compose, import wind-turbine `/q/openapi`, one Custom
    Tool, an agent calling it, our own before/after token count. Done when the number
    is measured, not quoted.

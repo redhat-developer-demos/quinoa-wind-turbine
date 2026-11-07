@@ -19,8 +19,15 @@
     <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
     <quarkus.platform.group-id>io.quarkus</quarkus.platform.group-id>
     <quarkus.platform.version>3.40.1.1</quarkus.platform.version>
-    <!-- Same langchain4j line as the game and the a2a lab, so all three present as one stack. -->
-    <quarkus-langchain4j.version>1.15.0.CR1</quarkus-langchain4j.version>
+    <!-- One line ahead of the game and race-creative, which stay on CR1: only this app uses the
+         agentic supervisor and its @ActivationCondition. CR2 is the newest 1.15 release; it
+         targets the same Quarkus 3.40.1.1 and imports langchain4j-bom 1.23.0, whose agentic
+         modules are 1.23.0-beta33. That is the version with a general @ActivationCondition, and
+         it needs exactly the core CR1 did not ship, so the creative director's structural
+         mid-race gate lives on this line rather than on a raw per-artifact override. -->
+    <quarkus-langchain4j.version>1.15.0.CR2</quarkus-langchain4j.version>
+    <!-- The A2A SDK line the a2a lab and langchain4j-agentic-a2a are verified against. -->
+    <a2a-sdk.version>1.4.0.Final</a2a-sdk.version>
     <surefire-plugin.version>3.6.0</surefire-plugin.version>
   </properties>
   <dependencyManagement>
@@ -39,6 +46,13 @@
         <type>pom</type>
         <scope>import</scope>
       </dependency>
+      <dependency>
+        <groupId>org.a2aproject.sdk</groupId>
+        <artifactId>a2a-java-sdk-bom</artifactId>
+        <version>${a2a-sdk.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
     </dependencies>
   </dependencyManagement>
   <dependencies>
@@ -49,6 +63,24 @@
     <dependency>
       <groupId>io.quarkiverse.langchain4j</groupId>
       <artifactId>quarkus-langchain4j-openai</artifactId>
+    </dependency>
+    <!-- The supervisor and the A2A client agents: the director's own model routes to the
+         analyst and creative specialists, which run as separate apps. -->
+    <dependency>
+      <groupId>io.quarkiverse.langchain4j</groupId>
+      <artifactId>quarkus-langchain4j-agentic</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>dev.langchain4j</groupId>
+      <artifactId>langchain4j-agentic</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>dev.langchain4j</groupId>
+      <artifactId>langchain4j-agentic-a2a</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.a2aproject.sdk</groupId>
+      <artifactId>a2a-java-sdk-client-transport-jsonrpc</artifactId>
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
@@ -79,6 +111,11 @@
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-junit5</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.rest-assured</groupId>
+      <artifactId>rest-assured</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>

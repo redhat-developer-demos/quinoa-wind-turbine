@@ -2,6 +2,18 @@ import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { OPS_URL } from '../../Config';
 
+/** The one-line facts under a card: a team boost, a preset, or an AI brief. */
+function proposalMeta(proposal) {
+  if (proposal.type === 'theme') {
+    return `theme: ${proposal.presetId}`;
+  }
+  if (proposal.type === 'theme-ai') {
+    const what = proposal.kind === 'ai-names' ? 'generated names' : 'generated theme';
+    return `${what}: ${proposal.brief}`;
+  }
+  return `team ${proposal.team} × ${proposal.multiplier} for ${proposal.seconds}s`;
+}
+
 /**
  * The director console: the race-ops agent's status and its proposals, on the dashboard the
  * audience already watches. The director never acts on a boost or a theme by itself — every
@@ -92,9 +104,7 @@ export default function DirectorConsole() {
             <button onClick={() => decide(p.proposal.id, 'dismiss')}>dismiss</button>
           </Actions>
           <Meta>
-            {p.proposal.type === 'theme'
-              ? `theme: ${p.proposal.presetId}`
-              : `team ${p.proposal.team} × ${p.proposal.multiplier} for ${p.proposal.seconds}s`}
+            {proposalMeta(p.proposal)}
           </Meta>
         </Card>
       ))}

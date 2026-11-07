@@ -60,6 +60,47 @@ public interface RaceOpsConfig {
     boolean aiEnabled();
 
     /**
+     * Whether the director consults the A2A specialists (race-analyst, race-creative) and
+     * uses the supervisor's model to phrase the advice. Off by default so the suite and a
+     * bare start need no other app; on in dev and on the cluster, where the mesh runs.
+     */
+    @WithDefault("false")
+    boolean meshEnabled();
+
+    /**
+     * The race-analyst A2A endpoint. Dev and the cluster differ only by URL.
+     */
+    Analyst analyst();
+
+    /**
+     * The race-creative A2A endpoint.
+     */
+    Creative creative();
+
+    interface Analyst {
+        @WithDefault("http://localhost:8082/")
+        String a2aUrl();
+    }
+
+    interface Creative {
+        @WithDefault("http://localhost:8083/")
+        String a2aUrl();
+    }
+
+    /**
+     * What the creative director is proposing for, passed to race-creative with the theme
+     * request. Concrete, because the agent turns it into a brief for the game's generator.
+     */
+    @WithDefault("a developer conference")
+    String eventName();
+
+    /**
+     * The crowd the creative director writes for, passed with the theme request.
+     */
+    @WithDefault("a room of developers")
+    String audience();
+
+    /**
      * How far behind, in percent of the track, a team must be before the director
      * considers proposing a boost. Only counts between a quarter and three quarters of
      * the race, so nobody is boosted during the opening noise or the final sprint.

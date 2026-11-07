@@ -3,6 +3,7 @@ package org.raceops.director;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.raceops.mcp.AdminRaceClient;
+import org.raceops.mesh.MeshClient;
 import org.raceops.metrics.DirectorMetrics;
 import org.raceops.monitor.CurrentRace;
 
@@ -19,9 +20,11 @@ import java.util.Optional;
  * the admin toolset. One pending proposal at a time keeps the console readable.
  *
  * Approving a proposal for a race that has already ended rejects it instead: a card left
- * open across a reset or a finish must not boost the next race. The MCP call runs outside
- * the lock, so a slow game cannot stall the state endpoint. Every transition is counted,
- * so the console and the metrics agree on what was proposed and what happened to it.
+ * open across a reset or a finish must not boost the next race. A theme approved mid-race
+ * is queued instead of applied, because the game refuses a restyle while a heat runs; the
+ * finish releases it. The MCP call runs outside the lock, so a slow game cannot stall the
+ * state endpoint. Every transition is counted, so the console and the metrics agree on what
+ * was proposed and what happened to it.
  */
 @ApplicationScoped
 public class ProposalService {
@@ -31,13 +34,18 @@ public class ProposalService {
     private final AdminRaceClient admin;
     private final CurrentRace currentRace;
     private final DirectorMetrics metrics;
+    private final MeshClient mesh;
     private final Map<String, ProposalView> proposals = new LinkedHashMap<>();
+    /** Looks approved mid-race, waiting for the heat to end before the game will take them. */
+    private final Deque<Proposal> deferred = new ArrayDeque<>();
 
     @Inject
-    public ProposalService(AdminRaceClient admin, CurrentRace currentRace, DirectorMetrics metrics) {
+    public ProposalService(AdminRaceClient admin, CurrentRace currentRace, DirectorMetrics metrics,
+                           MeshClient mesh) {
         this.admin = admin;
         this.currentRace = currentRace;
         this.metrics = metrics;
+        this.mesh = mesh;
     }
 
     /**
@@ -71,22 +79,60 @@ public class ProposalService {
                 metrics.pendingProposals(pending().size());
                 return Optional.of(stale);
             }
+            if (proposal.deferred() && currentRace.running()) {
+                // A next-heat look approved mid-race cannot be applied yet: the game refuses
+                // a restyle while a heat runs. Hold it and let the finish release it.
+                deferred.addLast(proposal);
+                ProposalView queued = new ProposalView(proposal, Status.QUEUED,
+                    "Applies when the race finishes", System.currentTimeMillis());
+                proposals.put(id, queued);
+                metrics.pendingProposals(pending().size());
+                return Optional.of(queued);
+            }
             proposals.put(id, new ProposalView(proposal, Status.DECIDING, null, 0));
             metrics.pendingProposals(pending().size());
             taken = proposal;
         }
+        return Optional.of(run(taken));
+    }
+
+    /**
+     * Applies every look the operator approved mid-race, now that the heat is over. Called
+     * on the finish and on a reset, never while a heat runs. Returns what was applied, so
+     * the caller can tell the console served a card instead of proposing another one.
+     */
+    public List<ProposalView> applyDeferred() {
+        List<Proposal> queued;
+        synchronized (this) {
+            if (deferred.isEmpty()) {
+                return List.of();
+            }
+            queued = List.copyOf(deferred);
+            deferred.clear();
+        }
+        return queued.stream().map(this::run).toList();
+    }
+
+    /**
+     * @return true when a look approved mid-race is still waiting for the finish
+     */
+    public synchronized boolean hasDeferred() {
+        return !deferred.isEmpty();
+    }
+
+    private ProposalView run(Proposal proposal) {
         ProposalView decided;
         try {
-            decided = new ProposalView(taken, Status.EXECUTED, execute(taken), System.currentTimeMillis());
+            decided = new ProposalView(proposal, Status.EXECUTED, execute(proposal), System.currentTimeMillis());
         } catch (Exception e) {
-            decided = new ProposalView(taken, Status.FAILED, e.getMessage(), System.currentTimeMillis());
+            decided = new ProposalView(proposal, Status.FAILED, e.getMessage(), System.currentTimeMillis());
         }
         synchronized (this) {
-            proposals.put(id, decided);
+            proposals.put(proposal.id(), decided);
         }
-        metrics.proposalDecided(taken.type(), decided.status() == Status.EXECUTED ? "executed" : "failed");
+        metrics.proposalDecided(proposal.type(), decided.status() == Status.EXECUTED ? "executed" : "failed");
         metrics.pendingProposals(pending().size());
-        return Optional.of(decided);
+        return decided;
     }
 
     public synchronized Optional<ProposalView> dismiss(String id) {
@@ -115,6 +161,9 @@ public class ProposalService {
         return switch (proposal.type()) {
             case Proposal.BOOST -> admin.boost(proposal.team(), proposal.multiplier(), proposal.seconds());
             case Proposal.THEME -> admin.applyPresetTheme(proposal.presetId());
+            // An approved AI theme runs in the creative app with no second model call: the brief
+            // was shaped at proposal time, and the game applies the result immediately.
+            case Proposal.THEME_AI -> mesh.applyTheme(proposal.kind(), proposal.brief());
             default -> throw new IllegalArgumentException("Unknown proposal type " + proposal.type());
         };
     }
@@ -131,7 +180,7 @@ public class ProposalService {
         }
     }
 
-    public enum Status {PENDING, DECIDING, EXECUTED, DISMISSED, FAILED}
+    public enum Status {PENDING, QUEUED, DECIDING, EXECUTED, DISMISSED, FAILED}
 
     /**
      * A proposal with its current status, as the console sees it.

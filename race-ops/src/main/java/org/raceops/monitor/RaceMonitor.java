@@ -4,8 +4,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 import org.raceops.RaceOpsConfig;
-import org.raceops.analytics.EngagementAnalytics;
-import org.raceops.analytics.EngagementReport;
 import org.raceops.metrics.DirectorMetrics;
 import org.raceops.model.RaceSnapshot;
 import org.raceops.watch.RaceEvent;
@@ -15,11 +13,12 @@ import java.util.ArrayDeque;
 import java.util.List;
 
 /**
- * The single place snapshot state lives. Applies the event filter to adjacent snapshots,
- * computes the engagement report over a time window (adjacent snapshots are too noisy for
- * active-versus-stalled: a human tapping three times a second only moves their number every
- * few snapshots), and pushes what survived to the ops stream. Every accepted snapshot also
- * updates the live race gauges, so a dashboard can plot the race without the console.
+ * The single place snapshot state lives. Applies the event filter to adjacent snapshots and
+ * keeps the time window the director uses as its analytics base (adjacent snapshots are too
+ * noisy for active-versus-stalled: a human tapping three times a second only moves their
+ * number every few snapshots). Every accepted snapshot also updates the live race gauges, so
+ * a dashboard can plot the race without the console. The engagement report itself is not
+ * computed here — it comes from the analyst over A2A, off this thread.
  */
 @ApplicationScoped
 public class RaceMonitor {
@@ -55,19 +54,18 @@ public class RaceMonitor {
             window.clear();
         }
         window.addLast(snapshot);
-        currentRace.update(snapshot.raceId());
+        currentRace.update(snapshot.raceId(), snapshot.status());
         metrics.snapshot(snapshot);
         long windowMs = config.analyticsWindowSeconds() * 1000L;
         while (window.size() > 1 && snapshot.updatedAt() - window.peekFirst().updatedAt() > windowMs) {
             window.pollFirst();
         }
 
+        // The engagement report is refreshed asynchronously by the director, so a slow
+        // analyst never holds up the watcher or the ops stream.
         List<RaceEvent> events = RaceEventFilter.events(prev, snapshot);
-        EngagementReport report = EngagementAnalytics.analyze(window.peekFirst(), snapshot);
-        if (events.isEmpty()) {
-            broadcaster.refresh(report);
-        } else {
-            broadcaster.publish(new OpsUpdate(events, report, System.currentTimeMillis()));
+        if (!events.isEmpty()) {
+            broadcaster.publish(events);
         }
         snapshotEvent.fireAsync(new RaceSnapshotEvent(snapshot, List.copyOf(window)));
     }

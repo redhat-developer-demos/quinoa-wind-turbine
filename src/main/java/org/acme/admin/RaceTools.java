@@ -133,6 +133,17 @@ public class RaceTools {
 
     @McpServer(McpServer.DEFAULT)
     @McpServer(ADMIN_SERVER)
+    @Tool(name = "get_active_theme", description = "Returns the theme the race is wearing right now: its id, name "
+        + "and the two team names. A client that proposes themes reads this first, so the next heat does not repeat "
+        + "the look already on the track.")
+    ActiveTheme getActiveTheme() {
+        RaceTheme current = themes.current();
+        return new ActiveTheme(current.id(), current.name(),
+            current.teams().stream().map(RaceTheme.ThemeTeam::name).toList());
+    }
+
+    @McpServer(McpServer.DEFAULT)
+    @McpServer(ADMIN_SERVER)
     @Resource(uri = RACE_URI, name = "current_race", mimeType = "application/json",
         description = "The current race as JSON. Subscribe to get a notification for every race update.")
     TextResourceContents currentRace() {
@@ -404,5 +415,13 @@ public class RaceTools {
 
     private Uni<String> send(String type, String done) {
         return game.sendGameEvent(new GameEvent(type)).replaceWith(done);
+    }
+
+    /**
+     * The active theme as a client needs it: the id it can compare against the preset list, and
+     * the names the track currently shows. The full theme carries the track geometry, which no
+     * caller asking "what is on?" needs.
+     */
+    public record ActiveTheme(String id, String name, List<String> teams) {
     }
 }

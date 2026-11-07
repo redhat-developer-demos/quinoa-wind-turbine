@@ -6,6 +6,7 @@ import org.raceops.director.DirectorHealth;
 import org.raceops.director.Proposal;
 import org.raceops.director.ProposalService;
 import org.raceops.mcp.AdminRaceClient;
+import org.raceops.mesh.MeshClient;
 import org.raceops.model.RaceSnapshot;
 import org.raceops.monitor.CurrentRace;
 
@@ -37,10 +38,14 @@ class DirectorMetricsTest {
         }
     }
 
+    private static MeshClient mesh() {
+        return new MeshClient(null, null, null, null, new com.fasterxml.jackson.databind.ObjectMapper());
+    }
+
     private static ProposalService service(DirectorMetrics metrics) {
         CurrentRace race = new CurrentRace();
         race.update("race-1");
-        return new ProposalService(new StubAdmin(metrics), race, metrics);
+        return new ProposalService(new StubAdmin(metrics), race, metrics, mesh());
     }
 
     @Test
@@ -69,7 +74,7 @@ class DirectorMetricsTest {
         admin.fail = true;
         CurrentRace race = new CurrentRace();
         race.update("race-1");
-        ProposalService service = new ProposalService(admin, race, metrics);
+        ProposalService service = new ProposalService(admin, race, metrics, mesh());
         service.propose(Proposal.theme("race-1", "atlanta", "Next heat: Aquarium vs Coca-Cola?"));
 
         service.approve(service.pending().get(0).proposal().id());
@@ -85,7 +90,7 @@ class DirectorMetricsTest {
         DirectorMetrics metrics = new DirectorMetrics(registry);
         CurrentRace race = new CurrentRace();
         race.update("race-1");
-        ProposalService service = new ProposalService(new StubAdmin(metrics), race, metrics);
+        ProposalService service = new ProposalService(new StubAdmin(metrics), race, metrics, mesh());
         service.propose(Proposal.boost("race-1", 2, 2.5, 30, "Team 2 is behind. Boost?"));
         String id = service.pending().get(0).proposal().id();
 

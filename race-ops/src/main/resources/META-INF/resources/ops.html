@@ -38,6 +38,7 @@
     #recent li { padding: 2px 0; }
     #recent .executed { color: #6c6; }
     #recent .failed { color: #c66; }
+    #recent .queued { color: #9ad; }
   </style>
 </head>
 <body>
@@ -81,6 +82,18 @@
 
     // The message and the result come from a model and a tool; they are rendered as text,
     // never as HTML.
+    function proposalMeta(proposal) {
+      const deferred = proposal.deferred ? ' · applies after the finish' : '';
+      if (proposal.type === 'theme') {
+        return `theme: ${proposal.presetId}${deferred}`;
+      }
+      if (proposal.type === 'theme-ai') {
+        const what = proposal.kind === 'ai-names' ? 'generated names' : 'generated theme';
+        return `${what}: ${proposal.brief}${deferred}`;
+      }
+      return `team ${proposal.team} × ${proposal.multiplier} for ${proposal.seconds}s`;
+    }
+
     function proposalCard(proposal) {
       const card = document.createElement('div');
       card.className = 'proposal';
@@ -96,9 +109,7 @@
       dismiss.onclick = () => decide(proposal.id, 'dismiss');
       const meta = document.createElement('div');
       meta.className = 'meta';
-      meta.textContent = proposal.type === 'theme'
-        ? `theme: ${proposal.presetId}`
-        : `team ${proposal.team} × ${proposal.multiplier} for ${proposal.seconds}s`;
+      meta.textContent = proposalMeta(proposal);
       card.append(message, approve, dismiss, meta);
       return card;
     }
@@ -107,13 +118,16 @@
       const items = [];
       for (const p of recent) {
         const li = document.createElement('li');
-        const meta = `team ${p.proposal.team}, ${p.proposal.type}`;
+        const meta = `${proposalMeta(p.proposal)}, ${p.proposal.type}`;
         if (p.status === 'EXECUTED') {
           li.className = 'executed';
           li.textContent = `approved — ${meta} — ${p.result || ''}`;
         } else if (p.status === 'FAILED') {
           li.className = 'failed';
           li.textContent = `failed — ${meta} — ${p.result || ''}`;
+        } else if (p.status === 'QUEUED') {
+          li.className = 'queued';
+          li.textContent = `queued — ${meta} — ${p.result || ''}`;
         } else {
           li.textContent = `dismissed — ${meta}${p.result ? ' — ' + p.result : ''}`;
         }

@@ -66,7 +66,7 @@ Code lives in feature packages under `src/main/java/org/acme/`, and tests mirror
   * `/ws/dashboard`: requires the `admin` role and a same-origin `Origin` header. Sends `race` snapshots and `game` events.
   * WebSockets Next doesn't cancel the `Multi` returned by `@OnOpen` when the connection closes, so every per-connection stream goes through `PlayerSocket.whileOpen`.
 * **MCP server:** [`RaceTools.java`](src/main/java/org/acme/admin/RaceTools.java) defines tools on two servers.
-  * `/mcp` (default server, no login): `get_race_state`, `get_leaderboard`, `get_player`, `get_hall_of_fame`, the resource `race://current`, which notifies subscribers on every race update, and the prompts `race_briefing` and `race_recap`.
+  * `/mcp` (default server, no login): `get_race_state`, `get_leaderboard`, `get_player`, `get_hall_of_fame`, `get_active_theme`, the resource `race://current`, which notifies subscribers on every race update, and the prompts `race_briefing` and `race_recap`.
   * `/admin/mcp` (server `admin`): the same, plus `start_race`, `pause_race`, `reset_race`, `boost_team`, `reset_hall_of_fame`, `set_input_mode`, `set_commentary_style`, `list_preset_themes`, `apply_theme`, the `theme_idea` prompt, and, when AI is enabled, `suggest_team_names` and `generate_theme`. An HTTP permission requires a bearer token with the `admin` role. It isn't `@RolesAllowed` on the tools, because MCP clients only start their OAuth login on a 401.
   * The prompts own their wording and fill in server state (`@Prompt`, `@PromptArg`, `@CompletePrompt`): `race_briefing` takes a commentary `style` and an optional `focus` and returns the rules plus the live race JSON; `race_recap` takes a `raceId` and `tone` and returns the hall-of-fame entry, or the race in progress when nothing has finished; `theme_idea` takes an `event` and `audience` and returns a design brief ending in `apply_theme`. They only read state.
   * Tokens come from the Keycloak realm `wind-turbine` (`src/main/resources/keycloak/wind-turbine-realm.json`, imported by Keycloak Dev Services). Users `developer` (admin) and `player`; clients `wind-turbine` (the app) and `mcp-agent` (public, PKCE, redirect `http://localhost:33418/callback`, direct grants in dev only). The app requires the audience `wind-turbine`. Dev Services uses the container name `wind-turbine`, so it creates its own container instead of attaching to another project's Keycloak when container reuse is enabled; the realm in a shared container doesn't match the file.
@@ -80,6 +80,7 @@ Code lives in feature packages under `src/main/java/org/acme/`, and tests mirror
 * **Frontend Single Page App:** [`src/main/webui/`](src/main/webui/)
   * `src/main/webui/src/components/Dashboard/`: Main operator race screen with live track, leaderboard, and play/reset controls. It renders the server's race state and doesn't compute the race itself. `DirectorConsole.jsx` is the race-ops agent's status and approval cards, polling race-ops and hiding itself when it is down (`game.ops.enabled`).
   * `src/main/webui/src/components/GameController/`: Mobile player controller with team selection modal, wind turbine SVG, and tap/shake/swipe listeners. It talks to the server over the player WebSocket (`src/main/webui/src/api/PlayerSocket.js`).
+* **Race director and the A2A mesh (subprojects, own poms):** `race-ops` operates the event through the game's admin MCP server and calls two specialists over A2A. `race-analyst` (port 8082) computes the engagement report from two snapshots in plain code. `race-creative` (port 8083) is the LLM agent whose tools are the game's theme tools. Every director decision goes through one supervisor that has both specialists as sub-agents. Mid-race the analyst runs first and the model decides from its diagnosis whether the director boosts (return `done`, the analyst's sentence becomes the card's reason) or the creative director proposes a look for the next heat; nothing in the request pre-writes that choice, and the route is read from which specialist answered, never from model text. Between heats the same entry point gets a standing order to call the creative director. The planner is steered only through `supervisorContext`: the framework builds its system message itself, so an `@SystemMessage` on the supervisor is ignored. The payload travels as a typed argument the routing model cannot rewrite; only the choice of specialist comes from it. A next-heat look needs 30% of the trailing team stopped tapping, and a decision whose race stopped running is dropped; a theme approved mid-heat is queued and applied after the finish. The creative agent is also gated structurally by an `@ActivationCondition`, so the planner is never offered it on a soft-tapping diagnosis. The analyst is also called directly for the console's engagement numbers, and an approved theme executes directly. Both specialists are single-tenant A2A apps with `a2a.authorization.required=false`, and both have no route on the cluster. Every mesh call has an in-process fallback, so a stopped specialist never blocks the race. On the cluster the specialists are reached on their Service port 80, the MCP protocol is pinned to `2026-07-28` on both clients (stateless requests, `_meta` and `Mcp-Method` per call, no session), and the subsidiary SSE channel is off because an edge route 504s the idle stream of the legacy protocol; a decision waits 15 s mid-race and 40 s between heats. See [race-ops/README.md](race-ops/README.md), [race-analyst/README.md](race-analyst/README.md) and [race-creative/README.md](race-creative/README.md).
 
 ---
 
@@ -103,6 +104,9 @@ OIDC is off unless something switches it on, and both ways of switching it on se
 * Dashboard: `http://localhost:8080/dashboard`
 * Dev UI: `http://localhost:8080/q/dev/`
 * race-ops (the director subproject, own pom): dev mode on `http://localhost:8081/`, ops page at `/ops.html`, Prometheus metrics at `/metrics`, build and test with `./mvnw -f race-ops/pom.xml ...`. See [race-ops/README.md](race-ops/README.md).
+* race-analyst (the analyst specialist, own pom): A2A on `http://localhost:8082/`, card at `/.well-known/agent-card.json`, tests with `./mvnw -f race-analyst/pom.xml test`. See [race-analyst/README.md](race-analyst/README.md).
+* race-creative (the creative specialist, own pom): A2A on `http://localhost:8083/`, card at `/.well-known/agent-card.json`, tests with `./mvnw -f race-creative/pom.xml test`. See [race-creative/README.md](race-creative/README.md).
+* Full mesh start order: game, then race-analyst, then race-creative, then race-ops. race-ops also runs alone; `race-ops.mesh-enabled=false` keeps it from building the A2A clients at all.
 
 ### Load Testing & Performance Analysis
 To run load tests and analyze system behavior:
@@ -138,6 +142,7 @@ To run load tests and analyze system behavior:
 2. **Browser E2E Tests:** [`RaceWebUITest.java`](src/test/java/org/acme/RaceWebUITest.java:34) tests full browser interactions (Playwright + Quinoa).
 3. **Optional tests:** the AI commentary tests (`AiCommentatorTest`, with a local OpenAI stub) and the cheat endpoint tests (`CheatResourceTest`) are tagged `@Tag("optional")`. Each needs its own app boot, so the default run skips them. Run them with `./mvnw test -Poptional`. Every `@TestProfile` restarts the app and its Dev Services, so reuse an existing profile before adding one.
 4. **Load Simulation:** [`scripts/GameLoader.java`](scripts/GameLoader.java:36) uses non-blocking Vert.x WebClient for traffic generation.
+5. **Subproject tests:** each of the three subprojects builds and tests with its own pom, and none of them talks to a running game or model in the default run. `./mvnw -f race-ops/pom.xml test` (93 tests) covers the director, the mesh wiring and the console API with the game and mesh flags off. `./mvnw -f race-analyst/pom.xml test` (15) and `./mvnw -f race-creative/pom.xml test` (23) boot each A2A app on a random port and send real `SendMessage` tasks. Stop a dev-mode app before running `mvn test` on the same project, because the compile triggers a reload and race-ops or race-creative with a live MCP connection dies on reload.
 
 ### CRITICAL: Playwright & Container Safety
 * **NEVER run load tests using Playwright / browser instances:** Launching multiple headless Chromium instances (`Playwright.create()`) simultaneously consumes immense CPU/RAM and can crash the host system. Heavy traffic load simulation is strictly handled via `scripts/GameLoader.java`.
@@ -192,6 +197,21 @@ features shipped); only still-true items remain.
 - **The socket tests hang in the dev-mode test runner** (`devui-testing_runTest`) but
   pass under `./mvnw test`. Use the Maven runner for `PlayerSocketTest` and
   `DashboardSocketTest`.
+- **race-ops and race-creative cannot hot-reload while their MCP client is connected**:
+  the langchain4j MCP transport blocks on close during the reload and the dev process
+  dies. Stop and restart dev mode instead. See
+  [`race-ops/UPSTREAM-ISSUE.md`](race-ops/UPSTREAM-ISSUE.md).
+- **A specialist that is down degrades the console, not the race**: the engagement
+  numbers fall back to the in-process composition and a theme proposal falls back to a
+  preset. The console keeps the race status, elapsed time, positions and power from the
+  snapshot in every case.
+- **A pending card blocks every new proposal.** The director proposes one card at a time and
+  returns early while one is waiting, so a theme card left over from the previous heat also
+  stops the mid-race boost for the next heat. Decide each card before starting a race.
+- **The first admin MCP call after a race-ops rollout can answer 401.** The OIDC client is
+  still obtaining its token, and the call fails soft: reading the active theme falls back to
+  the default, `start_race` retries after a short backoff, and the next call succeeds. Seen
+  once on the cluster, never in dev.
 
 The former session-encryption-key and hosted-commentary-verification issues are fixed:
 the key now comes from the `game-session` secret, and hosted commentary is verified
