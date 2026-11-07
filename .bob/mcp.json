@@ -31,7 +31,7 @@
       ]
     },
     "wind-turbine-race-cluster": {
-      "url": "https://quinoa-wind-turbine-wind-turbine.apps.ocp.485fj.sandbox1374.opentlc.com/mcp",
+      "url": "https://quinoa-wind-turbine-wind-turbine.apps.cluster-dnw9g.dyn.redhatworkshops.io/mcp",
       "alwaysAllow": [
         "get_race_state",
         "get_leaderboard",
@@ -40,7 +40,7 @@
       ]
     },
     "wind-turbine-admin-cluster": {
-      "url": "https://quinoa-wind-turbine-wind-turbine.apps.ocp.485fj.sandbox1374.opentlc.com/admin/mcp",
+      "url": "https://quinoa-wind-turbine-wind-turbine.apps.cluster-dnw9g.dyn.redhatworkshops.io/admin/mcp",
       "alwaysAllow": [
         "get_race_state",
         "get_leaderboard",
