@@ -15,13 +15,13 @@ resources:
 # Deployments exist this block matches nothing and changes no resource.
 images:
 - name: ghcr.io/redhat-developer-demos/quinoa-wind-turbine
-  digest: sha256:003969a9471f323182c5b47fdcb6a5f60906577424a28aff7ac3b71e96cc2769
+  digest: sha256:fd2764f317a4cb1b9d48cfdeaa530567b2e1520be790290592f0c1c9d0848932
 - name: ghcr.io/redhat-developer-demos/race-ops
-  digest: sha256:9b739707002604d8c8af77c821ef9d3a1fe20d15e7d568c082076af7799fbd28
+  digest: sha256:3378b7889f6297e2809fb75b5b71495601303a915d4f43c73190c1c8a6855513
 - name: ghcr.io/redhat-developer-demos/race-analyst
-  digest: sha256:3e147bcf999f5042b68fb489845a2d8704fef3eeeeb14efdf8a8dd2731482a4f
+  digest: sha256:2a8edb7d419a1f5cdc69e04824324926c9ec35f9d69e2314ea623764d9d36477
 - name: ghcr.io/redhat-developer-demos/race-creative
-  digest: sha256:5c7a894d958e145ddbc4486c3d85800b45344fc79caafeb882a3fea50e7dfee4
+  digest: sha256:79dfacf8e9a0de68085c18314c4f2c6afbb76ab22778b21386a91a1eaf7ab621
 
 patches:
 # Pin both routes to the host OpenShift assigns the game route in this namespace.
