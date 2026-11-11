@@ -13,13 +13,13 @@ resources:
 # digest it pushed for the gitops-deploy head; do not edit the digests by hand.
 images:
 - name: ghcr.io/redhat-developer-demos/quinoa-wind-turbine
-  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  digest: sha256:003969a9471f323182c5b47fdcb6a5f60906577424a28aff7ac3b71e96cc2769
 - name: ghcr.io/redhat-developer-demos/race-ops
-  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  digest: sha256:9b739707002604d8c8af77c821ef9d3a1fe20d15e7d568c082076af7799fbd28
 - name: ghcr.io/redhat-developer-demos/race-analyst
-  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  digest: sha256:3e147bcf999f5042b68fb489845a2d8704fef3eeeeb14efdf8a8dd2731482a4f
 - name: ghcr.io/redhat-developer-demos/race-creative
-  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  digest: sha256:5c7a894d958e145ddbc4486c3d85800b45344fc79caafeb882a3fea50e7dfee4
 
 patches:
 # Pin both routes to the host OpenShift assigns the game route in this namespace, so the
