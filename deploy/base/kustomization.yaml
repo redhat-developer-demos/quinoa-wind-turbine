@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The race game and its three agents: everything that is the same in every namespace.
+# Resources carry no namespace on purpose: the overlay stamps it, and each overlay's
+# Namespace object carries the name (Kustomize does not rename a Namespace object).
+#
+# Sync waves (argocd.argoproj.io/sync-wave) keep one Application in order: namespace -20,
+# operand CRs -10 (Kafka, Infinispan and SPIRE, added with the later steps), plain
+# resources 0 (the default), Keycloak configuration 5, Deployments 10.
+resources:
+- service-accounts.yaml
+- routes.yaml

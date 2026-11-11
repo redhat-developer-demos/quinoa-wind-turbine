@@ -1,0 +1,8 @@
+# Created before everything else (sync wave -20): the namespaced resources in the same
+# Application need the namespace to exist first.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: wind-turbine
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"

@@ -1,0 +1,37 @@
+# The game's public route. Hostless: OpenShift assigns <name>-<namespace>.<apps domain>,
+# and the overlay pins the race-ops route below to the same host. Source balancing keeps a
+# WebSocket or MCP session on one pod across requests.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: quinoa-wind-turbine
+  annotations:
+    haproxy.router.openshift.io/balance: source
+spec:
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  to:
+    kind: Service
+    name: quinoa-wind-turbine
+    weight: 100
+---
+# The race director's console, path-routed on the game's host so the dashboard and the
+# console share an origin. The overlay sets spec.host to the game route's host.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: race-ops
+spec:
+  path: /ops
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  to:
+    kind: Service
+    name: race-ops
+    weight: 100
