@@ -13,3 +13,7 @@ resources:
 - routes.yaml
 - kafka.yaml
 - infinispan.yaml
+- vault-connection.yaml
+- vault-auth.yaml
+- vso-rbac.yaml
+- vault-static-secrets.yaml

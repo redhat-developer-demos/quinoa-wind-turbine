@@ -1,0 +1,27 @@
+# The Vault Secrets Operator requests short-lived tokens for the service accounts named in
+# VaultAuth objects, and that request needs explicit permission in each target namespace —
+# without this the token request fails, the operator falls back to its own service account,
+# and Vault rejects the login with "permission denied". Same grant as progressive-delivery's
+# system/vault-config/vso-rbac.yaml, for this namespace's default service account.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vso-token-requester
+rules:
+- apiGroups: [""]
+  resources: ["serviceaccounts/token"]
+  resourceNames: ["default"]
+  verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vso-token-requester
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vso-token-requester
+subjects:
+- kind: ServiceAccount
+  name: vault-secrets-operator-controller-manager
+  namespace: openshift-operators
