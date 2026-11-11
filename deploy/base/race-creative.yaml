@@ -37,19 +37,23 @@ spec:
         - secretRef:
             name: commentary-openai
             optional: true
-        # No health extension in this app: the probes check the listener, nothing more.
+        # Health on the management interface (port 9000): the main port requires a client
+        # certificate under the mtls profile, which kubelet cannot present.
         startupProbe:
-          tcpSocket:
-            port: 8083
+          httpGet:
+            path: /q/health/started
+            port: 9000
           periodSeconds: 5
           failureThreshold: 36
         livenessProbe:
-          tcpSocket:
-            port: 8083
+          httpGet:
+            path: /q/health/live
+            port: 9000
           periodSeconds: 10
         readinessProbe:
-          tcpSocket:
-            port: 8083
+          httpGet:
+            path: /q/health/ready
+            port: 9000
           periodSeconds: 10
         resources:
           requests:
