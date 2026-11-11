@@ -108,6 +108,14 @@
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-openshift</artifactId>
     </dependency>
+    <!-- The podman builder for the GitHub Actions image workflow (-Dquarkus.container-.
+         image.builder=podman); application.properties selects the s2i builder
+         quarkus-openshift brings as the default, so this does not change the deploy
+         script's builds. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-container-image-podman</artifactId>
+    </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-junit5</artifactId>
