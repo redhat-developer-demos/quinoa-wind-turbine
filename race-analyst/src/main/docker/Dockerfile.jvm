@@ -1,0 +1,22 @@
+####
+# The image .github/workflows/images.yml builds and pushes to ghcr.io. Same shape as the
+# game's src/main/docker/Dockerfile.jvm, with this app's port; the env-var documentation
+# for the run-java.sh entrypoint lives there.
+#
+# Build after ./mvnw package with:
+#   podman build -f src/main/docker/Dockerfile.jvm -t race-analyst-jvm .
+###
+FROM registry.access.redhat.com/ubi9/openjdk-25:latest
+
+ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en'
+
+# We make four distinct layers so if there are application changes the library layers can be re-used
+COPY --chown=185 target/quarkus-app/lib/ /deployments/lib/
+COPY --chown=185 target/quarkus-app/*.jar /deployments/
+COPY --chown=185 target/quarkus-app/app/ /deployments/app/
+COPY --chown=185 target/quarkus-app/quarkus/ /deployments/quarkus/
+
+EXPOSE 8082
+USER 185
+ENV JAVA_OPTS="-Dquarkus.http.host=0.0.0.0 -Djava.util.logging.manager=org.jboss.logmanager.LogManager"
+ENV JAVA_APP_JAR="/deployments/quarkus-run.jar"
