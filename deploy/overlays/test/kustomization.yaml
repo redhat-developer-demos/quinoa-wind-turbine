@@ -9,21 +9,37 @@ namespace: wind-turbine-gitops
 resources:
 - ../../base
 - namespace.yaml
-
-# The images the Deployments (step 6) run, pinned by .github/workflows/images.yml to the
-# digest it pushed for the gitops-deploy head; do not edit the digests by hand. Until the
-# Deployments exist this block matches nothing and changes no resource.
-images:
-- name: ghcr.io/redhat-developer-demos/quinoa-wind-turbine
-  digest: sha256:fd2764f317a4cb1b9d48cfdeaa530567b2e1520be790290592f0c1c9d0848932
-- name: ghcr.io/redhat-developer-demos/race-ops
-  digest: sha256:3378b7889f6297e2809fb75b5b71495601303a915d4f43c73190c1c8a6855513
-- name: ghcr.io/redhat-developer-demos/race-analyst
-  digest: sha256:2a8edb7d419a1f5cdc69e04824324926c9ec35f9d69e2314ea623764d9d36477
-- name: ghcr.io/redhat-developer-demos/race-creative
-  digest: sha256:79dfacf8e9a0de68085c18314c4f2c6afbb76ab22778b21386a91a1eaf7ab621
+- cluster-spiffe-id.yaml
 
 patches:
+# The allowed caller is race-ops' SPIFFE ID, which carries this namespace; the base value
+# names the live namespace.
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: race-analyst
+    spec:
+      template:
+        spec:
+          containers:
+          - name: race-analyst
+            env:
+            - name: A2A_ALLOWED_CALLER
+              value: spiffe://apps.cluster-dnw9g.dyn.redhatworkshops.io/ns/wind-turbine-gitops/sa/race-ops
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: race-creative
+    spec:
+      template:
+        spec:
+          containers:
+          - name: race-creative
+            env:
+            - name: A2A_ALLOWED_CALLER
+              value: spiffe://apps.cluster-dnw9g.dyn.redhatworkshops.io/ns/wind-turbine-gitops/sa/race-ops
 # Pin both routes to the host OpenShift assigns the game route in this namespace.
 - target:
     group: route.openshift.io
@@ -43,3 +59,15 @@ patches:
     - op: add
       path: /spec/host
       value: quinoa-wind-turbine-wind-turbine-gitops.apps.cluster-dnw9g.dyn.redhatworkshops.io
+
+# The images the Deployments run, pinned by .github/workflows/images.yml to the digest it
+# pushed for the gitops-deploy head; do not edit the digests by hand.
+images:
+- name: ghcr.io/redhat-developer-demos/quinoa-wind-turbine
+  digest: sha256:fd2764f317a4cb1b9d48cfdeaa530567b2e1520be790290592f0c1c9d0848932
+- name: ghcr.io/redhat-developer-demos/race-ops
+  digest: sha256:3378b7889f6297e2809fb75b5b71495601303a915d4f43c73190c1c8a6855513
+- name: ghcr.io/redhat-developer-demos/race-analyst
+  digest: sha256:2a8edb7d419a1f5cdc69e04824324926c9ec35f9d69e2314ea623764d9d36477
+- name: ghcr.io/redhat-developer-demos/race-creative
+  digest: sha256:79dfacf8e9a0de68085c18314c4f2c6afbb76ab22778b21386a91a1eaf7ab621

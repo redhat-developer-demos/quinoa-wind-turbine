@@ -1,11 +1,10 @@
-# The race director. Step 6 of the GitOps migration: no OIDC and no SPIFFE SVID yet (those
-# arrive with the Keycloak configuration and the SVID components in steps 7 and 8), so the
-# admin MCP client cannot authenticate and the director reports it cannot act on the game —
-# the read-only race client, the watcher, the console and the mesh over plain HTTP still run.
-# QUARKUS_PROFILE is openshift-cluster, not openshift-cluster,mtls: although the image was
-# built with the mtls profile (client-auth is build-time), without the profile at runtime
-# there is no TLS configuration and the server listens in plain HTTP, which the mesh URLs in
-# the openshift-cluster profile expect.
+# The race director. Runs the mtls profile: the specialists accept only mTLS calls, so this
+# app presents its X.509 SVID as the JVM default SSLContext (MeshTls) and calls them on the
+# https URLs the profile carries. The SVID files come from the init container and sidecar
+# (see svid.yaml for the shared fetch script); a fresh SVID is re-read without a restart.
+# No OIDC yet (step 8): the admin MCP client cannot authenticate and the director reports it
+# cannot act on the game — the read-only race client, the watcher, the console and the mesh
+# still run.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -23,6 +22,43 @@ spec:
         app: race-ops
     spec:
       serviceAccountName: race-ops
+      volumes:
+      # The Workload API socket, through the SPIFFE CSI driver.
+      - name: spiffe-workload-api
+        csi:
+          driver: csi.spiffe.io
+          readOnly: true
+      # The SVID files, in memory: nothing touches a disk.
+      - name: svid
+        emptyDir:
+          medium: Memory
+      - name: svid-script
+        configMap:
+          name: svid-fetch
+      initContainers:
+      - name: svid-init
+        # Same image as the sidecar; see svid.yaml for why.
+        image: registry.redhat.io/zero-trust-workload-identity-manager/spiffe-spire-agent-rhel9@sha256:6f9fedc33a341ad6f59b0023241e27134797caa102704497a21e492f441413fe
+        command: ["sh", "-c", "for i in $(seq 1 60); do sh /scripts/fetch-x509.sh && exit 0; sleep 2; done; echo no SVID >&2; exit 1"]
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: spiffe-workload-api
+          mountPath: /spiffe-workload-api
+          readOnly: true
+        - name: svid
+          mountPath: /svid
+        - name: svid-script
+          mountPath: /scripts
+          readOnly: true
       containers:
       - name: race-ops
         # The tag is a placeholder: the overlays' images block pins the digest that
@@ -33,7 +69,7 @@ spec:
           containerPort: 8081
         env:
         - name: QUARKUS_PROFILE
-          value: openshift-cluster
+          value: openshift-cluster,mtls
         - name: RACE_OPS_AI_ENABLED
           value: "true"
         envFrom:
@@ -41,6 +77,10 @@ spec:
         - secretRef:
             name: commentary-openai
             optional: true
+        volumeMounts:
+        - name: svid
+          mountPath: /var/run/secrets/svid
+          readOnly: true
         # Health on the management interface (port 9000): the main port requires a client
         # certificate under the mtls profile, which kubelet cannot present.
         startupProbe:
@@ -66,6 +106,29 @@ spec:
           limits:
             cpu: "1"
             memory: 512Mi
+      # Keeps the SVID files current: an X.509 SVID lives an hour and renews at half-life.
+      - name: svid-refresh
+        image: registry.redhat.io/zero-trust-workload-identity-manager/spiffe-spire-agent-rhel9@sha256:6f9fedc33a341ad6f59b0023241e27134797caa102704497a21e492f441413fe
+        command: ["sh", "-c", "while true; do sh /scripts/fetch-x509.sh && sleep 60 || sleep 5; done"]
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: spiffe-workload-api
+          mountPath: /spiffe-workload-api
+          readOnly: true
+        - name: svid
+          mountPath: /svid
+        - name: svid-script
+          mountPath: /scripts
+          readOnly: true
 ---
 apiVersion: v1
 kind: Service

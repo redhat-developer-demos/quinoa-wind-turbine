@@ -1,0 +1,23 @@
+# The SPIFFE registration for the scratch namespace: same shape as the live
+# wind-turbine-agents ClusterSPIFFEID (src/main/kubernetes/spire/operands.yaml), which
+# selects only the wind-turbine namespace by label. The Service DNS names
+# (autoPopulateDNSNames) are what the JDK's hostname verification needs when race-ops calls
+# the specialists over mTLS. A separate name, not a wider selector on the live one: the test
+# app must not touch the live registration.
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterSPIFFEID
+metadata:
+  name: wind-turbine-agents-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  className: zero-trust-workload-identity-manager-spire
+  hint: wind-turbine-agents-gitops
+  spiffeIDTemplate: "spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}"
+  autoPopulateDNSNames: true
+  ttl: 1h
+  jwtTtl: 5m
+  namespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: wind-turbine-gitops
