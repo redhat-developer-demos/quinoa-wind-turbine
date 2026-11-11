@@ -9,6 +9,18 @@ resources:
 - ../../base
 - namespace.yaml
 
+# The images the Deployments (step 6) run, pinned by .github/workflows/images.yml to the
+# digest it pushed for the gitops-deploy head; do not edit the digests by hand.
+images:
+- name: ghcr.io/kdubois/quinoa-wind-turbine
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+- name: ghcr.io/kdubois/race-ops
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+- name: ghcr.io/kdubois/race-analyst
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+- name: ghcr.io/kdubois/race-creative
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
 patches:
 # Pin both routes to the host OpenShift assigns the game route in this namespace, so the
 # race-ops console path-routes on the game's host (see base/routes.yaml).
