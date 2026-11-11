@@ -1,0 +1,76 @@
+# The race director. Step 6 of the GitOps migration: no OIDC and no SPIFFE SVID yet (those
+# arrive with the Keycloak configuration and the SVID components in steps 7 and 8), so the
+# admin MCP client cannot authenticate and the director reports it cannot act on the game —
+# the read-only race client, the watcher, the console and the mesh over plain HTTP still run.
+# QUARKUS_PROFILE is openshift-cluster, not openshift-cluster,mtls: although the image was
+# built with the mtls profile (client-auth is build-time), without the profile at runtime
+# there is no TLS configuration and the server listens in plain HTTP, which the mesh URLs in
+# the openshift-cluster profile expect.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: race-ops
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: race-ops
+  template:
+    metadata:
+      labels:
+        app: race-ops
+    spec:
+      serviceAccountName: race-ops
+      containers:
+      - name: race-ops
+        # The tag is a placeholder: the overlays' images block pins the digest that
+        # .github/workflows/images.yml pushed.
+        image: ghcr.io/redhat-developer-demos/race-ops:latest
+        ports:
+        - name: http
+          containerPort: 8081
+        env:
+        - name: QUARKUS_PROFILE
+          value: openshift-cluster
+        - name: RACE_OPS_AI_ENABLED
+          value: "true"
+        envFrom:
+        # The model credentials for the director's advice; optional, like the game's.
+        - secretRef:
+            name: commentary-openai
+            optional: true
+        # No health extension in this app: the probes check the listener, nothing more.
+        startupProbe:
+          tcpSocket:
+            port: 8081
+          periodSeconds: 5
+          failureThreshold: 36
+        livenessProbe:
+          tcpSocket:
+            port: 8081
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: 8081
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: "1"
+            memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: race-ops
+spec:
+  selector:
+    app: race-ops
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8081

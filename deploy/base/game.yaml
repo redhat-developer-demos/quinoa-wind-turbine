@@ -1,0 +1,100 @@
+# The game. Step 6 of the GitOps migration: no OIDC yet (that env arrives with the Keycloak
+# configuration in step 8), so the admin MCP tools reject calls and the dashboard login falls
+# back to the digest in application.properties until the game-admin secret's password is set
+# — which it is here, through the env below. Everything else (Kafka bootstrap, Infinispan
+# host, the console settings) comes from the %openshift-cluster profile baked into the image.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quinoa-wind-turbine
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: quinoa-wind-turbine
+  template:
+    metadata:
+      labels:
+        app: quinoa-wind-turbine
+    spec:
+      containers:
+      - name: quinoa-wind-turbine
+        # The tag is a placeholder: the overlays' images block pins the digest that
+        # .github/workflows/images.yml pushed.
+        image: ghcr.io/redhat-developer-demos/quinoa-wind-turbine:latest
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: QUARKUS_PROFILE
+          value: openshift-cluster
+        # The dashboard login and the MCP browser login share this password.
+        - name: GAME_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: game-admin
+              key: password
+        # Every replica needs the same key, or a session only works on the pod that made it.
+        - name: QUARKUS_HTTP_AUTH_SESSION_ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: game-session
+              key: encryption-key
+        - name: INFINISPAN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: infinispan-credentials
+              key: password
+        # The director console, reached same-origin through the /ops path route.
+        - name: GAME_OPS_ENABLED
+          value: "true"
+        - name: GAME_OPS_URL
+          value: /ops
+        - name: GAME_AI_ENABLED
+          value: "true"
+        envFrom:
+        # The AI commentary's model credentials; optional: the game runs with template
+        # commentary when the secret is absent.
+        - secretRef:
+            name: commentary-openai
+            optional: true
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 1Gi
+        startupProbe:
+          httpGet:
+            path: /q/health/started
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          failureThreshold: 18
+        livenessProbe:
+          httpGet:
+            path: /q/health/live
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /q/health/ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quinoa-wind-turbine
+spec:
+  selector:
+    app: quinoa-wind-turbine
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
