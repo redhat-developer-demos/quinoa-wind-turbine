@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The verification overlay for the GitOps migration (sub-task 8): same shape as
+# openshift-cluster, but in a scratch namespace, so the live demo stays untouched until
+# step 9 switches it over. Deleted again once the live namespace runs from Git.
+namespace: wind-turbine-gitops
+
+resources:
+- ../../base
+- namespace.yaml
+
+patches:
+# Pin both routes to the host OpenShift assigns the game route in this namespace.
+- target:
+    group: route.openshift.io
+    version: v1
+    kind: Route
+    name: quinoa-wind-turbine
+  patch: |-
+    - op: add
+      path: /spec/host
+      value: quinoa-wind-turbine-wind-turbine-gitops.apps.cluster-dnw9g.dyn.redhatworkshops.io
+- target:
+    group: route.openshift.io
+    version: v1
+    kind: Route
+    name: race-ops
+  patch: |-
+    - op: add
+      path: /spec/host
+      value: quinoa-wind-turbine-wind-turbine-gitops.apps.cluster-dnw9g.dyn.redhatworkshops.io
