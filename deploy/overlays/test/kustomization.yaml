@@ -26,7 +26,7 @@ patches:
           - name: race-analyst
             env:
             - name: A2A_ALLOWED_CALLER
-              value: spiffe://apps.cluster-dnw9g.dyn.redhatworkshops.io/ns/wind-turbine-gitops/sa/race-ops
+              value: ns/wind-turbine-gitops/sa/race-ops
 - patch: |-
     apiVersion: apps/v1
     kind: Deployment
@@ -39,7 +39,7 @@ patches:
           - name: race-creative
             env:
             - name: A2A_ALLOWED_CALLER
-              value: spiffe://apps.cluster-dnw9g.dyn.redhatworkshops.io/ns/wind-turbine-gitops/sa/race-ops
+              value: ns/wind-turbine-gitops/sa/race-ops
 # Pin both routes to the host OpenShift assigns the game route in this namespace.
 - target:
     group: route.openshift.io

@@ -5,7 +5,7 @@
 # Infinispan password. An existing realm is left alone.
 #
 # Prerequisites: `oc login` as a cluster-admin, the repo's Maven wrapper (./mvnw), and python3 for the
-# one JSON rewrite that creates the Keycloak realm.
+# JSON handling of the Keycloak Admin API calls.
 #
 # Usage:
 #   scripts/deploy-openshift.sh
@@ -32,6 +32,18 @@ die() { echo "error: $*" >&2; exit 1; }
 # Prints the value of one key in a secret in the game namespace, or nothing when it's missing.
 existing_secret() {
   oc get secret "$1" -n "$NAMESPACE" -o "jsonpath={.data.$2}" 2>/dev/null | base64 -d 2>/dev/null || true
+}
+
+# Projects a service account token for Keycloak into a deployment's pod. The audience is the realm
+# URL, which is what Keycloak's Kubernetes identity provider requires, and Quarkus' OIDC client
+# reloads the file as the token nears expiry. The service account itself comes from
+# quarkus.openshift.service-account in the app's configuration. The Quarkus OIDC client insists on
+# a client id, so the callers set it to the service account's subject, which Keycloak accepts as the
+# client's external identity (the internal id, race-ops, is rejected as an unknown client). A strategic merge patch is
+# idempotent, but a later Maven deploy replaces the Deployment, so run this after every deploy.
+mount_keycloak_token() {
+  local name=$1
+  oc patch deployment "$name" -n "$NAMESPACE" -p "{\"spec\":{\"template\":{\"spec\":{\"volumes\":[{\"name\":\"keycloak-token\",\"projected\":{\"sources\":[{\"serviceAccountToken\":{\"audience\":\"$KC_URL\",\"expirationSeconds\":600,\"path\":\"token\"}}]}}],\"containers\":[{\"name\":\"$name\",\"volumeMounts\":[{\"name\":\"keycloak-token\",\"mountPath\":\"/var/run/secrets/tokens\",\"readOnly\":true}]}]}}}}"
 }
 
 # Waits until the operator behind a subscription is installed. The CRDs exist only after this.
@@ -103,12 +115,9 @@ GAME_ADMIN_PASSWORD=$(existing_secret game-admin password)
 GAME_ADMIN_PASSWORD=${GAME_ADMIN_PASSWORD:-$(openssl rand -hex 8)}
 SESSION_ENCRYPTION_KEY=$(existing_secret game-session encryption-key)
 SESSION_ENCRYPTION_KEY=${SESSION_ENCRYPTION_KEY:-$(openssl rand -hex 16)}
-RACE_OPS_CLIENT_SECRET=$(existing_secret race-ops-client secret)
-RACE_OPS_CLIENT_SECRET=${RACE_OPS_CLIENT_SECRET:-$(openssl rand -hex 16)}
 oc process -f src/main/kubernetes/secrets.yaml \
   -p GAME_ADMIN_PASSWORD="$GAME_ADMIN_PASSWORD" \
   -p SESSION_ENCRYPTION_KEY="$SESSION_ENCRYPTION_KEY" \
-  -p RACE_OPS_CLIENT_SECRET="$RACE_OPS_CLIENT_SECRET" \
   | oc apply -n "$NAMESPACE" -f -
 
 log "Infinispan (existing password is kept)"
@@ -123,6 +132,30 @@ log "Kafka and topics"
 oc apply -n "$NAMESPACE" -f src/main/kubernetes/openshift.cluster.yml
 oc wait --for=condition=Ready --timeout=360s kafka/my-cluster -n "$NAMESPACE"
 
+# How race-ops proves its identity to Keycloak: "kubernetes" (the projected service account token,
+# the default) or "spiffe" (a SPIFFE JWT-SVID from SPIRE). "spiffe" needs the zero trust workload
+# identity manager from src/main/kubernetes/spire and Keycloak's preview SPIFFE feature
+# (spec.features.enabled: [spiffe] in the Keycloak CR). Switching back is a re-run with the default.
+RACE_OPS_AUTH=${RACE_OPS_AUTH:-kubernetes}
+case "$RACE_OPS_AUTH" in kubernetes|spiffe) ;; *) die "RACE_OPS_AUTH must be kubernetes or spiffe" ;; esac
+
+# Whether race-ops and the two specialists talk A2A over mTLS with SPIFFE X.509 SVIDs ("true"), and
+# the specialists then accept only race-ops' SPIFFE ID, or over plain HTTP inside the cluster
+# ("false", the default). It needs the zero trust workload identity manager from
+# src/main/kubernetes/spire, and it is a build-time choice: the specialists' mTLS settings live in
+# the `mtls` profile, which is built in next to openshift-cluster. Switching back is a re-run
+# without it.
+A2A_MTLS=${A2A_MTLS:-false}
+case "$A2A_MTLS" in true|false) ;; *) die "A2A_MTLS must be true or false" ;; esac
+APP_PROFILE=openshift-cluster
+A2A_ALLOWED_CALLER=""
+if [ "$A2A_MTLS" = true ]; then
+  APP_PROFILE=openshift-cluster,mtls
+  A2A_TRUST_DOMAIN=$(oc get zerotrustworkloadidentitymanager cluster -o jsonpath='{.spec.trustDomain}') \
+    || die "A2A_MTLS=true needs the zero trust workload identity manager (src/main/kubernetes/spire)"
+  A2A_ALLOWED_CALLER="ns/$NAMESPACE/sa/race-ops"
+fi
+
 OIDC_ENABLED=false
 KC_URL=""
 if [ "${SKIP_KEYCLOAK:-0}" = 1 ] || ! oc get keycloak "$KEYCLOAK_CR" -n "$KEYCLOAK_NAMESPACE" >/dev/null 2>&1; then
@@ -136,11 +169,6 @@ else
   # The realm import reads the developer password from this secret, so it must match the dashboard's.
   oc create secret generic game-admin -n "$KEYCLOAK_NAMESPACE" \
     --from-literal=password="$GAME_ADMIN_PASSWORD" --dry-run=client -o yaml \
-    | oc apply -n "$KEYCLOAK_NAMESPACE" -f -
-
-  # And the race-ops client secret, so the confidential client and the deployment always match.
-  oc create secret generic race-ops-client -n "$KEYCLOAK_NAMESPACE" \
-    --from-literal=secret="$RACE_OPS_CLIENT_SECRET" --dry-run=client -o yaml \
     | oc apply -n "$KEYCLOAK_NAMESPACE" -f -
 
   # The realm is created through the Admin API, not with the operator's KeycloakRealmImport. That
@@ -168,16 +196,15 @@ else
       log "Realm wind-turbine exists"
       ;;
     404)
-      # oc process keeps the ${GAME_ADMIN_PASSWORD} and ${RACE_OPS_CLIENT_SECRET} placeholders, which
-      # the operator would resolve for a KeycloakRealmImport. The Admin API needs them filled in.
+      # oc process keeps the ${GAME_ADMIN_PASSWORD} placeholder, which the operator would resolve
+      # for a KeycloakRealmImport. The Admin API needs it filled in.
       log "Create realm wind-turbine"
       REALM_JSON=$(oc process -f src/main/kubernetes/keycloak/realm-import.yaml \
           -p KEYCLOAK_CR_NAME="$KEYCLOAK_CR" -o json \
-        | GAME_ADMIN_PASSWORD="$GAME_ADMIN_PASSWORD" RACE_OPS_CLIENT_SECRET="$RACE_OPS_CLIENT_SECRET" \
+        | GAME_ADMIN_PASSWORD="$GAME_ADMIN_PASSWORD" \
           python3 -c 'import json, os, sys
 realm = json.dumps(json.load(sys.stdin)["items"][0]["spec"]["realm"])
 realm = realm.replace("${GAME_ADMIN_PASSWORD}", os.environ["GAME_ADMIN_PASSWORD"])
-realm = realm.replace("${RACE_OPS_CLIENT_SECRET}", os.environ["RACE_OPS_CLIENT_SECRET"])
 sys.stdout.write(realm)')
       curl -fsS -o /dev/null -H "Authorization: Bearer $KC_TOKEN" -H "Content-Type: application/json" \
         -X POST "https://$KC_HOST/admin/realms" -d "$REALM_JSON" \
@@ -191,14 +218,16 @@ sys.stdout.write(realm)')
       ;;
   esac
 
-  # The race-ops client and its service account are ensured here, not only imported: a realm that
-  # predates this script is missing the client, and Keycloak's single-file import skips existing
-  # realms wholesale (the job logs "Realm already exists. Import skipped"), so re-applying the CR
-  # adds nothing. The role cannot live in the realm file at all: Keycloak imports users before
-  # clients, so a declared service-account-race-ops user collides with the one creating the client
-  # makes and the whole import fails on (realm_id, username). Both Admin API steps are additive and
-  # idempotent, so this runs for a realm imported just now and for one that predates the script,
-  # adding no re-authentication for MCP agents that registered their own clients dynamically.
+  # race-ops and race-creative authenticate to Keycloak with the service account token OpenShift
+  # projects into their pods (federated client authentication), so there is no client secret to
+  # create, store or rotate. The pieces are ensured here through the Admin API, not only imported:
+  # they depend on this cluster's service account issuer, a realm that predates this script lacks
+  # them, and Keycloak's single-file import skips existing realms wholesale (the job logs "Realm
+  # already exists. Import skipped"). The clients' service-account users can't live in the realm
+  # file either: Keycloak imports users before clients, so a declared service-account user collides
+  # with the one creating the client makes. Every step is additive and idempotent, so this runs for
+  # a realm created just now and for one that predates the script, adding no re-authentication for
+  # MCP agents that registered their own clients dynamically.
   KC_ADMIN_USER=$(oc get secret keycloak-initial-admin -n "$KEYCLOAK_NAMESPACE" \
     -o jsonpath='{.data.username}' | base64 -d)
   KC_ADMIN_PASSWORD=$(oc get secret keycloak-initial-admin -n "$KEYCLOAK_NAMESPACE" \
@@ -209,45 +238,128 @@ sys.stdout.write(realm)')
     | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4) || true
   [ -n "${KC_TOKEN:-}" ] || die "could not get a Keycloak admin token on $KC_HOST"
 
-  RACE_OPS_CLIENT_IN_REALM=$(curl -fsS -H "Authorization: Bearer $KC_TOKEN" \
-    "https://$KC_HOST/admin/realms/wind-turbine/clients?clientId=race-ops" | grep -o '"id"' || true)
-  if [ -z "$RACE_OPS_CLIENT_IN_REALM" ]; then
-    log "Creating the race-ops client in the realm (Admin API, additive)"
-    RACE_OPS_CLIENT_JSON=$(cat <<EOF
-{"clientId":"race-ops","name":"Race director","enabled":true,"publicClient":false,
+  # Admin API call against the wind-turbine realm: kc METHOD PATH [curl options]. -f turns an
+  # HTTP error into a failed command, so a caller can test for a missing resource.
+  kc() {
+    local method=$1 path=$2
+    shift 2
+    curl -fsS -H "Authorization: Bearer $KC_TOKEN" -H "Content-Type: application/json" \
+      -X "$method" "https://$KC_HOST/admin/realms/wind-turbine$path" "$@"
+  }
+
+  # Keycloak trusts this cluster as an issuer of client assertions. The issuer is the one the
+  # cluster stamps into its service account tokens, and Keycloak reads the keys from the cluster's
+  # own discovery endpoint with its pod's token, which works because it runs in this cluster.
+  SA_ISSUER=$(oc get --raw /.well-known/openid-configuration \
+    | python3 -c 'import json, sys; print(json.load(sys.stdin)["issuer"])') \
+    || die "could not read the cluster's service account issuer"
+  if ! kc GET /identity-provider/instances/openshift-sa -o /dev/null 2>/dev/null; then
+    log "Kubernetes identity provider openshift-sa (issuer $SA_ISSUER)"
+    kc POST /identity-provider/instances -o /dev/null -d "{\"alias\":\"openshift-sa\",\"providerId\":\"kubernetes\",\"displayName\":\"OpenShift service accounts\",\"enabled\":true,\"config\":{\"issuer\":\"$SA_ISSUER\",\"issuerDiscoveryUrl\":\"https://kubernetes.default.svc\"}}" \
+      || die "could not create the Kubernetes identity provider"
+  fi
+
+  # With RACE_OPS_AUTH=spiffe, Keycloak also trusts SPIRE as an issuer of client assertions. A SPIFFE
+  # identity provider has no issuer: it names a trust domain and the bundle endpoint it reads the
+  # signing keys from, here the JWKS the operator's OIDC discovery provider serves. The assertion
+  # carries the SPIFFE ID as its subject, and Keycloak takes the trust domain from that.
+  SPIFFE_SUB=""
+  if [ "$RACE_OPS_AUTH" = spiffe ]; then
+    SPIRE_TRUST_DOMAIN=$(oc get zerotrustworkloadidentitymanager cluster -o jsonpath='{.spec.trustDomain}') \
+      || die "RACE_OPS_AUTH=spiffe needs the zero trust workload identity manager (src/main/kubernetes/spire)"
+    SPIRE_BUNDLE_HOST=$(oc get route spire-oidc-discovery-provider -n zero-trust-workload-identity-manager \
+      -o jsonpath='{.spec.host}') || die "could not read the SPIRE OIDC discovery route"
+    SPIFFE_SUB="spiffe://$SPIRE_TRUST_DOMAIN/ns/$NAMESPACE/sa/race-ops"
+    if ! kc GET /identity-provider/instances/spire -o /dev/null 2>/dev/null; then
+      log "SPIFFE identity provider spire (trust domain $SPIRE_TRUST_DOMAIN)"
+      kc POST /identity-provider/instances -o /dev/null -d "{\"alias\":\"spire\",\"providerId\":\"spiffe\",\"displayName\":\"SPIRE workload identity\",\"enabled\":true,\"config\":{\"trustDomain\":\"spiffe://$SPIRE_TRUST_DOMAIN\",\"bundleEndpoint\":\"https://$SPIRE_BUNDLE_HOST/keys\"}}" \
+        || die "could not create the SPIFFE identity provider; is the spiffe feature enabled in the Keycloak CR?"
+    fi
+  fi
+
+  # A realm created before federated client authentication existed has a client authentication
+  # flow without the "Signed JWT - Federated" step, and a built-in flow can't be edited, so copy it,
+  # add the step and bind the copy.
+  CLIENT_FLOW=$(kc GET "" | python3 -c 'import json, sys; print(json.load(sys.stdin)["clientAuthenticationFlow"])') \
+    || die "could not read the realm's client authentication flow"
+  CLIENT_FLOW_EXECUTIONS=$(kc GET "/authentication/flows/$CLIENT_FLOW/executions") \
+    || die "could not read the client authentication flow $CLIENT_FLOW"
+  if ! grep -q '"providerId":"federated-jwt"' <<<"$CLIENT_FLOW_EXECUTIONS"; then
+    log "Client authentication flow with Signed JWT - Federated"
+    kc POST "/authentication/flows/$CLIENT_FLOW/copy" -o /dev/null -d '{"newName":"clients-federated"}' \
+      || die "could not copy the client authentication flow"
+    kc POST /authentication/flows/clients-federated/executions/execution -o /dev/null \
+      -d '{"provider":"federated-jwt"}' || die "could not add the federated step to the flow"
+    FEDERATED_EXECUTION_ID=$(kc GET /authentication/flows/clients-federated/executions | python3 -c '
+import json, sys
+print(next(e["id"] for e in json.load(sys.stdin) if e["providerId"] == "federated-jwt"))') \
+      || die "the federated step did not appear in the flow"
+    kc PUT /authentication/flows/clients-federated/executions -o /dev/null \
+      -d "{\"id\":\"$FEDERATED_EXECUTION_ID\",\"requirement\":\"ALTERNATIVE\"}" \
+      || die "could not enable the federated step"
+    kc GET "" | python3 -c '
+import json, sys
+realm = json.load(sys.stdin)
+realm["clientAuthenticationFlow"] = "clients-federated"
+sys.stdout.write(json.dumps(realm))' \
+      | kc PUT "" -o /dev/null -d @- || die "could not bind the client authentication flow"
+  fi
+
+  # Creates or converts the confidential client of one agent: no secret, it authenticates with the
+  # token of the OpenShift service account of the same name (or, given an identity provider alias
+  # and a subject, with that provider's), and its own service account holds the admin role the
+  # game's MCP server requires. The PUT replaces the protocol mappers, so a re-run leaves exactly one.
+  ensure_federated_client() {
+    local client_id=$1 display_name=$2 body client_uuid sa_user_id role_id
+    local idp=${3:-openshift-sa} subject=${4:-system:serviceaccount:$NAMESPACE:$1}
+    body=$(cat <<EOF
+{"clientId":"$client_id","name":"$display_name","enabled":true,"publicClient":false,
 "standardFlowEnabled":false,"directAccessGrantsEnabled":false,"serviceAccountsEnabled":true,
-"secret":"$RACE_OPS_CLIENT_SECRET",
+"clientAuthenticatorType":"federated-jwt",
+"attributes":{"jwt.credential.issuer":"$idp",
+"jwt.credential.sub":"$subject"},
 "protocolMappers":[{"name":"wind-turbine-audience","protocol":"openid-connect",
 "protocolMapper":"oidc-audience-mapper","consentRequired":false,
 "config":{"included.client.audience":"wind-turbine","id.token.claim":"false",
 "access.token.claim":"true","introspection.token.claim":"true"}}]}
 EOF
 )
-    curl -fsS -o /dev/null -H "Authorization: Bearer $KC_TOKEN" -H "Content-Type: application/json" \
-      -X POST "https://$KC_HOST/admin/realms/wind-turbine/clients" \
-      -d "$RACE_OPS_CLIENT_JSON" || die "could not create the race-ops Keycloak client"
-  fi
+    client_uuid=$(kc GET "/clients?clientId=$client_id" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+    if [ -z "$client_uuid" ]; then
+      log "Creating the federated client $client_id (Admin API, additive)"
+      kc POST /clients -o /dev/null -d "$body" || die "could not create the $client_id Keycloak client"
+    else
+      log "Making the Keycloak client $client_id federated"
+      kc PUT "/clients/$client_uuid" -o /dev/null -d "$body" || die "could not update the $client_id Keycloak client"
+    fi
 
-  # Creating the client with service accounts also creates its service-account user; the grant
-  # itself is a no-op when the role is already mapped.
-  SA_USER_ID=""
-  for attempt in 1 2 3 4 5; do
-    SA_USER_ID=$(curl -fsS -H "Authorization: Bearer $KC_TOKEN" \
-      "https://$KC_HOST/admin/realms/wind-turbine/users?username=service-account-race-ops" \
-      | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
-    [ -n "$SA_USER_ID" ] && break
-    sleep 2
-  done
-  [ -n "$SA_USER_ID" ] || die "the race-ops service account user did not appear in Keycloak"
-  ADMIN_ROLE_ID=$(curl -fsS -H "Authorization: Bearer $KC_TOKEN" \
-    "https://$KC_HOST/admin/realms/wind-turbine/roles/admin" \
-    | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4) || true
-  [ -n "$ADMIN_ROLE_ID" ] || die "the wind-turbine realm has no admin role to grant"
-  # The role-mapping endpoint takes an array of role representations, not one object.
-  curl -fsS -o /dev/null -H "Authorization: Bearer $KC_TOKEN" -H "Content-Type: application/json" \
-    -X POST "https://$KC_HOST/admin/realms/wind-turbine/users/$SA_USER_ID/role-mappings/realm" \
-    -d "[{\"id\":\"$ADMIN_ROLE_ID\",\"name\":\"admin\"}]" \
-    || die "could not grant the admin role to the race-ops service account"
+    # Creating the client with service accounts also creates its service-account user; the grant
+    # itself is a no-op when the role is already mapped.
+    sa_user_id=""
+    for _ in 1 2 3 4 5; do
+      sa_user_id=$(kc GET "/users?username=service-account-$client_id" \
+        | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+      [ -n "$sa_user_id" ] && break
+      sleep 2
+    done
+    [ -n "$sa_user_id" ] || die "the $client_id service account user did not appear in Keycloak"
+    role_id=$(kc GET /roles/admin | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4) || true
+    [ -n "$role_id" ] || die "the wind-turbine realm has no admin role to grant"
+    # The role-mapping endpoint takes an array of role representations, not one object.
+    kc POST "/users/$sa_user_id/role-mappings/realm" -o /dev/null \
+      -d "[{\"id\":\"$role_id\",\"name\":\"admin\"}]" \
+      || die "could not grant the admin role to the $client_id service account"
+  }
+  # Record client logins, so Keycloak's events show which method each agent used.
+  kc PUT /events/config -o /dev/null \
+    -d '{"eventsEnabled":true,"eventsListeners":["jboss-logging"],"enabledEventTypes":["CLIENT_LOGIN","CLIENT_LOGIN_ERROR"],"eventsExpiration":86400,"adminEventsEnabled":false}' \
+    || die "could not enable client login events"
+  if [ "$RACE_OPS_AUTH" = spiffe ]; then
+    ensure_federated_client race-ops "Race director" spire "$SPIFFE_SUB"
+  else
+    ensure_federated_client race-ops "Race director"
+  fi
+  ensure_federated_client race-creative "Race creative director"
 fi
 
 # The s2i build replaces the Deployment, which drops variables set with `oc set env`. Baking the OIDC
@@ -285,13 +397,25 @@ else
 fi
 
 if [ "$OIDC_ENABLED" = true ]; then
+  # The two agents that talk to Keycloak run as their own service accounts, because Keycloak maps
+  # each client to one service account subject and warns against sharing the namespace default.
+  # race-analyst gets one too, so SPIRE can give it an identity of its own.
+  for agent in race-ops race-creative race-analyst; do
+    oc create serviceaccount "$agent" -n "$NAMESPACE" --dry-run=client -o yaml \
+      | oc apply -n "$NAMESPACE" -f -
+  done
+
   # The two A2A specialists race-ops calls. Each is its own service, so one can be restarted or
   # killed on stage without touching the others; neither exposes a route.
   log "Build and deploy race-analyst"
-  ./mvnw -f race-analyst/pom.xml package -Dquarkus.profile=openshift-cluster \
+  ./mvnw -f race-analyst/pom.xml package -Dquarkus.profile="$APP_PROFILE" \
     -Dquarkus.kubernetes.deploy=true -DskipTests \
     -Dquarkus.container-image.registry="$REGISTRY" \
-    -Dquarkus.container-image.group="$NAMESPACE"
+    -Dquarkus.container-image.group="$NAMESPACE" \
+    -Dquarkus.openshift.env.vars.a2a-allowed-caller="$A2A_ALLOWED_CALLER"
+  if [ "$A2A_MTLS" = true ]; then
+    scripts/mount-spiffe-svid.sh race-analyst "$NAMESPACE" --x509
+  fi
   wait_for_build_and_rollout race-analyst
 
   log "Build and deploy race-creative"
@@ -307,13 +431,21 @@ if [ "$OIDC_ENABLED" = true ]; then
   # times out. The route is annotated `balance: source`, so it keeps a caller on one pod. Both
   # MCP clients in the cluster therefore go through the route, not the Service.
   # $CREATIVE_AI_ARGS is unquoted for the same reason as $OIDC_ARGS above.
-  ./mvnw -f race-creative/pom.xml package -Dquarkus.profile=openshift-cluster \
+  ./mvnw -f race-creative/pom.xml package -Dquarkus.profile="$APP_PROFILE" \
     -Dquarkus.kubernetes.deploy=true -DskipTests \
     -Dquarkus.container-image.registry="$REGISTRY" \
     -Dquarkus.container-image.group="$NAMESPACE" \
+    -Dquarkus.openshift.env.vars.a2a-allowed-caller="$A2A_ALLOWED_CALLER" \
     -Dquarkus.openshift.env.vars.quarkus-oidc-client-auth-server-url="$KC_URL" \
+    -Dquarkus.openshift.env.vars.quarkus-oidc-client-client-id="system:serviceaccount:$NAMESPACE:race-creative" \
     -Dquarkus.openshift.env.vars.quarkus-langchain4j-mcp-race-admin-url="https://$APP_HOST/admin/mcp" \
     $CREATIVE_AI_ARGS
+  # Patch before waiting: the s2i build is asynchronous, so the first pod of the new image already
+  # starts with the token mounted.
+  mount_keycloak_token race-creative
+  if [ "$A2A_MTLS" = true ]; then
+    scripts/mount-spiffe-svid.sh race-creative "$NAMESPACE" --x509
+  fi
   wait_for_build_and_rollout race-creative
   if [ -n "$CREATIVE_AI_ARGS" ]; then
     oc set env deployment/race-creative -n "$NAMESPACE" --from=secret/commentary-openai
@@ -323,15 +455,40 @@ if [ "$OIDC_ENABLED" = true ]; then
   log "Build and deploy race-ops"
   # The director talks to the game through the same source-balanced route, so the MCP sessions
   # stay on one of the five pods. OIDC comes from the same Keycloak as the game's admin login.
-  ./mvnw -f race-ops/pom.xml package -Dquarkus.profile=openshift-cluster \
+  # Quarkus needs a client id and Keycloak only accepts the assertion's subject there. With
+  # RACE_OPS_AUTH=spiffe the assertion is the JWT-SVID file the svid-refresh sidecar keeps current.
+  RACE_OPS_CLIENT_ID="system:serviceaccount:$NAMESPACE:race-ops"
+  RACE_OPS_AUTH_ARGS=""
+  if [ "$RACE_OPS_AUTH" = spiffe ]; then
+    RACE_OPS_CLIENT_ID=$SPIFFE_SUB
+    RACE_OPS_AUTH_ARGS="-Dquarkus.openshift.env.vars.quarkus-oidc-client-credentials-jwt-source=spiffe-jwt -Dquarkus.openshift.env.vars.quarkus-oidc-client-credentials-jwt-token-path=/var/run/secrets/svid/jwt_svid.token"
+  fi
+  # $RACE_OPS_AUTH_ARGS is unquoted on purpose, like $OIDC_ARGS: several -D options, none with a space.
+  ./mvnw -f race-ops/pom.xml package -Dquarkus.profile="$APP_PROFILE" \
     -Dquarkus.kubernetes.deploy=true -DskipTests \
     -Dquarkus.container-image.registry="$REGISTRY" \
     -Dquarkus.container-image.group="$NAMESPACE" \
     -Dquarkus.openshift.env.vars.quarkus-langchain4j-mcp-race-url="https://$APP_HOST/mcp" \
     -Dquarkus.openshift.env.vars.quarkus-langchain4j-mcp-race-admin-url="https://$APP_HOST/admin/mcp" \
     -Dquarkus.openshift.env.vars.quarkus-oidc-client-auth-server-url="$KC_URL" \
-    -Dquarkus.openshift.env.vars.race-ops-ai-enabled=true
+    -Dquarkus.openshift.env.vars.quarkus-oidc-client-client-id="$RACE_OPS_CLIENT_ID" \
+    -Dquarkus.openshift.env.vars.race-ops-ai-enabled=true \
+    $RACE_OPS_AUTH_ARGS
 
+  # One call per Deployment: the sidecar and init container carry every kind of SVID the pod needs.
+  RACE_OPS_SVID_ARGS=""
+  if [ "$RACE_OPS_AUTH" = spiffe ]; then
+    RACE_OPS_SVID_ARGS="--jwt $KC_URL"
+  else
+    mount_keycloak_token race-ops
+  fi
+  if [ "$A2A_MTLS" = true ]; then
+    RACE_OPS_SVID_ARGS="$RACE_OPS_SVID_ARGS --x509"
+  fi
+  if [ -n "$RACE_OPS_SVID_ARGS" ]; then
+    # shellcheck disable=SC2086 # several options, none with a space
+    scripts/mount-spiffe-svid.sh race-ops "$NAMESPACE" $RACE_OPS_SVID_ARGS
+  fi
   wait_for_build_and_rollout race-ops
 
   if oc get secret commentary-openai -n "$NAMESPACE" >/dev/null 2>&1; then

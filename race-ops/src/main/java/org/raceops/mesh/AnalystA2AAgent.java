@@ -12,11 +12,14 @@ import org.eclipse.microprofile.config.ConfigProvider;
  */
 public interface AnalystA2AAgent {
 
+    /** The agentic-scope key this agent's answer lands under; MeshClient reads the route from it. */
+    String OUTPUT_KEY = "engagement";
+
     @A2AClientAgent(
         name = "Race Analyst",
         description = "Compares two race snapshots and says why a team is behind: tappers, "
             + "players who stopped tapping, and average power per player.",
-        outputKey = "engagement")
+        outputKey = OUTPUT_KEY)
     ResultWithAgenticScope<String> analyze(AnalysisRequest analysisRequest);
 
     @A2AServerUrlSupplier

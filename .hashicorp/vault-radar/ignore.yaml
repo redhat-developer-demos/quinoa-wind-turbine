@@ -1,0 +1,11 @@
+# Block Secrets ignore rules
+# Paths are relative to the repository root.
+
+# Self-signed X.509 test fixtures for the mTLS unit tests: certificates and keys in the
+# test.example and other.example domains, generated for these tests, never real credentials.
+# SvidSslContextTest does a local mTLS round trip with the race-ops fixtures; the two
+# CallerAllowListTests match SPIFFE IDs from theirs.
+- paths:
+    - "race-ops/src/test/resources/svid/**"
+    - "race-analyst/src/test/resources/spiffe/**"
+    - "race-creative/src/test/resources/spiffe/**"

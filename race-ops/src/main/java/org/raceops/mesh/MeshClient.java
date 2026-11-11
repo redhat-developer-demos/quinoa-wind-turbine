@@ -10,7 +10,6 @@ import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.context.ManagedExecutor;
 
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -94,11 +93,11 @@ public class MeshClient {
                 .orTimeout(timeoutSeconds, TimeUnit.SECONDS)
                 .join();
             AgenticScope scope = result.agenticScope();
-            boolean diagnosed = scope != null && scope.hasState("engagement");
+            boolean diagnosed = scope != null && scope.hasState(AnalystA2AAgent.OUTPUT_KEY);
             return new Intervention(result.result(),
-                diagnosed ? scope.readState("engagement", "") : "",
+                diagnosed ? scope.readState(AnalystA2AAgent.OUTPUT_KEY, "") : "",
                 diagnosed,
-                scope != null && scope.hasState("creative"));
+                scope != null && scope.hasState(CreativeA2AAgent.OUTPUT_KEY));
         } catch (CompletionException e) {
             Throwable cause = e.getCause();
             throw cause instanceof RuntimeException runtime ? runtime
@@ -120,6 +119,18 @@ public class MeshClient {
     }
 
     /**
+     * The creative app's apply contract. {@code mode} is always {@code apply} — a proposal
+     * arrives as prose and never as this object, so nothing else may build one — and the brief
+     * is the proposal the operator approved.
+     */
+    record ApplyRequest(String mode, String kind, String brief) {
+
+        ApplyRequest(String kind, String brief) {
+            this("apply", kind, brief);
+        }
+    }
+
+    /**
      * Approved execution, straight to the creative app with no model in the path. The
      * creative app answers with the proposal it executed; an error artifact comes back as
      * {@code "Error: ..."}, which is raised so the card records a failure instead of
@@ -128,8 +139,7 @@ public class MeshClient {
     public String applyTheme(String kind, String brief) {
         String answer;
         try {
-            String request = mapper.writeValueAsString(
-                Map.of("mode", "apply", "kind", kind, "brief", brief));
+            String request = mapper.writeValueAsString(new ApplyRequest(kind, brief));
             answer = creative.get().creative(new ThemeRequest(request)).result();
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Cannot serialize the theme brief: " + e.getOriginalMessage(), e);
