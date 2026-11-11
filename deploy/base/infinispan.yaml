@@ -1,0 +1,30 @@
+# Infinispan for the game's clustered counters, from
+# src/main/kubernetes/infinispan/infinispan.yaml. The app defines the "users" and "races"
+# counters at startup (GameResource), so no server-side cache or counter config is required
+# here. The counters are PERSISTENT, so the instance keeps a data volume and the race and
+# user IDs survive a restart.
+#
+# The CR needs the infinispan-credentials secret (the operator's endpointSecretName): in the
+# test overlay it is a plain Secret, and step 4 of the plan replaces it with a
+# VaultStaticSecret in both overlays. Sync wave -10 like Kafka; the operator retries until
+# the secret exists, and the wellFormed health check gates the wave.
+apiVersion: infinispan.org/v1
+kind: Infinispan
+metadata:
+  name: infinispan
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  replicas: 1
+  # Uses the credentials above instead of the operator-generated secret.
+  security:
+    endpointSecretName: infinispan-credentials
+    # The Hot Rod client authenticates with SASL but no TLS, so serve the endpoint in plaintext.
+    endpointEncryption:
+      type: None
+  # DataGrid service is required for clustered counters and persistent storage.
+  service:
+    type: DataGrid
+    container:
+      storage: 1Gi

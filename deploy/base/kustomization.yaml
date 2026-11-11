@@ -11,3 +11,5 @@ kind: Kustomization
 resources:
 - service-accounts.yaml
 - routes.yaml
+- kafka.yaml
+- infinispan.yaml
