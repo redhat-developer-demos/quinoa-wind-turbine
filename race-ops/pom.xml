@@ -108,6 +108,13 @@
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-openshift</artifactId>
     </dependency>
+    <!-- Health endpoints for the cluster probes. They are served on the management interface
+         (see application.properties): kubelet probes cannot reach the main port once the mtls
+         profile requires client certificates. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-smallrye-health</artifactId>
+    </dependency>
     <!-- The podman builder for the GitHub Actions image workflow (-Dquarkus.container-.
          image.builder=podman); application.properties selects the s2i builder
          quarkus-openshift brings as the default, so this does not change the deploy
