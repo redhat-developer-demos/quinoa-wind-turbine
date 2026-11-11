@@ -1,0 +1,8 @@
+# The connection to the shared dev-mode Vault (progressive-delivery's vault-server app).
+# Same shape as progressive-delivery's system/vault-config/vault-connection.yaml.
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultConnection
+metadata:
+  name: vault-connection
+spec:
+  address: http://vault.openshift-gitops.svc.cluster.local:8200

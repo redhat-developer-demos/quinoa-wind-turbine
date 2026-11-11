@@ -1,0 +1,15 @@
+# How the Vault Secrets Operator authenticates for this namespace's VaultStaticSecrets: a
+# Kubernetes login as the namespace's default service account against the wind-turbine role
+# (scripts/seed-vault.sh creates the role and the policy). The role binds both the live
+# namespace and the gitops test namespace, so step 9 needs no Vault-side change.
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuth
+metadata:
+  name: vault-auth
+spec:
+  vaultConnectionRef: vault-connection
+  method: kubernetes
+  mount: kubernetes
+  kubernetes:
+    role: wind-turbine
+    serviceAccount: default

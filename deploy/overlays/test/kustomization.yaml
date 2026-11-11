@@ -9,7 +9,6 @@ namespace: wind-turbine-gitops
 resources:
 - ../../base
 - namespace.yaml
-- infinispan-credentials.yaml
 
 patches:
 # Pin both routes to the host OpenShift assigns the game route in this namespace.
