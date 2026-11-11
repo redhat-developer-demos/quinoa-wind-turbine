@@ -14,13 +14,13 @@ resources:
 # digest it pushed for the gitops-deploy head; do not edit the digests by hand. Until the
 # Deployments exist this block matches nothing and changes no resource.
 images:
-- name: ghcr.io/kdubois/quinoa-wind-turbine
+- name: ghcr.io/redhat-developer-demos/quinoa-wind-turbine
   digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
-- name: ghcr.io/kdubois/race-ops
+- name: ghcr.io/redhat-developer-demos/race-ops
   digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
-- name: ghcr.io/kdubois/race-analyst
+- name: ghcr.io/redhat-developer-demos/race-analyst
   digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
-- name: ghcr.io/kdubois/race-creative
+- name: ghcr.io/redhat-developer-demos/race-creative
   digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
 
 patches:
