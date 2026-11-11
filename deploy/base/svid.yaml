@@ -1,0 +1,21 @@
+# The X.509 SVID fetch script shared by the three agents' init container and sidecar (both
+# mount this ConfigMap). The SPIFFE CSI driver mounts the Workload API socket, not files, and
+# the apps read their credentials from files: the script moves what `spire-agent api fetch
+# x509` writes (svid.0.pem, svid.0.key, bundle.0.pem) under the names the apps read, swapping
+# each file in place — a reader that lands between two moves sees a mismatched pair and rereads
+# on its next check (SvidSslContext on race-ops, the TLS registry's reload-period on the
+# specialists). Both containers use the SPIRE agent image because the zero trust workload
+# identity manager ships no spiffe-helper.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: svid-fetch
+data:
+  fetch-x509.sh: |
+    #!/bin/sh
+    set -eu
+    mkdir -p /svid/.x509
+    /spire-agent api fetch x509 -socketPath /spiffe-workload-api/spire-agent.sock -write /svid/.x509 >/dev/null
+    mv /svid/.x509/bundle.0.pem /svid/bundle.pem
+    mv /svid/.x509/svid.0.key /svid/svid.key
+    mv /svid/.x509/svid.0.pem /svid/svid.pem

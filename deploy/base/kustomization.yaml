@@ -17,6 +17,7 @@ resources:
 - vault-auth.yaml
 - vso-rbac.yaml
 - vault-static-secrets.yaml
+- svid.yaml
 - game.yaml
 - race-ops.yaml
 - race-analyst.yaml
