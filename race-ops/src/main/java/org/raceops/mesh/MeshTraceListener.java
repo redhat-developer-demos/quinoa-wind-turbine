@@ -8,11 +8,11 @@ import io.quarkus.logging.Log;
 
 /**
  * Logs every hand-off in the mesh: which agent ran, what it was given, and which keys the
- * scope holds afterwards. Copied from the a2a lab's listener because it is the demo moment
- * that makes the routing visible — the stage shows the analyst answering before the boost
- * card appears.
+ * scope holds afterwards. The trace is the demo moment that makes the routing visible — the
+ * stage shows the analyst answering before the boost card appears — so it logs at INFO on
+ * purpose; the scope dump under it stays at DEBUG for the quiet runs.
  */
-public class DebugAgentListener implements AgentListener {
+public class MeshTraceListener implements AgentListener {
 
     @Override
     public void beforeAgentInvocation(AgentRequest request) {

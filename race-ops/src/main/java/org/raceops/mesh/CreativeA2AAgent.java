@@ -23,12 +23,15 @@ public interface CreativeA2AAgent {
     /** The scope value the director writes before a supervised run; read by the condition. */
     String THEME_WINDOW = "themeWindow";
 
+    /** The agentic-scope key this agent's answer lands under; MeshClient reads the route from it. */
+    String OUTPUT_KEY = "creative";
+
     @A2AClientAgent(
         name = "Race Creative Director",
         description = "Proposes the next heat's theme and team names when players stopped "
             + "tapping or between heats, and executes an approved brief through the game's own "
             + "AI theme tools. It never changes the race in progress and cannot boost a team.",
-        outputKey = "creative")
+        outputKey = OUTPUT_KEY)
     ResultWithAgenticScope<String> creative(ThemeRequest themeRequest);
 
     /**

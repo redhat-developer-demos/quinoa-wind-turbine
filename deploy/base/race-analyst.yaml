@@ -70,7 +70,7 @@ spec:
         - name: QUARKUS_PROFILE
           value: openshift-cluster,mtls
         - name: A2A_ALLOWED_CALLER
-          value: spiffe://apps.cluster-dnw9g.dyn.redhatworkshops.io/ns/wind-turbine/sa/race-ops
+          value: ns/wind-turbine/sa/race-ops
         volumeMounts:
         - name: svid
           mountPath: /var/run/secrets/svid

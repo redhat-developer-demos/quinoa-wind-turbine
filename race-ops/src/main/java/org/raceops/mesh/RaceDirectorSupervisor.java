@@ -30,7 +30,7 @@ public interface RaceDirectorSupervisor {
 
     @AgentListenerSupplier
     static AgentListener listener() {
-        return new DebugAgentListener();
+        return new MeshTraceListener();
     }
 
     @SupervisorAgent(

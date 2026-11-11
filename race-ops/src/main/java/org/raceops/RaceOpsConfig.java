@@ -3,6 +3,8 @@ package org.raceops;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
 
+import java.util.Optional;
+
 /**
  * race-ops settings. The MCP client itself is configured by the quarkus-langchain4j-mcp
  * properties (quarkus.langchain4j.mcp.race.*); this mapping covers the watcher behavior.
@@ -85,6 +87,22 @@ public interface RaceOpsConfig {
     interface Creative {
         @WithDefault("http://localhost:8083/")
         String a2aUrl();
+    }
+
+    /**
+     * The A2A mesh's TLS. Empty without the mtls profile: the A2A clients then use the JVM's
+     * own TLS and present no SVID.
+     */
+    MeshTls meshTls();
+
+    interface MeshTls {
+
+        /**
+         * The directory the SPIFFE sidecar keeps the X.509 SVID files in ({@code svid.pem},
+         * {@code svid.key}, {@code bundle.pem}). Presented as the client certificate of the
+         * A2A calls, so the specialists accept only this app's SPIFFE ID.
+         */
+        Optional<String> directory();
     }
 
     /**
