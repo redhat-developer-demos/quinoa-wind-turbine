@@ -1,0 +1,72 @@
+# The creative director. Step 6 of the GitOps migration: like the analyst, plain HTTP without
+# the mtls profile at runtime (the SVID wiring arrives in step 7), and no OIDC yet (step 8), so
+# its admin MCP client cannot authenticate and proposals fall back to the preset rotation —
+# the app itself, its A2A endpoint and the model-backed propose mode still run.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: race-creative
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: race-creative
+  template:
+    metadata:
+      labels:
+        app: race-creative
+    spec:
+      serviceAccountName: race-creative
+      containers:
+      - name: race-creative
+        # The tag is a placeholder: the overlays' images block pins the digest that
+        # .github/workflows/images.yml pushed.
+        image: ghcr.io/redhat-developer-demos/race-creative:latest
+        ports:
+        - name: http
+          containerPort: 8083
+        env:
+        - name: QUARKUS_PROFILE
+          value: openshift-cluster
+        - name: RACE_CREATIVE_AI_ENABLED
+          value: "true"
+        envFrom:
+        # The model credentials for the theme proposals; optional, like the game's.
+        - secretRef:
+            name: commentary-openai
+            optional: true
+        # No health extension in this app: the probes check the listener, nothing more.
+        startupProbe:
+          tcpSocket:
+            port: 8083
+          periodSeconds: 5
+          failureThreshold: 36
+        livenessProbe:
+          tcpSocket:
+            port: 8083
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: 8083
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: "1"
+            memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: race-creative
+spec:
+  selector:
+    app: race-creative
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8083
