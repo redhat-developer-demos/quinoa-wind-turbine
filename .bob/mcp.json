@@ -6,7 +6,8 @@
         "get_leaderboard",
         "get_player",
         "get_race_state",
-        "get_hall_of_fame"
+        "get_hall_of_fame",
+        "get_active_theme"
       ],
       "disabled": false
     },
@@ -27,8 +28,11 @@
         "generate_theme",
         "set_input_mode",
         "set_commentary_style",
-        "suggest_team_names"
-      ]
+        "suggest_team_names",
+        "get_active_theme",
+        "list_preset_themes"
+      ],
+      "disabledTools": []
     },
     "wind-turbine-race-cluster": {
       "url": "https://quinoa-wind-turbine-wind-turbine.apps.cluster-dnw9g.dyn.redhatworkshops.io/mcp",
@@ -50,6 +54,12 @@
         "reset_race",
         "boost_team",
         "reset_hall_of_fame"
+      ]
+    },
+    "reshapr-race-momentum": {
+      "url": "http://localhost:7777/mcp/reshapr/race-momentum",
+      "alwaysAllow": [
+        "get_race_momentum"
       ]
     }
   }
