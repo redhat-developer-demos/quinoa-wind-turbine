@@ -10,7 +10,9 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 import java.net.URL;
+import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 
 
 import static java.lang.System.*;
@@ -72,6 +74,13 @@ class GameLoader implements Callable<Integer> {
     @Option(names = {"--ws"}, description = "Send power over the player WebSocket instead of one POST per click")
     private boolean ws;
 
+    @Option(names = {"--stop-team"}, description = "Stop tapping for this team once the leading distance reaches --stop-at, "
+            + "so a race has a fading side for the director to diagnose (0 keeps every team tapping)", defaultValue = "0")
+    private int stopTeam;
+
+    @Option(names = {"--stop-at"}, description = "Leading distance, in percent, at which --stop-team stops tapping", defaultValue = "50")
+    private int stopAt;
+
 
     public static void main(String... args) {
         int exitCode = new CommandLine(new GameLoader()).execute(args);
@@ -101,7 +110,7 @@ class GameLoader implements Callable<Integer> {
         System.out.println(names.size() + " different names");
         AtomicBoolean started = new AtomicBoolean(false);
         if (ws) {
-            loadOverWebSockets(vertx, users, port, ssl, started);
+            loadOverWebSockets(vertx, client, users, port, ssl, started);
             return;
         }
         while (!started.get()) {
@@ -184,11 +193,27 @@ class GameLoader implements Callable<Integer> {
     /**
      * Opens one player connection per user, waits for the start status on them, then sends each click as a message.
      */
-    void loadOverWebSockets(Vertx vertx, List<JsonObject> users, int port, boolean ssl, AtomicBoolean started)
+
+    /** The leading team's distance in percent, or 0 when the state cannot be read. */
+    private double leadingDistance(WebClient client) {
+        try {
+            String state = url.getProtocol() + "://" + url.getAuthority() + "/api/race/state";
+            JsonObject body = client.getAbs(state).send().toCompletionStage().toCompletableFuture().get()
+                    .bodyAsJsonObject();
+            return body.getJsonArray("teams").stream()
+                    .mapToDouble(t -> ((JsonObject) t).getDouble("distance"))
+                    .max().orElse(0);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+    void loadOverWebSockets(Vertx vertx, WebClient client, List<JsonObject> users, int port, boolean ssl,
+            AtomicBoolean started)
             throws InterruptedException {
         HttpClient httpClient = vertx.createHttpClient(new HttpClientOptions().setTrustAll(true).setVerifyHost(false)
                 .setMaxWebSockets(users.size()));
         final List<WebSocket> sockets = Collections.synchronizedList(new ArrayList<>());
+        final Map<WebSocket, Integer> teams = new ConcurrentHashMap<>();
         final AtomicBoolean finished = new AtomicBoolean(false);
         final CountDownLatch latchConnect = new CountDownLatch(users.size());
         for (JsonObject user : users) {
@@ -211,6 +236,7 @@ class GameLoader implements Callable<Integer> {
                         }
                     });
                     sockets.add(socket);
+                    teams.put(socket, user.getInteger("team"));
                 }
                 latchConnect.countDown();
             });
@@ -225,8 +251,21 @@ class GameLoader implements Callable<Integer> {
         // Each click is a random 1..power, averaging about power/2, so a fixed click count often leaves
         // the race near half way. Keep tapping until the race finishes; clicks is only a safety cap.
         int batch = 0;
+        boolean stopped = false;
         for (; batch < clicks && !finished.get(); batch++) {
+            // The fading-team scenario: once the race is far enough along, one side stops tapping, which
+            // is what the analyst reports and the director acts on. Without it every team taps evenly,
+            // the diagnosis finds nothing, and no proposal is made (correctly).
+            if (stopTeam > 0 && !stopped && batch % 5 == 0) {
+                stopped = leadingDistance(client) >= stopAt;
+                if (stopped) {
+                    System.out.println("team " + stopTeam + " stops tapping at " + stopAt + "%");
+                }
+            }
             for (WebSocket socket : sockets) {
+                if (stopped && teams.getOrDefault(socket, 0) == stopTeam) {
+                    continue;
+                }
                 final String click = new JsonObject().put("quantity", R.nextInt(power) + 1).encode();
                 socket.writeTextMessage(click).onFailure(Throwable::printStackTrace);
             }
