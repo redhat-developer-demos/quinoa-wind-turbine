@@ -91,6 +91,13 @@ patches:
               value: spiffe-jwt
             - name: QUARKUS_OIDC_CLIENT_CREDENTIALS_JWT_TOKEN_PATH
               value: /var/run/secrets/svid/jwt_svid.token
+            # The mesh calls the specialists by name; the JWT/X.509 SVIDs carry the pod's
+            # fully qualified DNS names, not the bare service name, so the short form fails
+            # hostname verification (No name matching race-analyst found).
+            - name: RACE_OPS_ANALYST_A2A_URL
+              value: https://race-analyst.wind-turbine.svc:80/
+            - name: RACE_OPS_CREATIVE_A2A_URL
+              value: https://race-creative.wind-turbine.svc:80/
           - name: svid-refresh
             env:
             - name: AUDIENCE
