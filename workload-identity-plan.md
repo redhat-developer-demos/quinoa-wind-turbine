@@ -947,9 +947,13 @@ game route `https://quinoa-wind-turbine-wind-turbine.apps.cluster-dnw9g.dyn.redh
   `gitops-deploy`, and holds the game (5 replicas), race-ops (mTLS, SPIFFE JWT-SVID) and the two
   specialists (mTLS, one replica each). Theme `kubecon-slc`, race-48 `WAITING`, no pending director
   card. The SPIRE trust domain is `apps.cluster-dnw9g.dyn.redhatworkshops.io`.
-- Namespace `wind-turbine-gitops`: the scratch namespace from steps 2–3 is still up with its own
-  Application. To tear it down, release the `strimzi.io/topic-operator` finalizers on its
-  KafkaTopics first, then remove the app so the namespace drain does not wedge.
+- The `wind-turbine-gitops` scratch namespace is gone (2026-11-12). The pointer left
+  `progressive-delivery` (`4dfd68c`), the Application deleted, and the namespace drained — but only
+  after clearing the `strimzi.io/topic-operator` finalizer off its five KafkaTopics: the cascade
+  removes the Kafka CR first, which takes the topic operator with it, so the topics then hold the
+  namespace in `Terminating` with nothing left to serve that finalizer. Clear them as the CR goes,
+  not before (self-heal recreates a tracked resource you delete while the app still exists). Its
+  `wind-turbine-agents-gitops` ClusterSPIFFEID went with the app.
 - Git state: `deploy/` lives on `gitops-deploy` of `redhat-developer-demos/quinoa-wind-turbine`.
   `main` is an ancestor of that branch, so there is nothing to reconcile; the branch is ahead by
   the whole deployment. The overlays pin `ghcr.io/redhat-developer-demos/*` digests.
