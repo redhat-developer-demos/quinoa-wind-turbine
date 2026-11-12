@@ -108,7 +108,8 @@ Only the user can do the browser login, so ask once and wait; don't poll or retr
 
    That is full mode and what the demo needs. It also requires `/admin/mcp` to answer 401, so it
    proves Keycloak came up, and it waits for each service before starting the next. `start oidc`
-   boots the game alone when the director isn't needed; `stop` tears the whole mesh down. Logs are
+   boots the game alone when the director isn't needed. `stop` tears the whole mesh down, including
+   a game started outside the script on the same ports, and waits for the port to be free. Logs are
    in `target/dev-mode/`, and `status` shows what is up.
 
    When the client has to run the app through the Quarkus Agent MCP instead, pass the flag as a

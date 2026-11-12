@@ -17,6 +17,10 @@
 //
 // Run it from the repository root: the Maven wrapper and the poms are resolved from the working
 // directory, and a wrong directory fails before anything starts.
+//
+// `stop` also stops a dev mode it did not start (a terminal or the Quarkus Agent MCP), as long as
+// it is a dev mode of this repository on one of the mesh ports. Anything else is reported and left
+// alone.
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -25,6 +29,9 @@ import picocli.CommandLine.Parameters;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -33,9 +40,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 
 @Command(name = "DevMode", mixinStandardHelpOptions = true, version = "DevMode 1.0",
         description = "Starts and stops the local dev modes of the race game.",
@@ -147,16 +156,20 @@ public class DevMode {
         }
     }
 
-    @Command(name = "stop", description = "Stop everything this script started.")
+    @Command(name = "stop", description = "Stop the mesh, including a dev mode this script did not start.")
     static class Stop implements Callable<Integer> {
 
         @Override
         public Integer call() throws Exception {
-            Path state = stateDir(repoRoot());
+            Path root = repoRoot();
+            Path state = stateDir(root);
             for (Service service : List.of(Service.values()).reversed()) {
                 stop(state, service.id);
             }
             stop(state, PLAYERS);
+            for (Service service : List.of(Service.values()).reversed()) {
+                stopStray(service, root);
+            }
             return 0;
         }
     }
@@ -251,29 +264,114 @@ public class DevMode {
                 state);
     }
 
-    private static void stop(Path state, String id) {
+    private static boolean stop(Path state, String id) {
         Path pid = state.resolve(id + ".pid");
         if (!Files.exists(pid)) {
-            return;
+            return false;
         }
-        Optional<ProcessHandle> handle = readPid(pid);
-        handle.ifPresent(h -> {
-            // The dev mode runs inside the Maven JVM, but every child it forked has to go too.
-            h.descendants().forEach(ProcessHandle::destroy);
-            h.destroy();
-            try {
-                h.onExit().get(10, java.util.concurrent.TimeUnit.SECONDS);
-            } catch (Exception e) {
-                h.descendants().forEach(ProcessHandle::destroyForcibly);
-                h.destroyForcibly();
-            }
+        boolean stopped = readPid(pid).map(h -> {
+            log("stopping " + id);
+            stopTree(h);
             log("stopped " + id);
-        });
+            return true;
+        }).orElse(false);
         try {
             Files.deleteIfExists(pid);
         } catch (IOException e) {
             // A leftover pid file only makes the next stop a no-op.
         }
+        return stopped;
+    }
+
+    /**
+     * Stops a dev mode on this service's port that the script never started, so `stop` leaves the
+     * machine as clean as it found it. Anything that isn't a dev mode of this repository is left
+     * alone, and said so.
+     */
+    private static void stopStray(Service service, Path root) {
+        if (!listening(service.port)) {
+            return;
+        }
+        Optional<ProcessHandle> launcher = listener(service.port).flatMap(pid -> devLauncher(pid, root));
+        if (launcher.isEmpty()) {
+            System.err.println("WARN: :" + service.port + " still answers and it isn't a dev mode of this "
+                    + "repository, so it was left alone");
+            return;
+        }
+        log(service.id + " was already up on :" + service.port + " without this script, stopping it too");
+        stopTree(launcher.get());
+    }
+
+    /**
+     * The dev mode runs in a JVM of its own, so the Maven process is not enough. Both are asked to
+     * stop, and the tree is given time to shut down: the game closes Kafka Streams and its Dev
+     * Services containers, which takes about ten seconds and has to finish before the port is free
+     * for the next start.
+     */
+    private static void stopTree(ProcessHandle handle) {
+        List<ProcessHandle> tree = new ArrayList<>();
+        tree.add(handle);
+        handle.descendants().forEach(tree::add);
+        tree.forEach(ProcessHandle::destroy);
+
+        long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
+        while (System.nanoTime() < deadline && tree.stream().anyMatch(ProcessHandle::isAlive)) {
+            sleep(100);
+        }
+        tree.stream().filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroyForcibly);
+    }
+
+    /** The pid listening on a port, found with lsof: a JVM cannot map its own ports to processes. */
+    private static Optional<ProcessHandle> listener(int port) {
+        try {
+            Process lsof = new ProcessBuilder("lsof", "-nP", "-t", "-iTCP:" + port, "-sTCP:LISTEN")
+                    .redirectErrorStream(true)
+                    .start();
+            String output = new String(lsof.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            lsof.waitFor(5, TimeUnit.SECONDS);
+            return output.lines()
+                    .findFirst()
+                    .map(String::trim)
+                    .flatMap(pid -> ProcessHandle.of(Long.parseLong(pid)));
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
+    /** The outermost process of a dev mode started from this repository, or empty for anything else. */
+    private static Optional<ProcessHandle> devLauncher(ProcessHandle pid, Path root) {
+        ProcessHandle launcher = null;
+        for (Optional<ProcessHandle> candidate = Optional.of(pid); candidate.isPresent();
+                candidate = candidate.get().parent()) {
+            if (isDevModeOf(candidate.get(), root)) {
+                launcher = candidate.get();
+            }
+        }
+        return Optional.ofNullable(launcher);
+    }
+
+    private static boolean isDevModeOf(ProcessHandle handle, Path root) {
+        return handle.info().commandLine()
+                .map(line -> (line.contains("quarkus:dev") || line.contains("quarkus dev"))
+                        && line.contains(root.toString()))
+                .orElse(false);
+    }
+
+    private static boolean listening(int port) {
+        try {
+            for (InetAddress address : InetAddress.getAllByName("localhost")) {
+                try (Socket socket = new Socket()) {
+                    // localhost can resolve to both loopbacks, and a listener may answer on one.
+                    socket.connect(new InetSocketAddress(address, port), 300);
+                    return true;
+                } catch (IOException e) {
+                    // Try the next loopback address.
+                }
+            }
+        } catch (IOException e) {
+            // Without a localhost address nothing is listening as far as we can tell.
+        }
+        return false;
     }
 
     private static boolean running(Path state, String id) {

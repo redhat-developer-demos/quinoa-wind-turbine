@@ -46,6 +46,9 @@ Every start waits for the endpoint that only answers when that service is ready.
 OIDC then check that `/admin/mcp` answers 401, which is how they know Keycloak came up. Logs land
 in `target/dev-mode/`.
 
+`stop` also shuts down a dev mode you started yourself on one of those ports, and waits for the
+game to release port 8080 (about ten seconds), so you can start again straight away.
+
 | | URL |
 |---|---|
 | Player screen | http://localhost:8080 |
