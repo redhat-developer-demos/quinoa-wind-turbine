@@ -1,0 +1,111 @@
+# SPIRE for the wind turbine agents, on top of the operator from operator.yaml.
+#
+#   oc process -f src/main/kubernetes/spire/operands.yaml \
+#     -p APPS_DOMAIN=$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}') | oc apply -f -
+#
+# The trust domain is the cluster's apps domain (the convention in Red Hat's documentation); it
+# and the cluster name are immutable once created. The JWT issuer is the OIDC discovery route
+# the operator creates, which is what Keycloak would read the JWT-SVID keys from.
+#
+# The operator also registers every pod by service account with a fallback ClusterSPIFFEID
+# (zero-trust-workload-identity-manager-spire-default). The one below takes precedence for the
+# three agents and adds their Service DNS names (the A2A mTLS server certificate needs them)
+# and short lifetimes. className must match the operator's controller or nothing reconciles it.
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: spire-operands
+parameters:
+  - name: APPS_DOMAIN
+    description: The cluster's apps domain; used as the SPIFFE trust domain.
+    required: true
+  - name: CLUSTER_NAME
+    description: Name of this cluster inside the trust domain.
+    value: wind-turbine-demo
+  - name: NAMESPACE
+    description: Namespace of the game and the agents.
+    value: wind-turbine
+objects:
+  - apiVersion: operator.openshift.io/v1alpha1
+    kind: ZeroTrustWorkloadIdentityManager
+    metadata:
+      name: cluster
+    spec:
+      trustDomain: ${APPS_DOMAIN}
+      clusterName: ${CLUSTER_NAME}
+      bundleConfigMap: spire-bundle
+  - apiVersion: operator.openshift.io/v1alpha1
+    kind: SpireServer
+    metadata:
+      name: cluster
+    spec:
+      caSubject:
+        commonName: SPIRE Server CA
+        country: US
+        organization: Wind Turbine Demo
+      caKeyType: rsa-2048
+      caValidity: 24h
+      defaultJWTValidity: 5m
+      defaultX509Validity: 1h
+      jwtIssuer: https://oidc-discovery.${APPS_DOMAIN}
+      datastore:
+        databaseType: sqlite3
+        connectionString: /run/spire/data/datastore.sqlite3
+        maxIdleConns: 2
+        maxOpenConns: 100
+      persistence:
+        accessMode: ReadWriteOnce
+        size: 2Gi
+        storageClass: ""
+      logLevel: info
+      logFormat: text
+  - apiVersion: operator.openshift.io/v1alpha1
+    kind: SpireAgent
+    metadata:
+      name: cluster
+    spec:
+      logLevel: info
+      logFormat: text
+      nodeAttestor:
+        k8sPSATEnabled: "true"
+      workloadAttestors:
+        k8sEnabled: "true"
+        workloadAttestorsVerification:
+          type: auto
+  - apiVersion: operator.openshift.io/v1alpha1
+    kind: SpiffeCSIDriver
+    metadata:
+      name: cluster
+    spec:
+      agentSocketPath: /run/spire/agent-sockets
+      pluginName: csi.spiffe.io
+  - apiVersion: operator.openshift.io/v1alpha1
+    kind: SpireOIDCDiscoveryProvider
+    metadata:
+      name: cluster
+    spec:
+      csiDriverName: csi.spiffe.io
+      jwtIssuer: https://oidc-discovery.${APPS_DOMAIN}
+      managedRoute: "true"
+      replicaCount: 1
+      logLevel: info
+      logFormat: text
+  - apiVersion: spire.spiffe.io/v1alpha1
+    kind: ClusterSPIFFEID
+    metadata:
+      name: wind-turbine-agents
+    spec:
+      className: zero-trust-workload-identity-manager-spire
+      hint: wind-turbine-agents
+      spiffeIDTemplate: "spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}"
+      autoPopulateDNSNames: true
+      ttl: 1h
+      jwtTtl: 5m
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ${NAMESPACE}
+      podSelector:
+        matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values: [race-ops, race-analyst, race-creative]

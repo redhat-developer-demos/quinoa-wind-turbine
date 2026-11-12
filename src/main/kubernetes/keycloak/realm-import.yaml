@@ -39,10 +39,6 @@ objects:
           secret:
             name: game-admin
             key: password
-        RACE_OPS_CLIENT_SECRET:
-          secret:
-            name: race-ops-client
-            key: secret
       realm:
         realm: wind-turbine
         enabled: true
@@ -136,11 +132,13 @@ objects:
                 temporary: false
             realmRoles:
               - admin
-          # The race-ops client's service-account user is not declared here. Keycloak imports
-          # users before clients, so a user named service-account-race-ops collides with the one
-          # creating the client makes and the import fails on (realm_id, username). The client
-          # below is imported without roles; scripts/deploy-openshift.sh grants the admin role
-          # to its service account through the Admin API, which also covers existing realms.
+          # The race-ops and race-creative clients and their service-account users are not declared
+          # here. They authenticate with their OpenShift service account token, which needs a
+          # Kubernetes identity provider and a client authentication flow that depend on the
+          # cluster, and Keycloak imports users before clients, so a declared service-account user
+          # collides with the one the client creation makes. scripts/deploy-openshift.sh creates
+          # the identity provider and both clients through the Admin API and grants their service
+          # accounts the admin role, which also covers existing realms.
         clients:
           - clientId: wind-turbine
             name: Wind turbine race
@@ -156,33 +154,23 @@ objects:
             publicClient: true
             standardFlowEnabled: true
             directAccessGrantsEnabled: false
+            # Bob registers 127.0.0.1:33418 and falls back to 33419-33427 when the port is busy.
             redirectUris:
               - http://localhost:33418/callback
               - http://127.0.0.1:33418/callback
+              - http://127.0.0.1:33419/callback
+              - http://127.0.0.1:33420/callback
+              - http://127.0.0.1:33421/callback
+              - http://127.0.0.1:33422/callback
+              - http://127.0.0.1:33423/callback
+              - http://127.0.0.1:33424/callback
+              - http://127.0.0.1:33425/callback
+              - http://127.0.0.1:33426/callback
+              - http://127.0.0.1:33427/callback
             webOrigins:
               - "+"
             attributes:
               pkce.code.challenge.method: S256
-            protocolMappers:
-              - name: wind-turbine-audience
-                protocol: openid-connect
-                protocolMapper: oidc-audience-mapper
-                consentRequired: false
-                config:
-                  included.client.audience: wind-turbine
-                  id.token.claim: "false"
-                  access.token.claim: "true"
-                  introspection.token.claim: "true"
-          - clientId: race-ops
-            name: Race director
-            description: Confidential client for the race-ops director application, authenticating
-              as a service account with the admin role
-            enabled: true
-            publicClient: false
-            standardFlowEnabled: false
-            directAccessGrantsEnabled: false
-            serviceAccountsEnabled: true
-            secret: ${RACE_OPS_CLIENT_SECRET}
             protocolMappers:
               - name: wind-turbine-audience
                 protocol: openid-connect

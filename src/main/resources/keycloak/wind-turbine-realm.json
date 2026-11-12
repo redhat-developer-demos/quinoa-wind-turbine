@@ -157,7 +157,16 @@
       "directAccessGrantsEnabled": true,
       "redirectUris": [
         "http://localhost:33418/callback",
-        "http://127.0.0.1:33418/callback"
+        "http://127.0.0.1:33418/callback",
+        "http://127.0.0.1:33419/callback",
+        "http://127.0.0.1:33420/callback",
+        "http://127.0.0.1:33421/callback",
+        "http://127.0.0.1:33422/callback",
+        "http://127.0.0.1:33423/callback",
+        "http://127.0.0.1:33424/callback",
+        "http://127.0.0.1:33425/callback",
+        "http://127.0.0.1:33426/callback",
+        "http://127.0.0.1:33427/callback"
       ],
       "webOrigins": ["+"],
       "attributes": {

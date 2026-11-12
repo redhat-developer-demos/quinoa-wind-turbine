@@ -55,7 +55,13 @@ The `style` and `tone` arguments offer completion values, so a client suggests t
 
 ## Bob
 
-With the project's URL-only [`.bob/mcp.json`](../.bob/mcp.json), Bob uses OAuth dynamic client registration instead of `mcp-agent`. The dev realm accepts anonymous registration and applies the `wind-turbine-audience` client scope to new clients. Keycloak asks the operator to consent during browser login. Dev Services uses port 8181 so its authorization server URL stays the same across restarts, and the service name `wind-turbine`, so it gets its own container rather than another Quarkus project's Keycloak when container reuse is enabled. Restart dev mode after changing the realm file so Keycloak imports the new policy; an already running container keeps its old realm configuration.
+[`.bob/mcp.json`](../.bob/mcp.json) gives both admin servers `"oauth": {"enabled": true, "clientId": "mcp-agent"}`, so Bob logs in with the pre-registered public client `mcp-agent` (authorization code with PKCE) and skips dynamic client registration. The operator signs in as `developer` in the browser and no secret is stored anywhere. Bob's callback is `http://127.0.0.1:33418/callback`, and it falls back to ports 33419 to 33427 when the first is busy, so the realm lists all ten. A realm imported before those redirect URIs were added needs them added to `mcp-agent` through the Admin API or the console. Use `Reset auth` in Bob's MCP settings after changing the client.
+
+Dev Services uses port 8181 so its authorization server URL stays the same across restarts, and the service name `wind-turbine`, so it gets its own container rather than another Quarkus project's Keycloak when container reuse is enabled. Restart dev mode after changing the realm file so Keycloak imports it; an already running container keeps its old realm configuration.
+
+### Dynamic registration (fallback)
+
+Remove the `oauth` block from `.bob/mcp.json` and Bob registers a client itself. The dev realm accepts anonymous registration and applies the `wind-turbine-audience` client scope to new clients. Keycloak asks the operator to consent during browser login.
 
 If registration fails with `Policy 'Trusted Hosts' rejected request to client-registration service`,
 the dev realm kept Keycloak's default Trusted Hosts policy. Keycloak adds it to realms created from

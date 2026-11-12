@@ -209,29 +209,50 @@ race-analyst and race-creative first, one replica each and no route, and points 
 the port Quarkus publishes the generated Service on; the containers keep listening on 8082 and
 8083, and 3.40 has no setting to change the Service port, so the cluster URLs use 80 while dev
 still uses the container ports. The
-creative app gets the same `race-ops` client secret as the director, and its model is enabled only
-when the `commentary-openai` secret exists. The path route
+creative app has its own `race-creative` Keycloak client and service account, and its model is
+enabled only when the `commentary-openai` secret exists. The path route
 carries `/ops` on the game's own host to the race-ops service, so the director page is
 `https://<game-host>/ops/ops.html`, its metrics are `https://<game-host>/ops/metrics`, and the
 dashboard's console fetch is same-origin. The page uses relative URLs so the same file works at
-`/ops.html` in dev and under the prefix in the cluster. The director authenticates with a
-confidential `race-ops` Keycloak
-client through a client-credentials grant. The script ensures that client, and the `admin`
-role on its service account, through Keycloak's Admin API on every run: a realm re-import
-adds nothing to an existing realm (Keycloak skips it wholesale), and the realm file cannot
-declare the service-account user at all — Keycloak imports users before clients, so a user
-named `service-account-race-ops` collides with the one the client creation makes and the
-import job fails on the `(realm_id, username)` unique constraint.
+`/ops.html` in dev and under the prefix in the cluster.
 
-Two traps in that wiring, both hit and fixed:
+The director holds no client secret. It runs as the `race-ops` OpenShift service account, and
+the deploy script projects a short-lived token for the Keycloak realm into the pod at
+`/var/run/secrets/tokens/token`. Quarkus' OIDC client sends that file as the client assertion
+(`credentials.jwt.source=bearer`, `credentials.jwt.token-path`) and rereads it as it expires.
+Keycloak accepts it because the realm has a Kubernetes identity provider (`openshift-sa`) for
+the cluster's service account issuer, and the `race-ops` client uses the *Signed JWT -
+Federated* authenticator with the subject `system:serviceaccount:<namespace>:race-ops`.
+race-creative works the same way with its own client. The script ensures the identity provider,
+the client authentication flow, both clients and the `admin` role on their service accounts
+through Keycloak's Admin API on every run: a realm re-import adds nothing to an existing realm
+(Keycloak skips it wholesale), and the realm file cannot declare the service-account user at all
+— Keycloak imports users before clients, so a user named `service-account-race-ops` collides
+with the one the client creation makes and the import job fails on the `(realm_id, username)`
+unique constraint.
+
+With SPIRE installed, `RACE_OPS_AUTH=spiffe scripts/deploy-openshift.sh` swaps the service account
+token for a SPIFFE JWT-SVID (`credentials.jwt.source=spiffe-jwt`, a sidecar renewing the file).
+The `race-ops` client then uses a `spire` identity provider and the subject
+`spiffe://<trust domain>/ns/<namespace>/sa/race-ops`. It needs the preview `spiffe` feature in the
+Keycloak resource. See [`docs/openshift-install.md`](../docs/openshift-install.md).
+
+Traps in that wiring, all hit and fixed:
 
 - The grant's enum value is `client`, not `client_credentials`
   (`quarkus.oidc-client.grant.type=client`).
-- The secret must reach `quarkus.oidc-client.credentials.secret`, env
-  `QUARKUS_OIDC_CLIENT_CREDENTIALS_SECRET`. Mapping an env var to
-  `credentials.client-secret` sets the config *group* (its value lives at `.value`), so the
-  OIDC client authenticates with no secret at all and Keycloak answers
-  `invalid_client_credentials`.
+- `quarkus.oidc-client.client-id` must be set (Quarkus refuses to start without it), and it must
+  be the token's subject, `system:serviceaccount:<namespace>:race-ops`. Keycloak finds a
+  federated client by that external identity, so the internal client id `race-ops` answers
+  `client_not_found`. The deploy script passes the value as an environment variable, because
+  only it knows the namespace.
+- The token's audience must be the realm URL, and the pod's service account must be the one
+  named in the client (`quarkus.openshift.service-account`). The projected volume is added by
+  `oc patch` after the Maven deploy, since Quarkus' OpenShift extension can't express it; a
+  later `./mvnw ... deploy` replaces the Deployment and drops it, so run the script again.
+- A realm that predates federated client authentication has a client authentication flow
+  without the *Signed JWT - Federated* step. The script copies the flow, adds the step and binds
+  the copy.
 
 Four more things only showed up on the cluster, all of them in the `openshift-cluster`
 profile so dev is untouched:

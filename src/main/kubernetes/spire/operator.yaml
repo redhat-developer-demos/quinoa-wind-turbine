@@ -1,0 +1,33 @@
+# Installs the Red Hat zero trust workload identity manager (SPIRE) from the redhat-operators
+# catalog. Optional: the game and the agents run without it.
+#
+#   oc apply -f src/main/kubernetes/spire/operator.yaml
+#   oc get csv -n zero-trust-workload-identity-manager    # wait for Succeeded
+#
+# Then create the SPIRE operands with operands.yaml.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: zero-trust-workload-identity-manager
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: zero-trust-workload-identity-manager
+  namespace: zero-trust-workload-identity-manager
+spec:
+  targetNamespaces:
+    - zero-trust-workload-identity-manager
+  upgradeStrategy: Default
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: openshift-zero-trust-workload-identity-manager
+  namespace: zero-trust-workload-identity-manager
+spec:
+  channel: stable-v1
+  name: openshift-zero-trust-workload-identity-manager
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic
