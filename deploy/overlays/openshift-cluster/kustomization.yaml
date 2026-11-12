@@ -1,16 +1,16 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# The live demo namespace. Until sub-task 8 step 9, the cluster runs from
-# scripts/deploy-openshift.sh; this overlay is what Argo CD will own once it switches.
+# The live demo namespace. Argo CD owns it from step 9 on; before that the cluster ran from
+# scripts/deploy-openshift.sh, which now only serves as the fallback.
 namespace: wind-turbine
 
 resources:
 - ../../base
 - namespace.yaml
 
-# The images the Deployments (step 6) run, pinned by .github/workflows/images.yml to the
-# digest it pushed for the gitops-deploy head; do not edit the digests by hand.
+# The images the Deployments run, pinned by .github/workflows/images.yml to the digest it
+# pushed for the gitops-deploy head; do not edit the digests by hand.
 images:
 - name: ghcr.io/redhat-developer-demos/quinoa-wind-turbine
   digest: sha256:616c04a6cc3048b4bff2c6e4ba1b3a41f1b8223bf2e703580bf5e5e770a922e5
@@ -22,8 +22,8 @@ images:
   digest: sha256:478dfdc5cf691ae4dfcf47f0c109568ff1642494e710b87ec92bbaad34194947
 
 patches:
-# Pin both routes to the host OpenShift assigns the game route in this namespace, so the
-# race-ops console path-routes on the game's host (see base/routes.yaml).
+# Pin both routes to the host the game route already uses, so the race-ops console
+# path-route works on the game's host (see base/routes.yaml).
 - target:
     group: route.openshift.io
     version: v1
@@ -42,3 +42,90 @@ patches:
     - op: add
       path: /spec/host
       value: quinoa-wind-turbine-wind-turbine.apps.cluster-dnw9g.dyn.redhatworkshops.io
+
+# The game's browser login and the audience the admin MCP tools check.
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: quinoa-wind-turbine
+    spec:
+      template:
+        spec:
+          containers:
+          - name: quinoa-wind-turbine
+            env:
+            - name: GAME_OIDC_ENABLED
+              value: "true"
+            - name: GAME_OIDC_URL
+              value: https://sso.apps.cluster-dnw9g.dyn.redhatworkshops.io/realms/wind-turbine
+
+# The director authenticates to Keycloak with a SPIFFE JWT-SVID, and reaches both MCP servers
+# on the game's route (source-balanced, so a session stays on one of the five pods).
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: race-ops
+    spec:
+      template:
+        spec:
+          initContainers:
+          - name: svid-init
+            env:
+            - name: AUDIENCE
+              value: https://sso.apps.cluster-dnw9g.dyn.redhatworkshops.io/realms/wind-turbine
+            command: ["sh", "-c", "for i in $(seq 1 60); do sh /scripts/fetch-x509.sh && sh /scripts/fetch-jwt.sh && exit 0; sleep 2; done; echo no SVID >&2; exit 1"]
+          containers:
+          - name: race-ops
+            env:
+            - name: QUARKUS_LANGCHAIN4J_MCP_RACE_URL
+              value: https://quinoa-wind-turbine-wind-turbine.apps.cluster-dnw9g.dyn.redhatworkshops.io/mcp
+            - name: QUARKUS_LANGCHAIN4J_MCP_RACE_ADMIN_URL
+              value: https://quinoa-wind-turbine-wind-turbine.apps.cluster-dnw9g.dyn.redhatworkshops.io/admin/mcp
+            - name: QUARKUS_OIDC_CLIENT_AUTH_SERVER_URL
+              value: https://sso.apps.cluster-dnw9g.dyn.redhatworkshops.io/realms/wind-turbine
+            - name: QUARKUS_OIDC_CLIENT_CLIENT_ID
+              value: spiffe://apps.cluster-dnw9g.dyn.redhatworkshops.io/ns/wind-turbine/sa/race-ops
+            - name: QUARKUS_OIDC_CLIENT_CREDENTIALS_JWT_SOURCE
+              value: spiffe-jwt
+            - name: QUARKUS_OIDC_CLIENT_CREDENTIALS_JWT_TOKEN_PATH
+              value: /var/run/secrets/svid/jwt_svid.token
+          - name: svid-refresh
+            env:
+            - name: AUDIENCE
+              value: https://sso.apps.cluster-dnw9g.dyn.redhatworkshops.io/realms/wind-turbine
+            command: ["sh", "-c", "while true; do sh /scripts/fetch-x509.sh && sh /scripts/fetch-jwt.sh && sleep 60 || sleep 5; done"]
+
+# The creative director authenticates with its service account's projected token, whose
+# audience is the realm (the image's %openshift-cluster profile reads
+# /var/run/secrets/tokens/token). It calls the game's admin MCP server on the route.
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: race-creative
+    spec:
+      template:
+        spec:
+          volumes:
+          - name: keycloak-token
+            projected:
+              sources:
+              - serviceAccountToken:
+                  audience: https://sso.apps.cluster-dnw9g.dyn.redhatworkshops.io/realms/wind-turbine
+                  expirationSeconds: 600
+                  path: token
+          containers:
+          - name: race-creative
+            volumeMounts:
+            - name: keycloak-token
+              mountPath: /var/run/secrets/tokens
+              readOnly: true
+            env:
+            - name: QUARKUS_LANGCHAIN4J_MCP_RACE_ADMIN_URL
+              value: https://quinoa-wind-turbine-wind-turbine.apps.cluster-dnw9g.dyn.redhatworkshops.io/admin/mcp
+            - name: QUARKUS_OIDC_CLIENT_AUTH_SERVER_URL
+              value: https://sso.apps.cluster-dnw9g.dyn.redhatworkshops.io/realms/wind-turbine
+            - name: QUARKUS_OIDC_CLIENT_CLIENT_ID
+              value: system:serviceaccount:wind-turbine:race-creative
