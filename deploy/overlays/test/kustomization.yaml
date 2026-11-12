@@ -64,10 +64,10 @@ patches:
 # pushed for the gitops-deploy head; do not edit the digests by hand.
 images:
 - name: ghcr.io/redhat-developer-demos/quinoa-wind-turbine
-  digest: sha256:616c04a6cc3048b4bff2c6e4ba1b3a41f1b8223bf2e703580bf5e5e770a922e5
+  digest: sha256:f4b24043d7d9bd35ea96b55fa90a52c6203a82fbae071a95be1583f2ad7b4087
 - name: ghcr.io/redhat-developer-demos/race-ops
-  digest: sha256:920e1dc86ff9ba82260db1cf45b2768d1eb517927597e7e858a93f19a60ed005
+  digest: sha256:5a8ef9d63bdee8ee9e9393f1fb7ca0c517054e73a637982d8e97b015fba025ad
 - name: ghcr.io/redhat-developer-demos/race-analyst
-  digest: sha256:858fd6c2730b1aa984a96193a45c8c6147e33c68660b6626ae0023a8c1f77c64
+  digest: sha256:92eb7fa7e5f0fd461652daf97579f342e5040a04de5ebe48d32e767b3c81b72f
 - name: ghcr.io/redhat-developer-demos/race-creative
-  digest: sha256:478dfdc5cf691ae4dfcf47f0c109568ff1642494e710b87ec92bbaad34194947
+  digest: sha256:d5744e11113f55161905eaacb695b567bad26e7e5de8b31fb31b1ddf4e55ff6b
