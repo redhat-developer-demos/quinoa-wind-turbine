@@ -37,9 +37,23 @@ spec:
         - --import.var-substitution=false
         - --import.cache.enabled=false
         - --import.users.merge-roles=true
-        envFrom:
-        - secretRef:
-            name: keycloak-admin
+        # $(VAR) in args only expands from env entries, not envFrom — hence the secretKeyRefs.
+        env:
+        - name: KEYCLOAK_URL
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-admin
+              key: url
+        - name: KEYCLOAK_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-admin
+              key: username
+        - name: KEYCLOAK_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-admin
+              key: password
         volumeMounts:
         - name: config
           mountPath: /config
