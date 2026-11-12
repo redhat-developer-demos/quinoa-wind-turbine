@@ -113,7 +113,8 @@ jbang scripts/DevMode.java stop
   the user asks for a start without auth.
 * `start` skips a service whose port already answers and says so, so re-running it after a partial
   failure is safe.
-* Logs go to `target/dev-mode/<service>.log`. `stop` terminates the whole process tree, which
+* Logs go to `target/dev-mode/<service>.log`. `stop` terminates the whole process tree — including a
+  game you started yourself on one of the mesh ports — and waits for it to release its port, which
   sidesteps the MCP client that blocks on close during a dev-mode reload: never hot-reload race-ops
   or race-creative while their MCP client is connected, stop and start instead.
 * A start made by the script is outside the Quarkus Agent MCP's control: `quarkus_stop` doesn't
