@@ -88,14 +88,46 @@ Code lives in feature packages under `src/main/java/org/acme/`, and tests mirror
 
 ### Starting Dev Mode
 
-OIDC is off unless something switches it on, and both ways of switching it on set the same property. Keep it on for normal work so Keycloak Dev Services spin up and the admin MCP server (`/admin/mcp`) is available. A plain start skips Keycloak and disables the admin tools — never do this unless explicitly asked for a minimal/no-auth start.
+Use [`scripts/DevMode.java`](scripts/DevMode.java) for every local start. It is a JBang script
+that starts the services in the order they need and waits for the readiness endpoint of each one
+before starting the next.
 
-* **For AI Agents:** `quarkus_start` takes no environment variables, but its `extraArgs` parameter reaches the JVM and Quarkus reads system properties, so start with `extraArgs: "-Dquarkus.oidc.tenant-enabled=true"`. The server keeps the argument with the instance, so `quarkus_restart` and dev-mode reloads stay authenticated too. Check status with `quarkus_status`, read logs with `quarkus_logs`, stop with `quarkus_stop`.
-* **For Developers (CLI):** Run `GAME_OIDC_ENABLED=true ./mvnw quarkus:dev`, or `./mvnw quarkus:dev -Dquarkus.oidc.tenant-enabled=true`.
-* `extraArgs` is split on whitespace, so a value containing a space can't go through it. Nothing in this project needs one; if something does, set the environment variable in the process that launches the Quarkus Agent MCP server instead.
+**When the user asks to start the game locally, run `jbang scripts/DevMode.java start`.** That is
+the full mode (`mesh`), and it is what the demo and the director need. Don't bring the four
+services up with four separate `quarkus_start` calls.
 
-> **CRITICAL — always verify OIDC is active after every start or restart:**
-> After `quarkus_start` or `quarkus_stop` + `quarkus_start`, confirm OIDC loaded by running:
+```bash
+jbang scripts/DevMode.java start                    # mesh (default): game, analyst, creative, race-ops
+jbang scripts/DevMode.java start ops                # game and race-ops, no specialists
+jbang scripts/DevMode.java start oidc               # game only, with Keycloak and /admin/mcp
+jbang scripts/DevMode.java start bare               # game only, no Keycloak
+jbang scripts/DevMode.java start mesh --players 8   # plus GameLoader with 8 simulated players
+jbang scripts/DevMode.java status
+jbang scripts/DevMode.java logs ops
+jbang scripts/DevMode.java stop
+```
+
+* OIDC is off unless something switches it on, so `oidc`, `ops` and `mesh` set `GAME_OIDC_ENABLED=true`
+  for the game. They then require `/admin/mcp` to answer **401**, which is how they know Keycloak Dev
+  Services came up. `bare` skips that check and is the only mode without Keycloak — use it only when
+  the user asks for a start without auth.
+* `start` skips a service whose port already answers and says so, so re-running it after a partial
+  failure is safe.
+* Logs go to `target/dev-mode/<service>.log`. `stop` terminates the whole process tree, which
+  sidesteps the MCP client that blocks on close during a dev-mode reload: never hot-reload race-ops
+  or race-creative while their MCP client is connected, stop and start instead.
+* A start made by the script is outside the Quarkus Agent MCP's control: `quarkus_stop` doesn't
+  reach it, `jbang scripts/DevMode.java stop` does.
+
+`quarkus_start` still works for the game alone, which is the fastest loop when you are only changing
+the game: pass `extraArgs: "-Dquarkus.oidc.tenant-enabled=true"`, and keep that argument with the
+instance, so `quarkus_restart` and dev-mode reloads stay authenticated. `extraArgs` is split on
+whitespace, so a value containing a space can't go through it; nothing in this project needs one.
+The CLI equivalents are `GAME_OIDC_ENABLED=true ./mvnw quarkus:dev` and
+`./mvnw quarkus:dev -Dquarkus.oidc.tenant-enabled=true`.
+
+> **CRITICAL — verify OIDC is active after any start the script did not make:**
+> After `quarkus_start` or a manual `./mvnw quarkus:dev`, confirm OIDC loaded by running:
 > `curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8080/admin/mcp`
 > The response **must be `401`**. A `403` means the app started **without** the OIDC flag — Keycloak Dev Services did not spin up. If you see 403, stop immediately with `quarkus_stop` and restart with `GAME_OIDC_ENABLED=true ./mvnw quarkus:dev` via CLI (the env var is the most reliable path). Do **not** attempt multiple `quarkus_start` retries with different profiles or args — they all ignore the env var and will fail the same way.
 
@@ -237,6 +269,11 @@ features shipped); only still-true items remain.
   still obtaining its token, and the call fails soft: reading the active theme falls back to
   the default, `start_race` retries after a short backoff, and the next call succeeds. Seen
   once on the cluster, never in dev.
+
+- **A stale `race-ops/target` can kill dev mode with a `NoSuchMethodError`** for a class whose
+  source no longer exists (an older revision left `MeshTls` behind). Dev mode recompiles changed
+  sources but keeps removed ones, so their CDI observers still run. Run
+  `./mvnw -f race-ops/pom.xml clean` before the first start after a big pull or a branch switch.
 
 The former session-encryption-key and hosted-commentary-verification issues are fixed:
 the key now comes from the `game-session` secret, and hosted commentary is verified
