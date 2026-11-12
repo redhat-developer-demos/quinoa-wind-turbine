@@ -31,7 +31,7 @@ as workloads, with no shared secrets and no trust placed in the network.
 | 5 SPIFFE JWT-SVID for race-ops | done, verified by events and a director-started race | from-scratch deploy script run (in 7) |
 | 6 A2A mTLS and caller allowlist | done, verified on the cluster (access control, mesh race, fallback, SVID rotation) | docs (in 7); the script's own `A2A_MTLS=true` path not run end to end |
 | 7 Demo script, docs, full redeploy | pending | needs 4 to 6, and the deployment decision in 8 (the docs describe the mechanism) |
-| 8 Declarative deployment instead of the scripts | steps 1–7 done (deploy/ tree, Argo CD app, Kafka and Infinispan, Vault secrets, CI images, all four apps running with the mTLS mesh) | steps 8 to 10 |
+| 8 Declarative deployment instead of the scripts | steps 1–9 done (deploy/ tree, Argo CD app, Kafka and Infinispan, Vault secrets, CI images, all four apps running with the mTLS mesh, realm reconciled by the hook, live namespace switched, script shrunk to a fallback) | step 10 |
 
 **Approach.** Each step leaves a working demo behind it and keeps the previous mechanism as
 a fallback until the next step is rehearsed. Step 3 is the part that does not depend on
@@ -916,9 +916,13 @@ Effort: S small, M medium, L large. Test in a second namespace (for example
       status line now always renders while the poll succeeds and reads "watching, no race
       yet" before the first snapshot (`820c2cf`; verified live in the served `App` chunk of
       the test namespace, game digest `616c04a6cc30`, 5/5 ready).
-- [ ] 9 (M) Operators as an optional platform path, retire or shrink the script, switch the live
-      namespace. **Ask the user first**: it replaces all Deployments. Verify: a clean namespace
-      comes up from Git alone.
+- [x] 9 (M) Operators as an optional platform path, retire or shrink the script, switch the live
+      namespace. Done 2026-11-12 with user approval: the `wind-turbine-live` Application builds
+      `deploy/overlays/openshift-cluster` and the whole namespace runs from Git, the script now says
+      in its header that it is the fallback for a from-scratch s2i install, and `README.md` and
+      `docs/openshift-install.md` point at the overlay first. The Deployments and Services had to be
+      deleted and recreated once, because the s2i copies carried an immutable
+      `app.kubernetes.io/name` selector that a merge patch cannot remove.
 - [ ] 10 (M each, optional, bonus) Blue-green Rollouts for race-analyst, then race-creative and
       race-ops.
 
@@ -927,10 +931,10 @@ Effort: S small, M medium, L large. Test in a second namespace (for example
 `progressive-delivery` repo (`components/applicationsets/`, `system/vault-config`, its bootstrap
 program).
 
-**Status.** `[-] steps 1–8 of 10 done; next is step 9` (the live namespace switch, gated on
-explicit user approval — it replaces every live Deployment)
+**Status.** `[-] steps 1–9 of 10 done; step 10 (Rollouts) is optional` (the live namespace switched on
+2026-11-12 with user approval, the script shrank to a documented fallback)
 
-## Hand-off: where things stand (2026-11-11, end of day)
+## Hand-off: where things stand (2026-11-12)
 
 **Read first.** `AGENTS.md` (project rules), this file, and for any race
 `.agents/skills/wind-turbine-mcp-demo/SKILL.md` (call `use_skill("wind-turbine-mcp-demo")`
@@ -938,22 +942,21 @@ before a race; the Ferrari boost is secret, Ferrari needs `"logo":"ibm"`).
 
 **Cluster** (`https://api.cluster-dnw9g.dyn.redhatworkshops.io:6443`, `oc` logged in as admin;
 game route `https://quinoa-wind-turbine-wind-turbine.apps.cluster-dnw9g.dyn.redhatworkshops.io`):
-- Namespace `wind-turbine`: game (5 replicas), race-ops (mTLS + `RACE_OPS_AUTH=spiffe`),
-  race-analyst and race-creative (mTLS, one replica each, all 2/2). Theme `ferrari-mercedes`,
-  race-32 FINISHED, no pending director card. The SPIRE trust domain is
-  `apps.cluster-dnw9g.dyn.redhatworkshops.io`.
-- Namespace `wind-turbine-gitops`: the Argo CD side of sub-task 8 steps 2–3. The Application
-  `wind-turbine` (ApplicationSet `workload-apps`) builds
-  `kdubois/quinoa-wind-turbine/deploy/overlays/test` at the full sha pinned in
-  `workloads/wind-turbine/kustomization.yaml`; Synced and Healthy with Kafka, the five topics,
-  Infinispan, the agent service accounts and the routes. Scratch: delete the namespace (release
-  the `strimzi.io/topic-operator` finalizers on the KafkaTopics first) and re-sync the app to
-  remove or rebuild it.
-- Git state for sub-task 8: `deploy/` lives on branch `gitops-deploy` of
-  `kdubois/quinoa-wind-turbine` (pushed 2026-11-11, `8dcaf3d`), not on main — `kdubois/main`
-  and local main have diverged, so decide how to reconcile them before step 9 flips the app to
-  `deploy/overlays/openshift-cluster` on main. The working tree still carries the same
-  `deploy/` files untracked, so local edits continue there and get committed to the branch.
+- Namespace `wind-turbine`: runs from Git. The `wind-turbine-live` Application in
+  `progressive-delivery` builds `deploy/overlays/openshift-cluster` at a full-sha pointer to
+  `gitops-deploy`, and holds the game (5 replicas), race-ops (mTLS, SPIFFE JWT-SVID) and the two
+  specialists (mTLS, one replica each). Theme `kubecon-slc`, race-48 `WAITING`, no pending director
+  card. The SPIRE trust domain is `apps.cluster-dnw9g.dyn.redhatworkshops.io`.
+- Namespace `wind-turbine-gitops`: the scratch namespace from steps 2–3 is still up with its own
+  Application. To tear it down, release the `strimzi.io/topic-operator` finalizers on its
+  KafkaTopics first, then remove the app so the namespace drain does not wedge.
+- Git state: `deploy/` lives on `gitops-deploy` of `redhat-developer-demos/quinoa-wind-turbine`.
+  `main` is an ancestor of that branch, so there is nothing to reconcile; the branch is ahead by
+  the whole deployment. The overlays pin `ghcr.io/redhat-developer-demos/*` digests.
+- The mesh must call the specialists by fully qualified name
+  (`https://race-analyst.wind-turbine.svc:80/`): the SVID's DNS SANs carry the pod's FQDN, not the
+  bare service name, so the short form fails hostname verification while the console still reports
+  no problem. Fixed in `54628ba`.
 - The admin MCP server `wind-turbine-admin-cluster` needs the user's browser login (developer);
   it expires. Ask the user to authenticate when a tool answers `Unauthorized`.
 - Keycloak 26.6.9 with the `spiffe` feature; realm `wind-turbine` has IdPs `openshift-sa` and
@@ -963,13 +966,16 @@ game route `https://quinoa-wind-turbine-wind-turbine.apps.cluster-dnw9g.dyn.redh
   `system:serviceaccount:wind-turbine:race-ops`, remove the `…_JWT_SOURCE`/`…_TOKEN_PATH` env vars.
   Rollback for mTLS: rebuild the three apps without the `mtls` profile and without `--x509`.
 
-**Uncommitted work in the repo** (review with `git status`): the pre-session sub-task 5 and 6
-work beyond what this session committed to the `gitops-deploy` branch — `AGENTS.md`, `docs/`,
-`.bob/mcp.json`, the realm and SPIRE manifests under `src/main/kubernetes/`, and this plan
-file, which stays uncommitted by choice. Everything deployment-relevant (mesh code, agent
-properties, Dockerfiles, the deploy tree, the image workflow) and the phone team-name fix
-(2026-11-12, `befc4df` on the branch; the game image carries it after the next CI rebuild) is
-on `gitops-deploy` in `redhat-developer-demos/quinoa-wind-turbine`.
+**Repo state.** Both checkouts are clean. `gitops-deploy` carries the whole deployment, the image
+workflow, the loader's `--stop-team`/`--stop-at` and the findings in `AGENTS.md`; `33b4bcb` is the
+last of it. `main` is an ancestor of the branch and has no `deploy/` at all.
+
+**Rehearsed 2026-11-12** on the live namespace: a theme card approved and applied (the finished heat
+reset first, `ferrari-mercedes` landed with the IBM logo, then the stage `kubecon-slc` restored), a
+fading-team heat whose boost proposal arrived at 74% and executed after the operator approved it, and a
+clean reset confirmed by polling `/api/game/status` for the new `raceId`. Pace and the reset ordering
+are in `AGENTS.md`.
+
 The subproject test suites pass (race-analyst 20, race-creative 28, race-ops 95); the game suite was not
 re-run this session.
 

@@ -50,6 +50,11 @@ You can also ask your code assistant to run the race. After the one-time setup i
 
 You need OpenShift 4.14 or later and `oc` logged in as a cluster admin.
 
+The supported deployment is the GitOps tree in [`deploy/`](deploy/): an Argo CD pointer applies
+`deploy/overlays/openshift-cluster` and reconciles the Keycloak realm, and the images come from
+`ghcr.io/redhat-developer-demos`. The script below is the fallback for a from-scratch s2i install on a
+cluster without that setup.
+
 ```bash
 scripts/deploy-openshift.sh
 ```

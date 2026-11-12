@@ -4,6 +4,12 @@
 # are read back and reused, so a re-run doesn't rotate the dashboard password, the session key or the
 # Infinispan password. An existing realm is left alone.
 #
+# This is the fallback path. The live wind-turbine namespace is deployed from Git instead: the Argo CD
+# pointer applies deploy/overlays/openshift-cluster, and the realm content is reconciled by the hook Job
+# in deploy/base/keycloak-hook.yaml. The script builds the images on the cluster with s2i and patches the
+# Deployments afterwards, which is what a from-scratch install on a cluster without that GitOps setup
+# still needs. A fix made here does not reach the live namespace: change the overlay instead.
+#
 # Prerequisites: `oc login` as a cluster-admin, the repo's Maven wrapper (./mvnw), and python3 for the
 # JSON handling of the Keycloak Admin API calls.
 #
