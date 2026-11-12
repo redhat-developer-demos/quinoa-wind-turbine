@@ -19,3 +19,15 @@ data:
     mv /svid/.x509/bundle.0.pem /svid/bundle.pem
     mv /svid/.x509/svid.0.key /svid/svid.key
     mv /svid/.x509/svid.0.pem /svid/svid.pem
+  # The JWT SVID race-ops presents to Keycloak (audience = the realm URL). The audience comes
+  # from the AUDIENCE env the live overlay sets on both containers; the token lands as
+  # jwt_svid.token, which is where quarkus.oidc-client.credentials.jwt.token-path points.
+  fetch-jwt.sh: |
+    #!/bin/sh
+    set -eu
+    t=$(/spire-agent api fetch jwt -audience "$AUDIENCE" \
+      -socketPath /spiffe-workload-api/spire-agent.sock \
+      | awk "/^token\(/{getline; gsub(/^[ \t]+/,\"\"); print; exit}")
+    [ -n "$t" ] || exit 1
+    printf %s "$t" > /svid/.jwt_svid.tmp
+    mv /svid/.jwt_svid.tmp /svid/jwt_svid.token
