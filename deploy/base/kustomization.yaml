@@ -18,6 +18,7 @@ resources:
 - vso-rbac.yaml
 - vault-static-secrets.yaml
 - keycloak-admin-secret.yaml
+- keycloak-hook.yaml
 - svid.yaml
 - game.yaml
 - race-ops.yaml
