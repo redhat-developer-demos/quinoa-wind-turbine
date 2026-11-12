@@ -207,7 +207,32 @@ features shipped); only still-true items remain.
   snapshot in every case.
 - **A pending card blocks every new proposal.** The director proposes one card at a time and
   returns early while one is waiting, so a theme card left over from the previous heat also
-  stops the mid-race boost for the next heat. Decide each card before starting a race.
+  stops the mid-race boost for the next heat. Decide each card before starting a race
+  (confirmed on the GitOps deployment: a leftover `theme` card kept the boost from ever
+  firing).
+- **A reset returns 204 before the race state clears.** `POST /api/game/event` with
+  `{"type":"reset"}` succeeds immediately, but `GET /api/race/state` keeps serving the
+  previous race for a snapshot or two. Poll `GET /api/game/status` for a new `raceId` before
+  sending `start`, or the start lands on a race that already finished and nothing runs.
+- **Demo pace:** 8–12 players at `--interval 150–200` (`--ws`) gives a 35–50 s heat, which is
+  enough runway for the analyst to report and the director to propose. `--interval 120`
+  finishes before a proposal can land. To exercise the boost path, add
+  `--stop-team 2 --stop-at 50`: one side stops tapping halfway, the analyst reports it, and
+  the director proposes `boost team=2 ×2.5` in the 65–75% window. Without a fading team
+  every simulated race taps evenly and no boost is proposed, which is correct behaviour, not
+  a fault.
+- **The director's mTLS call to a specialist can fail hostname verification** on the cluster:
+  `SSLHandshakeException ... No name matching race-analyst found`, repeated after a restart
+  of both pods too. The specialists then never answer and no mid-race boost is ever proposed,
+  while the console still reports `problem: null`. The pod's SVID must carry the short service
+  name the mesh calls, or the mesh must call the fully qualified
+  `race-analyst.wind-turbine.svc`; check the cert's SANs before blaming the registration,
+  which does have `autoPopulateDNSNames: true`.
+- **Adopting s2i-built objects into GitOps needs replacement, not patching.** The live
+  Deployments carried an immutable selector (`app.kubernetes.io/name`), and the Services kept
+  that label key — Argo's merge patch adds map keys but never removes them, and self-heal
+  restores the stale selector, so every route answered 503. Delete the Deployment and the
+  Service once so Argo creates them from the manifest.
 - **The first admin MCP call after a race-ops rollout can answer 401.** The OIDC client is
   still obtaining its token, and the call fails soft: reading the active theme falls back to
   the default, `start_race` retries after a short backoff, and the next call succeeds. Seen
