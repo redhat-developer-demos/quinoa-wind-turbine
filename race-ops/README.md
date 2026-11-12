@@ -141,6 +141,15 @@ deployment routes race-ops under the game's own host so the fetch is same-origin
 
 ## Running
 
+One command, from the repository root, starts the whole mesh in this order and waits for each:
+
+```bash
+jbang scripts/DevMode.java start
+```
+
+`start ops` boots the game and race-ops alone, `start oidc` boots the game alone with Keycloak, and
+`stop` tears it down. See [the README](../README.md#run-it-locally). By hand, it is four terminals:
+
 ```bash
 # terminal 1: the game (dev mode, port 8080)
 GAME_OIDC_ENABLED=true ./mvnw quarkus:dev

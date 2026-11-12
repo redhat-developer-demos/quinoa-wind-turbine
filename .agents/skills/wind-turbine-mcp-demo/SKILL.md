@@ -16,9 +16,10 @@ The app is an MCP server with two endpoints, configured in `.mcp.json` (Claude C
 teams in race order with `distance` in percent of the track, and the players sorted by generated
 power. Team 1 is Mountains and team 2 is Beach.
 
-The admin login needs dev mode started with OIDC on. With the Quarkus Agent MCP that means
-`quarkus_start(projectDir: <repo>, extraArgs: "-Dquarkus.oidc.tenant-enabled=true")`, which is the
-system property form of `GAME_OIDC_ENABLED=true`. If Bob's registration fails with
+The admin login needs dev mode started with OIDC on, which `jbang scripts/DevMode.java start` does;
+at the game alone, `jbang scripts/DevMode.java start oidc` does the same. With the Quarkus Agent MCP
+that means `quarkus_start(projectDir: <repo>, extraArgs: "-Dquarkus.oidc.tenant-enabled=true")`,
+which is the system property form of `GAME_OIDC_ENABLED=true`. If Bob's registration fails with
 `Policy 'Trusted Hosts' rejected request`, run `scripts/open-dev-registration.sh` and retry the login.
 
 ## Running against a cluster deployment
@@ -67,10 +68,10 @@ and breaks the flow.
   always report the final result. If the client can subscribe to `race://current`, subscribe instead
   of polling. Plain reads of the resource return the same snapshot as `get_race_state`, so they don't
   avoid the repeated-call guard.
-- The one command the demo can't avoid is the simulated-player launcher. It is pre-approved in
-  `.claude/settings.local.json` as `Bash(jbang scripts/GameLoader.java:*)`. Run exactly that
-  command, and nothing else, from the shell. If it isn't pre-approved (Bob), ask the user once to
-  start it, or to let real phones join.
+- The commands the demo can't avoid are the mesh start and the simulated-player launcher. Both are
+  pre-approved in `.claude/settings.local.json` as `Bash(jbang scripts/DevMode.java:*)` and
+  `Bash(jbang scripts/GameLoader.java:*)`. Run exactly those, and nothing else, from the shell. If
+  they aren't pre-approved (Bob), ask the user once to start them, or to let real phones join.
 - If something fails and the fix needs a shell command, stop and tell the user. Don't improvise.
 
 ## Admin login check: stop and wait for the user
@@ -98,10 +99,21 @@ Only the user can do the browser login, so ask once and wait; don't poll or retr
 
 ## Before the demo
 
-1. Start dev mode with OIDC enabled. A plain dev start runs without Keycloak (faster, one less
-   container), but the full demo needs the admin MCP server: whenever the user asks to start the
-   game, bring dev mode up with the flag, never with a plain start. With the Quarkus Agent MCP,
-   pass it as a system property, which needs nothing from the server's environment:
+1. Start the local mesh, which brings the game up with OIDC enabled, then the analyst, the creative
+   director and the race director behind it:
+
+   ```
+   jbang scripts/DevMode.java start
+   ```
+
+   That is full mode and what the demo needs. It also requires `/admin/mcp` to answer 401, so it
+   proves Keycloak came up, and it waits for each service before starting the next. `start oidc`
+   boots the game alone when the director isn't needed. `stop` tears the whole mesh down, including
+   a game started outside the script on the same ports, and waits for the port to be free. Logs are
+   in `target/dev-mode/`, and `status` shows what is up.
+
+   When the client has to run the app through the Quarkus Agent MCP instead, pass the flag as a
+   system property, which needs nothing from the server's environment:
 
    ```
    quarkus_start(projectDir: <repo>, extraArgs: "-Dquarkus.oidc.tenant-enabled=true")
@@ -111,7 +123,8 @@ Only the user can do the browser login, so ask once and wait; don't poll or retr
    equivalent is `GAME_OIDC_ENABLED=true ./mvnw quarkus:dev` or
    `./mvnw quarkus:dev -Dquarkus.oidc.tenant-enabled=true`. If dev mode is already running without
    the flag (every admin tool answers `403` while the app is up), don't work around it: stop and
-   restart with the flag. Check status with `quarkus_status`.
+   restart with the flag. `quarkus_status` only sees a dev mode it started itself, so use
+   `jbang scripts/DevMode.java status` for a mesh started by the script.
 2. Check that both game servers are connected. If `wind-turbine-race` shows `ECONNREFUSED`, it was
    probably tried before dev mode started: ask the user to run `/mcp`, pick it and choose Reconnect.
    It needs no login, so Authenticate is the wrong choice for it.

@@ -17,16 +17,43 @@ A race goes through four steps:
 
 ## Run it locally
 
-You need JDK 25 and Podman or Docker, because Dev Services starts Kafka and Infinispan for you.
+You need JDK 25, [jbang](https://www.jbang.dev/) and Podman or Docker, because Dev Services
+starts Kafka and Infinispan for you.
 
 ```bash
-./mvnw quarkus:dev
+jbang scripts/DevMode.java start
 ```
+
+That starts the whole local mesh, in the order the services need: the game with Keycloak on
+:8080, the analyst on :8082, the creative director on :8083, and the race director on :8081.
+Pick a smaller mode when you don't need the agents:
+
+| Mode | What runs |
+|---|---|
+| `mesh` (default) | game, director, both specialists |
+| `ops` | game and director, no specialists |
+| `oidc` | game only, with Keycloak and the admin MCP tools |
+| `bare` | game only, no Keycloak |
+
+```bash
+jbang scripts/DevMode.java start ops --players 8   # 8 simulated players join the next race
+jbang scripts/DevMode.java status
+jbang scripts/DevMode.java logs ops
+jbang scripts/DevMode.java stop
+```
+
+Every start waits for the endpoint that only answers when that service is ready. The modes with
+OIDC then check that `/admin/mcp` answers 401, which is how they know Keycloak came up. Logs land
+in `target/dev-mode/`.
+
+`stop` also shuts down a dev mode you started yourself on one of those ports, and waits for the
+game to release port 8080 (about ten seconds), so you can start again straight away.
 
 | | URL |
 |---|---|
 | Player screen | http://localhost:8080 |
 | Dashboard | http://localhost:8080/dashboard (log in as `developer` / `developer`) |
+| Director console | http://localhost:8081/ops.html |
 
 Outside dev mode, set the dashboard login with `GAME_ADMIN_USERNAME` and `GAME_ADMIN_PASSWORD`.
 
@@ -157,15 +184,17 @@ Both servers also expose prompts, the MCP template primitive. `/mcp` has `race_b
 
 Both are listed in [`.mcp.json`](.mcp.json) (and [`.bob/mcp.json`](.bob/mcp.json) for Bob). Claude Code offers them when you open the repository.
 
-To use the admin tools in dev mode, start the app with OIDC on. Keycloak Dev Services then starts too.
+To use the admin tools in dev mode, start with OIDC on, which the local script does:
 
 ```bash
-GAME_OIDC_ENABLED=true ./mvnw quarkus:dev
+jbang scripts/DevMode.java start        # the whole mesh, admin MCP included
+jbang scripts/DevMode.java start oidc   # the game alone, admin MCP included
 ```
 
-OIDC is the `quarkus.oidc.tenant-enabled` property, so a system property does the same job. That's
-the form a code assistant passes through the Quarkus Agent MCP, whose `quarkus_start` takes extra
-command-line arguments but no environment variables:
+OIDC is the `quarkus.oidc.tenant-enabled` property, so a plain dev mode start does the same job
+with `GAME_OIDC_ENABLED=true ./mvnw quarkus:dev`. That is also the form a code assistant passes
+through the Quarkus Agent MCP, whose `quarkus_start` takes extra command-line arguments but no
+environment variables:
 
 ```bash
 ./mvnw quarkus:dev -Dquarkus.oidc.tenant-enabled=true
