@@ -76,21 +76,18 @@ export default function DirectorConsole() {
   const problem = state.problem;
   return (
     <Console aria-label="Race director console">
-      {(engagement || problem) && (
-        <Status $failing={Boolean(problem)}>
-          <span className="dot" />
-          <span>director</span>
-          {engagement && (
-            <span className="race">
-              {engagement.raceId}
-              {' · '}
-              {engagement.status.toLowerCase()}
-              {' · '}
-              {engagement.teams.reduce((sum, t) => sum + t.tappers, 0)} players
-            </span>
-          )}
-        </Status>
-      )}
+      {/* Always a line while the director answers: an idle director and a stopped one must not
+          look the same, because the stopped one is the kill beat. */}
+      <Status $failing={Boolean(problem)}>
+        <span className="dot" />
+        <span>director</span>
+        <span className="race">
+          {engagement
+            ? `${engagement.raceId} · ${engagement.status.toLowerCase()} · `
+              + `${engagement.teams.reduce((sum, t) => sum + t.tappers, 0)} players`
+            : 'watching, no race yet'}
+        </span>
+      </Status>
       {problem && (
         <Problem role="alert">Director cannot act on the game: {problem}</Problem>
       )}
