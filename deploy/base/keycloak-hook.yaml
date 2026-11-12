@@ -1,0 +1,50 @@
+# The Keycloak configuration hook (sub-task 8, step 8): a Job Argo CD runs on every sync
+# (BeforeHookCreation replaces the previous run's Job), between the plain resources and the
+# Deployments. It applies deploy/base/keycloak-config.json to the wind-turbine realm with
+# keycloak-config-cli, reconciling drift: a deleted client or identity provider comes back on
+# the next sync.
+#
+# The flags are the dry run's findings (see the plan): --import.cache.enabled=false turns off
+# the checksum skip that would leave drift unreconciled; --import.users.merge-roles keeps the
+# role grants additive (default-roles-* stays untouched); remote-state stays at its default,
+# so the tool only ever purges resources it created itself — everything else in the shared
+# realm (mcp-agent, the game's clients) is out of scope by construction.
+#
+# The credentials come from the keycloak-admin VaultStaticSecret (the master realm's initial
+# admin, harvested into Vault by scripts/seed-vault.sh).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-config
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: keycloak-config-cli
+        image: docker.io/adorsys/keycloak-config-cli:latest
+        args:
+        - --keycloak.url=$(KEYCLOAK_URL)
+        - --keycloak.user=$(KEYCLOAK_USERNAME)
+        - --keycloak.password=$(KEYCLOAK_PASSWORD)
+        - --keycloak.ssl-verify=true
+        - --import.files=/config/wind-turbine.json
+        - --import.var-substitution=false
+        - --import.cache.enabled=false
+        - --import.users.merge-roles=true
+        envFrom:
+        - secretRef:
+            name: keycloak-admin
+        volumeMounts:
+        - name: config
+          mountPath: /config
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: keycloak-config

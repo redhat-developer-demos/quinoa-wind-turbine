@@ -1,0 +1,100 @@
+{
+  "realm": "wind-turbine",
+  "enabled": true,
+  "eventsEnabled": true,
+  "enabledEventTypes": ["CLIENT_LOGIN", "CLIENT_LOGIN_ERROR"],
+  "eventsExpiration": 86400,
+  "eventsListeners": ["jboss-logging"],
+  "identityProviders": [
+    {
+      "alias": "openshift-sa",
+      "providerId": "kubernetes",
+      "displayName": "OpenShift service accounts",
+      "enabled": true,
+      "config": {
+        "issuer": "https://kubernetes.default.svc",
+        "issuerDiscoveryUrl": "https://kubernetes.default.svc"
+      }
+    },
+    {
+      "alias": "spire",
+      "providerId": "spiffe",
+      "displayName": "SPIRE workload identity",
+      "enabled": true,
+      "config": {
+        "trustDomain": "spiffe://apps.cluster-dnw9g.dyn.redhatworkshops.io",
+        "bundleEndpoint": "https://oidc-discovery.apps.cluster-dnw9g.dyn.redhatworkshops.io/keys"
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "race-ops",
+      "name": "Race director",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "clientAuthenticatorType": "federated-jwt",
+      "attributes": {
+        "jwt.credential.issuer": "spire",
+        "jwt.credential.sub": "spiffe://apps.cluster-dnw9g.dyn.redhatworkshops.io/ns/wind-turbine/sa/race-ops"
+      },
+      "protocolMappers": [
+        {
+          "name": "wind-turbine-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "wind-turbine",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "race-creative",
+      "name": "Race creative director",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "clientAuthenticatorType": "federated-jwt",
+      "attributes": {
+        "jwt.credential.issuer": "openshift-sa",
+        "jwt.credential.sub": "system:serviceaccount:wind-turbine:race-creative"
+      },
+      "protocolMappers": [
+        {
+          "name": "wind-turbine-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "wind-turbine",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-race-ops",
+      "enabled": true,
+      "realmRoles": ["admin"]
+    },
+    {
+      "username": "service-account-race-creative",
+      "enabled": true,
+      "realmRoles": ["admin"]
+    }
+  ]
+}
