@@ -15,6 +15,10 @@ deploy into a namespace called `wind-turbine`; change it to suit.
 
 ## Deploy with the script
 
+This is the fallback path. The live namespace runs from
+[`deploy/overlays/openshift-cluster`](../deploy/overlays/openshift-cluster/kustomization.yaml) through
+Argo CD, which also reconciles the realm content.
+
 [`scripts/deploy-openshift.sh`](../scripts/deploy-openshift.sh) runs every step below in order, with
 the waits in between. It is safe to re-run:
 
