@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { gameApi, playerSocket, sensors } from '../../api';
 import Generator from './Generator';
-import { useTheme } from '../../ThemeContext';
+import { useTheme, useSetTheme } from '../../ThemeContext';
 import { useInputMode, useSetInputMode } from '../../InputModeContext';
 import { effectiveInputs } from '../../inputMode';
 import TopBar from './TopBar';
@@ -111,6 +111,7 @@ function StatusContent(props) {
 
 export default function GameController() {
   const { teams } = useTheme();
+  const setTheme = useSetTheme();
   const inputMode = useInputMode();
   const setInputMode = useSetInputMode();
   const inputs = effectiveInputs(inputMode);
@@ -135,6 +136,19 @@ export default function GameController() {
       })
       .catch(() => {});
   }, [setInputMode]);
+
+  // A theme applied between races renames the teams: pull the new ones and restyle, like the dashboard.
+  const refreshTheme = React.useCallback(() => {
+    fetch('/api/config')
+      .then((r) => r.json())
+      .then((cfg) => {
+        if (cfg && cfg.teams) {
+          // A null track in the theme means "keep the current track", so fall back to prev.track.
+          setTheme((prev) => ({ ...prev, teams: cfg.teams, track: cfg.track || prev.track }));
+        }
+      })
+      .catch(() => {});
+  }, [setTheme]);
 
   function reset() {
     setCounter(0);
@@ -168,6 +182,7 @@ export default function GameController() {
     socket.current = playerSocket.connect(user, {
       onOpen: refreshInputMode,
       onInputMode: refreshInputMode,
+      onTheme: refreshTheme,
       onEvent: (e) => gameApi.applyGameEvent(e, setStatus, reset),
       onStanding: setStanding,
       onNotification: setNotification,
@@ -177,7 +192,7 @@ export default function GameController() {
       socket.current.close();
       socket.current = null;
     };
-  }, [user, refreshInputMode]);
+  }, [user, refreshInputMode, refreshTheme]);
   // Flash GO when the race starts under the player's eyes; not when joining or reconnecting
   // to a race that is already running.
   useEffect(() => {

@@ -10,7 +10,7 @@ export function socketUrl(path) {
 
 /**
  * Opens the player connection and reconnects when it drops.
- * handlers: onEvent(gameEvent), onStanding(standing), onNotification(text), onOffline(), onOpen(), onInputMode(mode)
+ * handlers: onEvent(gameEvent), onStanding(standing), onNotification(text), onOffline(), onOpen(), onInputMode(mode), onTheme()
  * The server sends an input-mode event as { type: 'input-mode', data: { mode } }.
  */
 export function connect(user, handlers) {
@@ -46,6 +46,9 @@ export function connect(user, handlers) {
         case 'status':
           if (message.event && message.event.type === 'input-mode' && handlers.onInputMode) {
             handlers.onInputMode(message.event.data && message.event.data.mode);
+          }
+          if (message.event && message.event.type === 'theme' && handlers.onTheme) {
+            handlers.onTheme();
           }
           handlers.onEvent(message.event);
           break;
