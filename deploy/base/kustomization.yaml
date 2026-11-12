@@ -17,8 +17,17 @@ resources:
 - vault-auth.yaml
 - vso-rbac.yaml
 - vault-static-secrets.yaml
+- keycloak-admin-secret.yaml
 - svid.yaml
 - game.yaml
 - race-ops.yaml
 - race-analyst.yaml
 - race-creative.yaml
+
+configMapGenerator:
+# A stable name (no hash suffix): the hook Job references it directly.
+- name: keycloak-config
+  files:
+  - keycloak-config.json
+  options:
+    disableNameSuffixHash: true

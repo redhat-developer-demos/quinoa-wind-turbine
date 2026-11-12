@@ -71,6 +71,22 @@ def live(name):
     return {key: base64.b64decode(value).decode() for key, value in data.items()}
 
 
+def live_keycloak_admin():
+    """The shared Keycloak's initial admin credentials, or None when there is no Keycloak."""
+    result = subprocess.run(["oc", "get", "secret", "keycloak-initial-admin",
+                             "-n", "keycloak", "-o", "json"], capture_output=True, text=True)
+    if result.returncode:
+        return None
+    route = subprocess.run(["oc", "get", "route", "keycloak", "-n", "keycloak",
+                            "-o", "jsonpath={.spec.host}"], capture_output=True, text=True)
+    data = json.loads(result.stdout)["data"]
+    return {
+        "url": "https://" + route.stdout.strip(),
+        "username": base64.b64decode(data["username"]).decode(),
+        "password": base64.b64decode(data["password"]).decode(),
+    }
+
+
 def random(count):
     return "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(count))
 
@@ -106,6 +122,15 @@ if commentary:
     store("commentary-openai", commentary)
 else:
     print("    secret/wind-turbine/commentary-openai: skipped (no live secret; optional)")
+
+# The Keycloak configuration hook's credentials: the master realm's initial admin, read from
+# the operator-created secret in the Keycloak namespace. Re-seeded like everything else,
+# because the dev-mode Vault keeps nothing across a restart.
+keycloak = live_keycloak_admin()
+if keycloak:
+    store("keycloak-admin", keycloak)
+else:
+    print("    secret/wind-turbine/keycloak-admin: skipped (no Keycloak secret found)")
 
 # The VaultAuth in deploy/base logs in as the namespace's default service account.
 put("sys/policies/acl/wind-turbine", {
