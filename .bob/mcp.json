@@ -12,6 +12,10 @@
     },
     "wind-turbine-admin": {
       "url": "http://localhost:8080/admin/mcp",
+      "oauth": {
+        "enabled": true,
+        "clientId": "mcp-agent"
+      },
       "disabled": false,
       "alwaysAllow": [
         "get_leaderboard",
@@ -41,6 +45,10 @@
     },
     "wind-turbine-admin-cluster": {
       "url": "https://quinoa-wind-turbine-wind-turbine.apps.cluster-dnw9g.dyn.redhatworkshops.io/admin/mcp",
+      "oauth": {
+        "enabled": true,
+        "clientId": "mcp-agent"
+      },
       "alwaysAllow": [
         "get_race_state",
         "get_leaderboard",

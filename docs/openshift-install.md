@@ -233,7 +233,7 @@ receives the realm's `<realm>-realm` client roles, and every call under `/admin/
 answers 403 — reading its clients, updating it, even deleting it. When something has to manage the
 realm after creation, create it through the Admin API instead, which grants the creator those roles:
 `POST /admin/realms` with the realm JSON from `spec.realm` in `realm-import.yaml` and the
-`${GAME_ADMIN_PASSWORD}`/`${RACE_OPS_CLIENT_SECRET}` placeholders filled in. That is what
+`${GAME_ADMIN_PASSWORD}` placeholder filled in. That is what
 `scripts/deploy-openshift.sh` does, and the import file stays a valid `KeycloakRealmImport` for a
 Keycloak whose admin API you cannot reach.
 
@@ -286,6 +286,66 @@ oc set env deployment/quinoa-wind-turbine GAME_AI_ENABLED=true OPENAI_MODEL=gpt-
 Set `OPENAI_BASE_URL` and `OPENAI_MODEL` for a compatible endpoint reachable from the pods. For a
 server without reasoning parameters, set `OPENAI_REASONING_EFFORT` to an empty value. Keep the API
 key out of source control.
+
+## Optional workload identity with SPIRE
+
+The Red Hat zero trust workload identity manager gives race-ops, race-analyst and race-creative
+SPIFFE identities. The game and the agents run without it, and `scripts/deploy-openshift.sh` does
+not install it. The operator is listed for "OpenShift Container Platform" and "OpenShift Platform
+Plus" subscriptions.
+
+```bash
+oc apply -f src/main/kubernetes/spire/operator.yaml
+oc get csv -n zero-trust-workload-identity-manager    # wait for Succeeded
+oc process -f src/main/kubernetes/spire/operands.yaml \
+  -p APPS_DOMAIN=$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}') | oc apply -f -
+```
+
+The trust domain is the cluster's apps domain, and it can't change after the first apply. The
+`ClusterSPIFFEID` in the last command only selects the `wind-turbine` namespace, so it can run
+before the application is deployed. An agent's SPIFFE ID is
+`spiffe://<trust domain>/ns/<namespace>/sa/<service account>`, so each agent needs its own service
+account; the deploy script creates `race-analyst` for that reason.
+
+Check that SPIRE issues the identities:
+
+```bash
+oc get pods -n zero-trust-workload-identity-manager
+oc exec -n zero-trust-workload-identity-manager spire-server-0 -c spire-server -- \
+  ./spire-server entry show -spiffeID spiffe://<trust domain>/ns/wind-turbine/sa/race-ops
+```
+
+A pod fetches its SVID through the Workload API socket, which the `csi.spiffe.io` CSI driver mounts
+(`csi: { driver: csi.spiffe.io, readOnly: true }`). The operator's OIDC discovery provider serves
+the JWT-SVID keys at `https://oidc-discovery.<apps domain>/keys`.
+
+### race-ops with a JWT-SVID for Keycloak
+
+With SPIRE installed, race-ops can prove itself to Keycloak with a JWT-SVID instead of its service
+account token. Keycloak's SPIFFE client authentication is a preview feature, so the default stays
+the service account token. Enable the feature in the Keycloak resource (this restarts Keycloak, and
+with it every realm it serves), then deploy with the switch:
+
+```bash
+oc patch keycloak keycloak -n keycloak --type=merge -p '{"spec":{"features":{"enabled":["spiffe"]}}}'
+RACE_OPS_AUTH=spiffe scripts/deploy-openshift.sh
+```
+
+The script adds a `spire` identity provider to the realm (the trust domain plus the OIDC discovery
+provider's `/keys` endpoint), points the `race-ops` client at it with the subject
+`spiffe://<trust domain>/ns/<namespace>/sa/race-ops`, and runs
+[`scripts/mount-spiffe-svid.sh`](../scripts/mount-spiffe-svid.sh). That script adds the CSI volume, an
+init container that fetches the first JWT-SVID, and a sidecar that renews it every minute into an
+in-memory volume. Quarkus' OIDC client reads the file (`credentials.jwt.source=spiffe-jwt`).
+
+- Keycloak finds the client by the assertion's subject alone, so no other client may carry the
+  same SPIFFE ID.
+- Quarkus caches the access token for about five minutes. After changing the client or the
+  identity, restart race-ops.
+- To go back, run the script again without `RACE_OPS_AUTH` (or with `RACE_OPS_AUTH=kubernetes`).
+  It puts the client back on the `openshift-sa` provider and mounts the service account token.
+- Keycloak's events show which one was used: `client_assertion_sub` is the SPIFFE ID or
+  `system:serviceaccount:<namespace>:race-ops`.
 
 ## Verify the deployment
 
