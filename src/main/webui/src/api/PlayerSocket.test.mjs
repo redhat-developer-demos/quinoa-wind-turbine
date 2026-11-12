@@ -36,6 +36,7 @@ test('PlayerSocket handlers are invoked on socket messages and events', async ()
   let opened = false;
   let receivedEvent = null;
   let receivedInputMode = null;
+  let receivedTheme = false;
   let receivedStanding = null;
   let receivedNotification = null;
 
@@ -43,6 +44,7 @@ test('PlayerSocket handlers are invoked on socket messages and events', async ()
     onOpen: () => { opened = true; },
     onEvent: (e) => { receivedEvent = e; },
     onInputMode: (mode) => { receivedInputMode = mode; },
+    onTheme: () => { receivedTheme = true; },
     onStanding: (s) => { receivedStanding = s; },
     onNotification: (n) => { receivedNotification = n; },
     onOffline: () => {},
@@ -58,6 +60,11 @@ test('PlayerSocket handlers are invoked on socket messages and events', async ()
   socket.receive({ type: 'status', event: { type: 'input-mode', data: { mode: 'shake' } } });
   assert.deepEqual(receivedEvent, { type: 'input-mode', data: { mode: 'shake' } });
   assert.equal(receivedInputMode, 'shake');
+
+  // Status with theme event
+  socket.receive({ type: 'status', event: { type: 'theme', data: { theme: { id: 'classic' } } } });
+  assert.deepEqual(receivedEvent, { type: 'theme', data: { theme: { id: 'classic' } } });
+  assert.equal(receivedTheme, true);
 
   // Standing
   socket.receive({ type: 'standing', standing: { teamPosition: 1, rankInTeam: 1 } });

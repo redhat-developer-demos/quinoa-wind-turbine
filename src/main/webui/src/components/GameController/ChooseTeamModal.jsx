@@ -1,6 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
-import { TEAMS_CONFIG } from '../../Config';
+import { useTheme } from '../../ThemeContext';
 import { getContrastColor } from '../Dashboard/DashboardUtils';
 
 const TeamContainer = styled.div`
@@ -50,6 +50,8 @@ const TeamSelectionButton = styled.div`
 
 
 export default function ChooseTeamModal(props) {
+  // The live theme, so an applied theme renames the buttons without a reload.
+  const { teams } = useTheme();
   // A light team color needs dark text; white on a white team was unreadable.
   const buttonStyle = (team) => ({
     backgroundColor: team.color,
@@ -61,10 +63,10 @@ export default function ChooseTeamModal(props) {
         Choose your team:
       </TeamHeader>
       <TeamSelectionButton onClick={() => props.onClick(1)}>
-        <div style={buttonStyle(TEAMS_CONFIG[0])}>Team {TEAMS_CONFIG[0].name}</div>
+        <div style={buttonStyle(teams[0])}>Team {teams[0].name}</div>
       </TeamSelectionButton>
       <TeamSelectionButton onClick={() => props.onClick(2)}>
-        <div style={buttonStyle(TEAMS_CONFIG[1])}>Team {TEAMS_CONFIG[1].name}</div>
+        <div style={buttonStyle(teams[1])}>Team {teams[1].name}</div>
       </TeamSelectionButton>          
     </TeamContainer>
   );

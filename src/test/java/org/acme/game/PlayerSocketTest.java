@@ -60,6 +60,23 @@ class PlayerSocketTest {
     }
 
     @Test
+    void receivesThemeEvents() {
+        // Themes are only applied between races, and the phone must connect first to hear the event.
+        sendEvent("reset");
+        await().atMost(Duration.ofSeconds(60)).until(() -> state().status() == Status.WAITING);
+
+        try (Player ada = connect(1006, 1)) {
+            given().cookie(AdminSession.login()).post("/api/theme/preset/ferrari-mercedes")
+                .then().statusCode(204);
+            JsonObject event = ada.awaitMessage(m -> m.getString("type").equals("status")
+                && m.getJsonObject("event").getString("type").equals("theme"))
+                .getJsonObject("event");
+            assertEquals("ferrari-mercedes",
+                event.getJsonObject("data").getJsonObject("theme").getString("id"));
+        }
+    }
+
+    @Test
     void closedPlayersDontRegisterAfterAReset() {
         connect(1004, 1).close();
         String previousRace = state().raceId();
