@@ -1,0 +1,50 @@
+---
+config:
+  theme: base
+  fontFamily: sans-serif
+  themeCSS: "* { font-family: sans-serif !important; }"
+  themeVariables:
+    fontFamily: sans-serif
+    fontSize: 18px
+    primaryColor: '#eaf3fc'
+    primaryTextColor: '#182c43'
+    primaryBorderColor: '#3975a8'
+    lineColor: '#52677c'
+    edgeLabelBackground: '#ffffff'
+    clusterBkg: '#f5f7fa'
+    clusterBorder: '#ccd6e0'
+  flowchart:
+    curve: basis
+    nodeSpacing: 28
+    rankSpacing: 45
+---
+flowchart TB
+    subgraph browsers["Browser clients"]
+        P["Player phones"]
+        D["Operator dashboard"]
+    end
+    subgraph quarkus["Quarkus application · replicated on OpenShift"]
+        G["REST and WebSockets<br/>Join, tap, start and reset"]
+        T["Kafka Streams<br/>Scores, positions and finish order"]
+        R["Race updates<br/>Latest snapshot on each replica"]
+    end
+    E[("Kafka<br/>Power and game events")]
+    S[("Kafka<br/>Race snapshots")]
+    C[("Infinispan<br/>Counters, settings and results")]
+
+    P <-->|"REST to join · WebSocket to play"| G
+    D <-->|"REST controls · WebSocket updates"| G
+    G -->|"Publish events"| E
+    E --> T
+    T -->|"Publish race-progress"| S
+    S --> R
+    R -->|"Push standings and race updates"| G
+    G <-->|"Shared counters and settings"| C
+    S -->|"Persist finished results"| C
+
+    style quarkus fill:#edf5fc,stroke:#3975a8
+    style browsers fill:#f7f7f7,stroke:#abb7c2
+    classDef event fill:#fff0e9,stroke:#bb6040,color:#663b29
+    classDef cache fill:#f1ecfa,stroke:#8060ad,color:#3f2e58
+    class E,S event
+    class C cache

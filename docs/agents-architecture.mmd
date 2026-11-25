@@ -1,0 +1,45 @@
+---
+config:
+  theme: base
+  fontFamily: sans-serif
+  themeCSS: "* { font-family: sans-serif !important; }"
+  themeVariables:
+    fontFamily: sans-serif
+    fontSize: 18px
+    primaryColor: '#eaf3fc'
+    primaryTextColor: '#182c43'
+    primaryBorderColor: '#3975a8'
+    lineColor: '#52677c'
+    edgeLabelBackground: '#ffffff'
+    clusterBkg: '#f5f7fa'
+    clusterBorder: '#ccd6e0'
+  flowchart:
+    curve: basis
+    nodeSpacing: 30
+    rankSpacing: 45
+---
+flowchart TB
+    B["IBM Bob or another assistant"]
+    O["Operator<br/>Approves boost and theme proposals"]
+    subgraph agents["Quarkus services · LangChain4j"]
+        D["Race director<br/>Watches the event and coordinates decisions"]
+        A["Analyst<br/>Computes player engagement"]
+        C["Creative director<br/>Proposes the next theme"]
+        D <-->|"A2A"| A
+        D <-->|"A2A"| C
+    end
+    G["Game MCP server<br/>Public race data · protected admin tools"]
+    K["Keycloak<br/>OIDC tokens and admin role"]
+    L["OpenAI-compatible model endpoint"]
+
+    O -->|"Dashboard approval"| D
+    B <-->|"MCP"| G
+    D <-->|"MCP · watch and operate"| G
+    C <-->|"MCP · theme tools"| G
+    K -.->|"Tokens required for admin calls"| G
+    D -.->|"Model calls"| L
+    C -.->|"Model calls"| L
+
+    style agents fill:#edf5fc,stroke:#3975a8
+    style K fill:#fbecec,stroke:#b54a4a
+    style G fill:#fff0e9,stroke:#bb6040

@@ -152,8 +152,10 @@ jbang scripts/GameLoader.java http://localhost:8080 --players 20 --power 15
 
 With `--ws`, each simulated player opens the player WebSocket and sends its clicks as messages, the way the phones do, instead of one `POST /api/power` per click, and stops when the race finishes. To compare the two transports, run the script once in each mode and look at `http_server_requests_seconds` and the `quarkus_websockets_server_*` metrics on `http://localhost:8080/metrics`.
 
-## Using the game as a customization base
+## Customize a heat
 
-The UI loads the team configuration from `GET /api/config` before rendering. The available car images are listed in [`Config.js`](../src/main/webui/src/Config.js), which still exports `TEAMS_CONFIG` for the components. The painted track stays the default for now; themed and AI-generated tracks come later.
+Between heats, the dashboard's *Theme* panel lets the operator pick a track and cars, then edit the team names and colors. To change the teams the game starts with, edit `game.teams.1.*` and `game.teams.2.*` in [application.properties](../src/main/resources/application.properties).
 
-A team's distance is its power × 100 / (tap power × taps needed × players in the team). `TAP_POWER` in `Config.js` sets the power each tap sends from the phone, so keep it equal to `game.tap-power`.
+The finish target is `game.tap-power × game.taps-needed-per-player × players on the team`. With the defaults, each tap adds 15 W and each team needs an average of 100 taps per player. Change `game.taps-needed-per-player` for a shorter or longer race. If you change `game.tap-power`, update `TAP_POWER` on the phone as well. [Player configuration](../src/main/webui/src/Config.js)
+
+Phones use tap controls by default. Set `game.input.mode` to `shake` or `both` to start with motion controls, or switch between heats with the admin MCP tool `set_input_mode`. Players tap *Enable Shaking* to grant motion access. Browsers without motion support use tap controls.
