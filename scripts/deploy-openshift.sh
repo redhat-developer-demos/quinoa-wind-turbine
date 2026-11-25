@@ -10,7 +10,7 @@
 # Deployments afterwards, which is what a from-scratch install on a cluster without that GitOps setup
 # still needs. A fix made here does not reach the live namespace: change the overlay instead.
 #
-# Prerequisites: `oc login` as a cluster-admin, the repo's Maven wrapper (./mvnw), and python3 for the
+# Prerequisites: `oc login` as a cluster-admin, the repo's Maven wrapper (./mvnw), and JBang for the
 # JSON handling of the Keycloak Admin API calls.
 #
 # Usage:
@@ -167,6 +167,7 @@ KC_URL=""
 if [ "${SKIP_KEYCLOAK:-0}" = 1 ] || ! oc get keycloak "$KEYCLOAK_CR" -n "$KEYCLOAK_NAMESPACE" >/dev/null 2>&1; then
   log "No Keycloak $KEYCLOAK_CR in $KEYCLOAK_NAMESPACE; the admin MCP tools will reject calls"
 else
+  command -v jbang >/dev/null 2>&1 || die "Keycloak setup needs JBang; install it from https://www.jbang.dev"
   log "Keycloak realm wind-turbine in $KEYCLOAK_NAMESPACE"
   KC_HOST=$(oc get route "$KEYCLOAK_CR" -n "$KEYCLOAK_NAMESPACE" -o jsonpath='{.spec.host}')
   KC_URL="https://$KC_HOST/realms/wind-turbine"
@@ -208,10 +209,7 @@ else
       REALM_JSON=$(oc process -f src/main/kubernetes/keycloak/realm-import.yaml \
           -p KEYCLOAK_CR_NAME="$KEYCLOAK_CR" -o json \
         | GAME_ADMIN_PASSWORD="$GAME_ADMIN_PASSWORD" \
-          python3 -c 'import json, os, sys
-realm = json.dumps(json.load(sys.stdin)["items"][0]["spec"]["realm"])
-realm = realm.replace("${GAME_ADMIN_PASSWORD}", os.environ["GAME_ADMIN_PASSWORD"])
-sys.stdout.write(realm)')
+          jbang scripts/KeycloakJson.java realm)
       curl -fsS -o /dev/null -H "Authorization: Bearer $KC_TOKEN" -H "Content-Type: application/json" \
         -X POST "https://$KC_HOST/admin/realms" -d "$REALM_JSON" \
         || die "could not create the wind-turbine realm"
@@ -257,7 +255,7 @@ sys.stdout.write(realm)')
   # cluster stamps into its service account tokens, and Keycloak reads the keys from the cluster's
   # own discovery endpoint with its pod's token, which works because it runs in this cluster.
   SA_ISSUER=$(oc get --raw /.well-known/openid-configuration \
-    | python3 -c 'import json, sys; print(json.load(sys.stdin)["issuer"])') \
+    | jbang scripts/KeycloakJson.java issuer) \
     || die "could not read the cluster's service account issuer"
   if ! kc GET /identity-provider/instances/openshift-sa -o /dev/null 2>/dev/null; then
     log "Kubernetes identity provider openshift-sa (issuer $SA_ISSUER)"
@@ -286,7 +284,7 @@ sys.stdout.write(realm)')
   # A realm created before federated client authentication existed has a client authentication
   # flow without the "Signed JWT - Federated" step, and a built-in flow can't be edited, so copy it,
   # add the step and bind the copy.
-  CLIENT_FLOW=$(kc GET "" | python3 -c 'import json, sys; print(json.load(sys.stdin)["clientAuthenticationFlow"])') \
+  CLIENT_FLOW=$(kc GET "" | jbang scripts/KeycloakJson.java client-flow) \
     || die "could not read the realm's client authentication flow"
   CLIENT_FLOW_EXECUTIONS=$(kc GET "/authentication/flows/$CLIENT_FLOW/executions") \
     || die "could not read the client authentication flow $CLIENT_FLOW"
@@ -296,18 +294,13 @@ sys.stdout.write(realm)')
       || die "could not copy the client authentication flow"
     kc POST /authentication/flows/clients-federated/executions/execution -o /dev/null \
       -d '{"provider":"federated-jwt"}' || die "could not add the federated step to the flow"
-    FEDERATED_EXECUTION_ID=$(kc GET /authentication/flows/clients-federated/executions | python3 -c '
-import json, sys
-print(next(e["id"] for e in json.load(sys.stdin) if e["providerId"] == "federated-jwt"))') \
+    FEDERATED_EXECUTION_ID=$(kc GET /authentication/flows/clients-federated/executions \
+      | jbang scripts/KeycloakJson.java federated-execution) \
       || die "the federated step did not appear in the flow"
     kc PUT /authentication/flows/clients-federated/executions -o /dev/null \
       -d "{\"id\":\"$FEDERATED_EXECUTION_ID\",\"requirement\":\"ALTERNATIVE\"}" \
       || die "could not enable the federated step"
-    kc GET "" | python3 -c '
-import json, sys
-realm = json.load(sys.stdin)
-realm["clientAuthenticationFlow"] = "clients-federated"
-sys.stdout.write(json.dumps(realm))' \
+    kc GET "" | jbang scripts/KeycloakJson.java bind-client-flow \
       | kc PUT "" -o /dev/null -d @- || die "could not bind the client authentication flow"
   fi
 

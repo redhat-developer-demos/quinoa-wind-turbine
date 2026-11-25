@@ -20,7 +20,8 @@ This is the fallback path. The live namespace runs from
 Argo CD, which also reconciles the realm content.
 
 [`scripts/deploy-openshift.sh`](../scripts/deploy-openshift.sh) runs every step below in order, with
-the waits in between. It is safe to re-run:
+the waits in between. It uses JDK 25 and JBang, including a [Java helper](../scripts/KeycloakJson.java)
+for the Keycloak JSON configuration. Run it from the repository root.
 
 ```bash
 scripts/deploy-openshift.sh
